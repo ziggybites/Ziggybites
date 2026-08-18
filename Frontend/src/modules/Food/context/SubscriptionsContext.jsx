@@ -100,9 +100,7 @@ export function SubscriptionsProvider({ children }) {
       }
       throw error
     } finally {
-      if (!silent) {
-        setLoading(false)
-      }
+      setLoading(false)
     }
   }, [])
 
