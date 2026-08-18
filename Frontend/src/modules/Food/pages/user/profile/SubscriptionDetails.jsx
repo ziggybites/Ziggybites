@@ -61,6 +61,14 @@ export default function SubscriptionDetails() {
 
   const nextSchedule = useMemo(() => schedules[0] || null, [schedules]);
 
+  const goBackToSubscriptions = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate("/food/user/profile/subscriptions", { replace: true });
+  };
+
   const openAddressSelector = () => {
     navigate("/food/user/address-selector", {
       state: {
@@ -90,7 +98,7 @@ export default function SubscriptionDetails() {
     return (
       <AnimatedPage className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a]">
         <div className="max-w-md mx-auto px-4 py-4 pb-24">
-          <Button variant="ghost" className="mb-4 px-0" onClick={() => navigate(-1)}>
+          <Button variant="ghost" className="mb-4 px-0" onClick={goBackToSubscriptions}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
@@ -108,7 +116,7 @@ export default function SubscriptionDetails() {
     <AnimatedPage className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a]">
       <div className="max-w-md mx-auto px-4 py-4 pb-24">
         <div className="mb-4 flex items-center gap-3">
-          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={() => navigate(-1)}>
+          <Button variant="ghost" size="icon" className="h-8 w-8 p-0" onClick={goBackToSubscriptions}>
             <ArrowLeft className="h-5 w-5 text-black dark:text-white" />
           </Button>
           <div>

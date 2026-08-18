@@ -136,6 +136,20 @@ export default function SubscriptionCheckout() {
     });
   };
 
+  const goBackWithFallback = () => {
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+    navigate("/food/user/subscription-plans", {
+      replace: true,
+      state: {
+        dish,
+        selectedMeals,
+      },
+    });
+  };
+
   const handleChangeAddress = () => {
     if (!isAuthenticated) {
       redirectToLogin();
@@ -201,7 +215,7 @@ export default function SubscriptionCheckout() {
 
     if (!selectedMeals.length) {
       toast.error("Please select at least one meal.");
-      navigate(-1);
+      goBackWithFallback();
       return;
     }
 
@@ -403,7 +417,7 @@ export default function SubscriptionCheckout() {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 font-sans">
         <p className="text-gray-500 font-medium mb-4">No plan details found.</p>
         <button
-          onClick={() => navigate(-1)}
+          onClick={goBackWithFallback}
           className="text-[#e3282c] font-bold border border-[#e3282c] px-6 py-2.5 rounded-xl"
         >
           Go Back
@@ -416,7 +430,7 @@ export default function SubscriptionCheckout() {
     <div className="min-h-screen bg-[#fafafa] text-gray-900 pb-12 font-sans">
       <header className="sticky top-0 z-50 border-b border-gray-100 bg-white px-4 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="text-gray-800">
+          <button onClick={goBackWithFallback} className="text-gray-800">
             <ArrowLeft className="h-6 w-6" />
           </button>
           <h1 className="text-lg font-bold tracking-tight">Plan details & payment</h1>
@@ -595,7 +609,7 @@ export default function SubscriptionCheckout() {
             )}
           </button>
           <button
-            onClick={() => navigate(-1)}
+            onClick={goBackWithFallback}
             className="w-full bg-white text-[#e3282c] border border-[#e3282c] rounded-[12px] py-3.5 flex justify-center items-center font-bold text-sm transition-colors active:bg-red-50 hover:bg-red-50/50"
           >
             Back to plans
