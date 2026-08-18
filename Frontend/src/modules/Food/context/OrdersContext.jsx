@@ -220,7 +220,7 @@ export function OrdersProvider({ children }) {
 
   const refreshOrders = useCallback(async ({ silent = false } = {}) => {
     if (!isUserAuthenticated()) {
-      setOrders([])
+      setOrders(prev => prev.length > 0 ? [] : prev)
       setLoading(false)
       try {
         localStorage.removeItem(ORDERS_STORAGE_KEY)
@@ -265,7 +265,7 @@ export function OrdersProvider({ children }) {
   useEffect(() => {
     const hydrateOrders = ({ force = false } = {}) => {
       if (!isUserAuthenticated()) {
-        setOrders([])
+        setOrders(prev => prev.length > 0 ? [] : prev)
         setLoading(false)
         return
       }

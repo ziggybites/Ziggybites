@@ -12,10 +12,18 @@ export const getAppConfigs = async (req, res) => {
 export const getAppConfigByName = async (req, res) => {
     try {
         const { appName } = req.params;
-        const config = await AppConfig.findOne({ appName });
+        let config = await AppConfig.findOne({ appName });
+        
         if (!config) {
-            return res.status(404).json({ success: false, message: 'Config not found' });
+            const validAppNames = ['user_app', 'delivery_app', 'restaurant_app', 'admin_app'];
+            if (validAppNames.includes(appName)) {
+                config = new AppConfig({ appName });
+                await config.save();
+            } else {
+                return res.status(404).json({ success: false, message: 'Config not found' });
+            }
         }
+        
         res.status(200).json({ success: true, data: config });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Server Error', error: error.message });

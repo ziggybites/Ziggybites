@@ -675,7 +675,11 @@ export const useDeliveryNotifications = () => {
         debugError('Error fetching delivery partner:', error);
       }
     };
-    fetchDeliveryPartnerId();
+    
+    const token = localStorage.getItem('delivery_accessToken') || localStorage.getItem('accessToken');
+    if (token) {
+      fetchDeliveryPartnerId();
+    }
   }, []);
 
   // Socket connection effect (no backend when API_BASE_URL is empty)
@@ -745,9 +749,15 @@ export const useDeliveryNotifications = () => {
     }
 
     const token = localStorage.getItem('delivery_accessToken') || localStorage.getItem('accessToken');
-    const tokenPreview = token ? `${String(token).slice(0, 12)}...` : null;
+    if (!token) {
+      debugLog('No auth token found, skipping socket connection.');
+      setIsConnected(false);
+      return;
+    }
+
+    const tokenPreview = `${String(token).slice(0, 12)}...`;
     debugLog('Preparing socket auth payload', {
-      tokenPresent: Boolean(token),
+      tokenPresent: true,
       tokenPreview,
       deliveryPartnerId,
       socketUrl,

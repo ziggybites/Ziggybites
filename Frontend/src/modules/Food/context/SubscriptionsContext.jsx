@@ -116,7 +116,7 @@ export function SubscriptionsProvider({ children }) {
       }
 
       refreshSubscriptions({
-        silent: subscriptions.length > 0 || upcomingSchedules.length > 0,
+        silent: true,
       }).catch(() => {
         setLoading(false)
       })
@@ -133,7 +133,7 @@ export function SubscriptionsProvider({ children }) {
     return () => {
       window.removeEventListener("userAuthChanged", handleAuthChange)
     }
-  }, [refreshSubscriptions, subscriptions.length, upcomingSchedules.length])
+  }, [refreshSubscriptions])
 
   const getSubscriptionById = useCallback(
     (subscriptionId) =>

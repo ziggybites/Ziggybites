@@ -530,10 +530,6 @@ export const verifyDeliveryOtpAndLogin = async (phone, otp, fcmToken, platform) 
 };
 
 export const logout = async (refreshToken, fcmToken, platform) => {
-  if (!refreshToken) {
-    throw new ValidationError("Refresh token is required");
-  }
-
   // 1. Remove specific FCM token from ALL collections if provided
   if (fcmToken) {
     console.log(`[FCM-Logout] Starting logout-driven token removal: platform=${platform}, tokenPreview=${fcmToken?.slice(0, 10)}...`);
@@ -558,8 +554,13 @@ export const logout = async (refreshToken, fcmToken, platform) => {
   }
 
   // 2. Invalidate the refresh token (standard logout procedure)
-  const deleted = await FoodRefreshToken.deleteOne({ token: refreshToken });
-  return { invalidated: deleted.deletedCount > 0 };
+  let deletedCount = 0;
+  if (refreshToken) {
+    const deleted = await FoodRefreshToken.deleteOne({ token: refreshToken });
+    deletedCount = deleted.deletedCount;
+  }
+  
+  return { invalidated: deletedCount > 0 };
 };
 
 export const getProfile = async (userId, role) => {

@@ -287,7 +287,10 @@ export const useRestaurantNotifications = () => {
         debugError('Error fetching restaurant:', error);
       }
     };
-    fetchRestaurantId();
+    const token = localStorage.getItem('restaurant_accessToken') || localStorage.getItem('accessToken');
+    if (token) {
+      fetchRestaurantId();
+    }
   }, []);
 
   // Reliability fallback:
@@ -464,6 +467,13 @@ export const useRestaurantNotifications = () => {
     }
     if (!restaurantId) {
       debugLog('? Waiting for restaurantId...');
+      return;
+    }
+    
+    const token = localStorage.getItem('restaurant_accessToken') || localStorage.getItem('accessToken');
+    if (!token) {
+      debugLog('? No auth token found, skipping socket connection.');
+      setIsConnected(false);
       return;
     }
 

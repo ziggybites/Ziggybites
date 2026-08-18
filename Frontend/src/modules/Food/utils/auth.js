@@ -178,8 +178,8 @@ export function setAuthData(module, token, user, _refreshToken = null) {
     if (module === 'user') clearUserSession();
     if (module === 'restaurant') clearRestaurantSessionCache();
 
-    setAccessToken(module, token);
     removeLegacyStoredTokens(module);
+    setAccessToken(module, token);
     localStorage.setItem(authKey, 'true');
     if (user) {
       localStorage.setItem(userKey, JSON.stringify(user));

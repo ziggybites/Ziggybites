@@ -32,7 +32,9 @@ const navItems = [
     label: "Profile",
     to: "/food/user/profile",
     icon: User,
-    active: (pathname) => pathname.startsWith("/food/user/profile"),
+    active: (pathname) =>
+      pathname.startsWith("/food/user/profile") &&
+      !pathname.startsWith("/food/user/profile/subscriptions"),
   },
 ]
 
@@ -50,7 +52,7 @@ export default function BottomNavigation() {
             <Link
               key={item.label}
               to={item.to}
-              className={`flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-colors ${
+              className={`flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-all active:scale-95 active:opacity-70 ${
                 isActive ? "text-[#e32c31]" : "text-[#4f4b5c]"
               }`}
             >

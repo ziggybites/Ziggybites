@@ -364,6 +364,11 @@ export async function enablePushNotificationSound() {
     localStorage.setItem(pushSoundEnabledStorageKey, "true");
     window.dispatchEvent(new CustomEvent("push-sound-enabled"));
 
+    const moduleName = normalizeModuleFromPath();
+    if (moduleName === "delivery") {
+      return true;
+    }
+
     const players = createPushPlaybackAudio();
     for (const previewAudio of players) {
       try {

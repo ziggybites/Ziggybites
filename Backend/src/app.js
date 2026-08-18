@@ -31,7 +31,9 @@ const corsOriginHandler = (origin, callback) => {
         return;
     }
 
-    callback(new Error('CORS origin not allowed'));
+    const err = new Error('CORS origin not allowed');
+    err.statusCode = 403;
+    callback(err);
 };
 
 app.use(compression());
