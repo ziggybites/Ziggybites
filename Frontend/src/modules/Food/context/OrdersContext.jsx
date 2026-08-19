@@ -47,8 +47,8 @@ const getLastOrdersSyncTime = () => {
   }
 }
 
-const hasFreshOrdersCache = (orders = []) =>
-  orders.length > 0 && Date.now() - getLastOrdersSyncTime() < ORDERS_STALE_MS
+const hasFreshOrdersCache = () =>
+  Date.now() - getLastOrdersSyncTime() < ORDERS_STALE_MS
 
 const transformOrders = (ordersData = []) => {
   const transformedOrders = ordersData.map((order) => {
@@ -270,7 +270,7 @@ export function OrdersProvider({ children }) {
         return
       }
 
-      if (!force && hasFreshOrdersCache(orders)) {
+      if (!force && hasFreshOrdersCache()) {
         setLoading(false)
         return
       }
