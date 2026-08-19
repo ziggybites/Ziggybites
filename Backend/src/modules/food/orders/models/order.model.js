@@ -146,7 +146,8 @@ const dispatchSchema = new mongoose.Schema(
             requiredCashForOrder: { type: Number, default: 0 }
         }],
         dispatchingAt: { type: Date },
-        lastRequestedAt: { type: Date }
+        lastRequestedAt: { type: Date },
+        phase3AlertedAt: { type: Date, default: null }
     },
     { _id: false }
 );

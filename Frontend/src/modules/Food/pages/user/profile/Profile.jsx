@@ -144,6 +144,15 @@ export default function Profile() {
     userProfile?.phone?.charAt(1)?.toUpperCase() ||
     "U";
   const displayName = userProfile?.name || userProfile?.phone || "User";
+  const normalizedProfileImage =
+    typeof userProfile?.profileImage === "string"
+      ? userProfile.profileImage
+      : userProfile?.profileImage?.url || userProfile?.profileImage?.secure_url || "";
+  const hasProfileImage =
+    typeof normalizedProfileImage === "string" &&
+    normalizedProfileImage.trim() !== "" &&
+    normalizedProfileImage !== "null" &&
+    normalizedProfileImage !== "undefined";
   // Only show email if it exists and is valid, otherwise show phone or "Not available"
   const hasValidEmail =
     userProfile?.email &&
@@ -199,13 +208,7 @@ export default function Profile() {
     const hasContact = hasPhone || hasValidEmail;
 
     // Check profile image - must have URL string
-    const hasImage = !!(
-      userProfile.profileImage &&
-      typeof userProfile.profileImage === "string" &&
-      userProfile.profileImage.trim() !== "" &&
-      userProfile.profileImage !== "null" &&
-      userProfile.profileImage !== "undefined"
-    );
+    const hasImage = hasProfileImage;
 
     // Check date of birth
     const hasDateOfBirth = isDateFilled(userProfile.dateOfBirth);
@@ -505,14 +508,9 @@ export default function Profile() {
                 whileHover={{ scale: 1.1, rotate: 5 }}
                 transition={{ duration: 0.3, type: "spring", stiffness: 300 }}>
                 <Avatar className="h-16 w-16 bg-primary/20 border-0">
-                  {userProfile?.profileImage && (
+                  {hasProfileImage && (
                     <AvatarImage
-                      src={
-                        userProfile.profileImage &&
-                          userProfile.profileImage.trim()
-                          ? userProfile.profileImage
-                          : undefined
-                      }
+                      src={normalizedProfileImage}
                       alt={displayName}
                     />
                   )}

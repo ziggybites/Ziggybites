@@ -655,6 +655,7 @@ export async function rejectOrderDelivery(orderId, deliveryPartnerId, reason = '
   order.dispatch.deliveryPartnerId = undefined;
   order.dispatch.assignedAt = undefined;
   order.dispatch.acceptedAt = undefined;
+  order.dispatch.phase3AlertedAt = undefined;
   pushStatusHistory(order, {
     byRole: 'DELIVERY_PARTNER',
     byId: deliveryPartnerId,

@@ -176,7 +176,7 @@ export async function tryAutoAssign(orderId, options = {}) {
     const isPhase2 = attempt >= 4;
     const isPhase3 = attempt >= 6; // ~2 minutes (20s * 6)
 
-    if (isPhase3) {
+    if (isPhase3 && !order.dispatch?.phase3AlertedAt) {
       logger.error(`[CRITICAL] Order ${order._id} unassigned for ${attempt} mins. Triggering Admin Alert (Phase 3).`);
       // Notify Admin via Push (Web/Mobile)
       try {
@@ -191,6 +191,9 @@ export async function tryAutoAssign(orderId, options = {}) {
       } catch (err) {
         logger.warn(`Admin notification failed: ${err.message}`);
       }
+
+      order.dispatch.phase3AlertedAt = new Date();
+      await order.save();
     }
 
     const eligible = partners.filter(p => !offeredIds.includes(p.partnerId.toString()));
@@ -397,6 +400,7 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     order.dispatch.assignedAt = undefined;
     order.dispatch.acceptedAt = undefined;
     order.dispatch.dispatchingAt = undefined;
+    order.dispatch.phase3AlertedAt = undefined;
     if (order.deliveryState) {
       order.deliveryState.currentPhase = 'en_route_to_pickup';
       order.deliveryState.status = '';
@@ -441,6 +445,7 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
       'dispatch.dispatchingAt': '',
       'dispatch.assignedAt': '',
       'dispatch.acceptedAt': '',
+      'dispatch.phase3AlertedAt': '',
     },
   });
 

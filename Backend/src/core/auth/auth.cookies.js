@@ -30,7 +30,8 @@ export const attachRefreshTokenCookie = (req, res, refreshToken) => {
 };
 
 export const clearRefreshTokenCookie = (req, res) => {
-  res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, getRefreshCookieOptions(req));
+  const { maxAge, ...clearOptions } = getRefreshCookieOptions(req);
+  res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, clearOptions);
 };
 
 export const getRefreshTokenFromRequest = (req) => {

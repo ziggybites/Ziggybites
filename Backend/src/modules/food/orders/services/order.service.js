@@ -1308,7 +1308,11 @@ export async function updateOrderStatusRestaurant(
             if (!isAlreadyAccepted) {
               await FoodOrder.findByIdAndUpdate(order._id, {
                 $set: { 'dispatch.status': 'unassigned' },
-                $unset: { 'dispatch.dispatchingAt': '', 'dispatch.deliveryPartnerId': '' },
+                $unset: {
+                  'dispatch.dispatchingAt': '',
+                  'dispatch.deliveryPartnerId': '',
+                  'dispatch.phase3AlertedAt': '',
+                },
               });
               // Clear offeredTo to restart the hunt fresh
               await FoodOrder.findByIdAndUpdate(order._id, {
