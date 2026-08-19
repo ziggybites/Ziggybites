@@ -13,7 +13,11 @@ import {
   SelectValue,
 } from "@food/components/ui/select"
 import { deliveryAPI } from "@food/api"
-import { clearModuleAuth } from "@food/utils/auth"
+import { clearModuleAuth, isModuleAuthenticated } from "@food/utils/auth"
+import {
+  DELIVERY_AUTH_FLOW_KEY,
+  DELIVERY_SIGNUP_DETAILS_KEY,
+} from "../../../../core/auth/storageKeys.js"
 import loginBg from "@food/assets/deliveryloginbanner.png"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 const debugLog = (...args) => {}
@@ -43,7 +47,7 @@ export default function DeliverySignup() {
 
   // Redirect to home if already authenticated
   useEffect(() => {
-    const isAuthenticated = localStorage.getItem("delivery_authenticated") === "true"
+    const isAuthenticated = isModuleAuthenticated("delivery")
     if (isAuthenticated) {
       navigate("/food/delivery", { replace: true })
     }
@@ -51,7 +55,7 @@ export default function DeliverySignup() {
 
   // Pre-fill form from sessionStorage if data exists (e.g., when coming back from OTP)
   useEffect(() => {
-    const stored = sessionStorage.getItem("deliveryAuthData")
+    const stored = sessionStorage.getItem(DELIVERY_AUTH_FLOW_KEY)
     if (stored) {
       try {
         const data = JSON.parse(stored)
@@ -160,7 +164,7 @@ export default function DeliverySignup() {
         countryCode: formData.countryCode || "+91",
         ref: String(searchParams.get("ref") || "").trim() || undefined,
       }
-      sessionStorage.setItem("deliverySignupDetails", JSON.stringify(signupDetails))
+      sessionStorage.setItem(DELIVERY_SIGNUP_DETAILS_KEY, JSON.stringify(signupDetails))
       clearModuleAuth("delivery")
 
       navigate("/food/delivery/signup/details")

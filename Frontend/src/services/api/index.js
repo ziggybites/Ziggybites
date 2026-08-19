@@ -1454,13 +1454,8 @@ export const restaurantAPI = {
     restaurantCurrentInFlight = null;
     restaurantCurrentCached = null;
     restaurantCurrentCacheTime = 0;
-    const token =
-      refreshToken ||
-      (typeof localStorage !== "undefined"
-        ? localStorage.getItem("restaurant_refreshToken")
-        : null);
     const fcmToken = typeof localStorage !== "undefined" ? localStorage.getItem("fcm_web_registered_token_restaurant") : null;
-    return authService.logout(token, fcmToken, "web");
+    return authService.logout(refreshToken || null, fcmToken, "web");
   },
   /** Backend has no email/password login; use phone OTP only. */
   login: (_email, _password) =>
@@ -1811,16 +1806,8 @@ export const deliveryAPI = {
   logout: (refreshToken) => {
     deliveryMeCached = null;
     deliveryMeCacheTime = 0;
-    try {
-      localStorage.removeItem("app:isOnline");
-    } catch (_) {}
-    const token =
-      refreshToken ||
-      (typeof localStorage !== "undefined"
-        ? localStorage.getItem("delivery_refreshToken")
-        : null);
     const fcmToken = typeof localStorage !== "undefined" ? localStorage.getItem("fcm_web_registered_token_delivery") : null;
-    return authService.logout(token, fcmToken, "web");
+    return authService.logout(refreshToken || null, fcmToken, "web");
   },
   /** POST /food/delivery/register - multipart FormData (new partner, no token). */
   register: (formData) => {

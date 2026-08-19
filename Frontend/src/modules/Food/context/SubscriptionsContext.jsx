@@ -1,13 +1,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { subscriptionAPI } from "@food/api"
+import { isModuleAuthenticated } from "@food/utils/auth"
+import { writeArrayStorage } from "../../../core/storage/localStorage.js"
 
 const SubscriptionsContext = createContext(null)
 const SUBSCRIPTIONS_STORAGE_KEY = "userSubscriptions"
 const SUBSCRIPTION_SCHEDULES_STORAGE_KEY = "userSubscriptionSchedules"
 
-const isUserAuthenticated = () =>
-  localStorage.getItem("user_authenticated") === "true" ||
-  !!localStorage.getItem("user_accessToken")
+const isUserAuthenticated = () => isModuleAuthenticated("user")
 
 export function SubscriptionsProvider({ children }) {
   const [subscriptions, setSubscriptions] = useState(() => {
@@ -32,9 +32,7 @@ export function SubscriptionsProvider({ children }) {
 
   useEffect(() => {
     try {
-      if (subscriptions.length > 0 || isUserAuthenticated()) {
-        localStorage.setItem(SUBSCRIPTIONS_STORAGE_KEY, JSON.stringify(subscriptions))
-      }
+      writeArrayStorage(SUBSCRIPTIONS_STORAGE_KEY, subscriptions)
     } catch {
       // ignore storage errors
     }
@@ -42,12 +40,10 @@ export function SubscriptionsProvider({ children }) {
 
   useEffect(() => {
     try {
-      if (upcomingSchedules.length > 0 || isUserAuthenticated()) {
-        localStorage.setItem(
-          SUBSCRIPTION_SCHEDULES_STORAGE_KEY,
-          JSON.stringify(upcomingSchedules),
-        )
-      }
+      writeArrayStorage(
+        SUBSCRIPTION_SCHEDULES_STORAGE_KEY,
+        upcomingSchedules,
+      )
     } catch {
       // ignore storage errors
     }

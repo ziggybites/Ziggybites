@@ -6,6 +6,7 @@ import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
 import { useLocation } from "@food/hooks/useLocation"
 import { toast } from "sonner"
+import { writeUserLocationToStorage } from "../../../../core/storage/localStorage.js"
 
 export default function LocationPrompt() {
   const routerLocation = useRouterLocation()
@@ -146,7 +147,7 @@ export default function LocationPrompt() {
       area: selectedLocation.address.suburb || selectedLocation.address.neighbourhood || ""
     }
 
-    localStorage.setItem("userLocation", JSON.stringify(locData))
+    writeUserLocationToStorage(locData)
     try { localStorage.setItem("deliveryAddressMode", "saved") } catch {}
     localStorage.setItem("locationPromptDismissed", "true")
     setShowPrompt(false)

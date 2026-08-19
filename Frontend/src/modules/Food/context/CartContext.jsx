@@ -1,5 +1,6 @@
 // src/context/cart-context.jsx
 import { createContext, useContext, useEffect, useMemo, useState } from "react"
+import { isModuleAuthenticated } from "@food/utils/auth"
 import { buildCartLineId } from "@food/utils/foodVariants"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -163,7 +164,7 @@ export function CartProvider({ children }) {
   useEffect(() => {
     try {
       // Only save if we have items or user is authenticated to avoid cluttering localStorage for every guest visitor
-      const isAuthenticated = localStorage.getItem("user_authenticated") === "true" || !!localStorage.getItem("user_accessToken");
+      const isAuthenticated = isModuleAuthenticated("user");
       if (cart.length > 0 || isAuthenticated) {
         localStorage.setItem("cart", JSON.stringify(normalizeCartData(cart)))
       }

@@ -7,6 +7,17 @@ import {
   removeLegacyStoredTokens,
   setAccessToken,
 } from '../../../core/auth/tokenStore.js';
+import {
+  clearUserProfileStorage,
+  DELIVERY_AUTH_FLOW_KEY,
+  DELIVERY_NEEDS_REGISTRATION_KEY,
+  DELIVERY_SIGNUP_DETAILS_KEY,
+  DELIVERY_SIGNUP_DOCS_KEY,
+  getAuthenticatedKey,
+  getFcmTokenKey,
+  getRefreshTokenLegacyKey,
+  getUserKey,
+} from '../../../core/auth/storageKeys.js';
 
 bootstrapTokenStore();
 
@@ -88,7 +99,7 @@ export function getCurrentUserRole(module = null) {
 
 export function getCurrentUser(module) {
   if (!module) return null;
-  const userStr = localStorage.getItem(`${module}_user`);
+  const userStr = localStorage.getItem(getUserKey(module));
   if (!userStr) return null;
   try {
     return JSON.parse(userStr);
@@ -105,7 +116,8 @@ export function isModuleAuthenticated(module) {
 
 export function clearUserSession() {
   if (typeof localStorage === 'undefined') return;
-  ['userProfile', 'user_user', 'user_edit_profile_draft'].forEach((key) => localStorage.removeItem(key));
+  clearUserProfileStorage();
+  localStorage.removeItem('user_edit_profile_draft');
 }
 
 export function clearRestaurantSessionCache() {
@@ -146,13 +158,23 @@ export function clearRestaurantPendingPhone() {
 export function clearModuleAuth(module) {
   clearAccessToken(module);
   removeLegacyStoredTokens(module);
-  localStorage.removeItem(`${module}_authenticated`);
-  localStorage.removeItem(`${module}_user`);
-  localStorage.removeItem(`fcm_web_registered_token_${module}`);
-  localStorage.removeItem(`${module}_refreshToken`);
+  localStorage.removeItem(getAuthenticatedKey(module));
+  localStorage.removeItem(getUserKey(module));
+  localStorage.removeItem(getFcmTokenKey(module));
+  localStorage.removeItem(getRefreshTokenLegacyKey(module));
   if (module === 'user') clearUserSession();
   if (module === 'restaurant') clearRestaurantSessionCache();
   sessionStorage.removeItem(`${module}AuthData`);
+  if (module === 'delivery') {
+    sessionStorage.removeItem(DELIVERY_AUTH_FLOW_KEY);
+    sessionStorage.removeItem(DELIVERY_SIGNUP_DETAILS_KEY);
+    sessionStorage.removeItem(DELIVERY_SIGNUP_DOCS_KEY);
+    sessionStorage.removeItem(DELIVERY_NEEDS_REGISTRATION_KEY);
+    localStorage.removeItem(DELIVERY_AUTH_FLOW_KEY);
+    localStorage.removeItem(DELIVERY_SIGNUP_DETAILS_KEY);
+    localStorage.removeItem(DELIVERY_SIGNUP_DOCS_KEY);
+    localStorage.removeItem(DELIVERY_NEEDS_REGISTRATION_KEY);
+  }
 }
 
 export function clearAuthData() {
@@ -172,21 +194,20 @@ export function setAuthData(module, token, user, _refreshToken = null) {
       throw new Error(`Invalid parameters: module=${module}, token=${!!token}`);
     }
 
-    const authKey = `${module}_authenticated`;
-    const userKey = `${module}_user`;
+    const userKey = getUserKey(module);
 
     if (module === 'user') clearUserSession();
     if (module === 'restaurant') clearRestaurantSessionCache();
 
     removeLegacyStoredTokens(module);
     setAccessToken(module, token);
-    localStorage.setItem(authKey, 'true');
+    localStorage.setItem(getAuthenticatedKey(module), 'true');
     if (user) {
       localStorage.setItem(userKey, JSON.stringify(user));
     }
 
     const storedToken = getModuleToken(module);
-    const storedAuth = localStorage.getItem(authKey);
+    const storedAuth = localStorage.getItem(getAuthenticatedKey(module));
     if (storedToken !== token) {
       throw new Error(`Token storage verification failed for module: ${module}`);
     }

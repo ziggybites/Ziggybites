@@ -19,6 +19,7 @@ import { API_BASE_URL } from "@food/api/config"
 import { toast } from "sonner"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
+import { hasStoredSession } from "../../../../core/auth/tokenStore"
 
 const defaultFormData = {
   name: "",
@@ -70,8 +71,7 @@ export default function Category() {
   const fileInputRef = useRef(null)
 
   useEffect(() => {
-    const adminToken = localStorage.getItem("admin_accessToken")
-    if (!adminToken) {
+    if (!hasStoredSession("admin")) {
       toast.error("Please login to access categories")
       setLoading(false)
       return

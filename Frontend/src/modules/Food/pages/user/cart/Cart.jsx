@@ -22,6 +22,8 @@ import { calculateDistance } from "@food/utils/common"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
+import { hasStoredSession } from "@core/auth/tokenStore"
+import { writeUserLocationToStorage } from "../../../../../core/storage/localStorage.js"
 const debugLog = (...args) => { }
 const debugWarn = (...args) => { }
 const debugError = (...args) => { }
@@ -1340,7 +1342,7 @@ export default function Cart() {
           ? `${address.additionalDetails}, ${address.street}, ${address.city}, ${address.state}${address.zipCode ? ` ${address.zipCode}` : ''}`
           : `${address.street}, ${address.city}, ${address.state}${address.zipCode ? ` ${address.zipCode}` : ''}`
       }
-      localStorage.setItem("userLocation", JSON.stringify(locationData))
+      writeUserLocationToStorage(locationData)
       // User selected a saved address from Cart; prefer saved mode.
       try {
         localStorage.setItem("deliveryAddressMode", "saved")
@@ -1602,7 +1604,7 @@ export default function Cart() {
       // Check API base URL before making request (for debugging)
       const fullUrl = `${API_BASE_URL}${API_ENDPOINTS.ORDER.CREATE}`;
       debugLog("?? Making request to:", fullUrl)
-      debugLog("?? Authentication token present:", !!localStorage.getItem('accessToken') || !!localStorage.getItem('user_accessToken'))
+      debugLog("?? Authentication token present:", hasStoredSession("user"))
 
       // CRITICAL: Validate restaurant ID before placing order
       // Ensure we're using the correct restaurant from restaurantData (most reliable)

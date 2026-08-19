@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { API_BASE_URL } from '@food/api/config';
 import { dispatchNotificationInboxRefresh } from '@food/hooks/useNotificationInbox';
 import { UserNotificationContext } from '../context/UserNotificationContext';
+import { readUserProfileFromStorage } from '../../../core/auth/storageKeys';
+import { getAccessToken } from '../../../core/auth/tokenStore';
 
 const debugLog = (...args) => {
   if (import.meta.env.DEV) {
@@ -31,22 +33,11 @@ export const useUserNotifications = () => {
   useEffect(() => {
     const resolveUserId = () => {
       try {
-        const candidates = [
-          localStorage.getItem('user_user'),
-          localStorage.getItem('userProfile'),
-        ].filter(Boolean)
-
-        for (const raw of candidates) {
-          try {
-            const user = JSON.parse(raw)
-            const id = user?._id?.toString?.() || user?.userId || user?.id || null
-            if (id) {
-              setUserId(String(id))
-              return
-            }
-          } catch {
-            // ignore malformed cache
-          }
+        const user = readUserProfileFromStorage();
+        const id = user?._id?.toString?.() || user?.userId || user?.id || null;
+        if (id) {
+          setUserId(String(id));
+          return;
         }
       } catch {
         // ignore storage errors
@@ -85,7 +76,7 @@ export const useUserNotifications = () => {
     const socketUrl = `${backendUrl}`;
     
     // Auth token
-    const token = localStorage.getItem('user_accessToken') || localStorage.getItem('accessToken');
+    const token = getAccessToken('user');
     if (!token) return;
 
     debugLog('🔌 Connecting to User Socket.IO:', socketUrl);

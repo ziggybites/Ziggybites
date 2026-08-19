@@ -27,6 +27,10 @@ import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
 import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
 import { EMAIL_REGEX } from "@/shared/utils/emailValidation"
+import {
+  readUserProfileFromStorage,
+  writeUserProfileToStorage,
+} from "../../../../../core/auth/storageKeys"
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
@@ -45,25 +49,11 @@ const genderOptions = [
   { value: "prefer-not-to-say", label: "Prefer not to say" },
 ]
 
-// Load profile data from localStorage (legacy + current keys)
-const loadProfileFromStorage = () => {
-  try {
-    const candidates = ["user_user", "userProfile", "appzeto_user_profile"]
-    for (const key of candidates) {
-      const stored = localStorage.getItem(key)
-      if (stored) return JSON.parse(stored)
-    }
-  } catch (error) {
-    debugError('Error loading profile from localStorage:', error)
-  }
-  return null
-}
+const loadProfileFromStorage = () => readUserProfileFromStorage()
 
-// Save profile data to localStorage (keep keys used by ProfileContext)
 const saveProfileToStorage = (data) => {
   try {
-    localStorage.setItem('user_user', JSON.stringify(data))
-    localStorage.setItem('userProfile', JSON.stringify(data))
+    writeUserProfileToStorage(data)
   } catch (error) {
     debugError('Error saving profile to localStorage:', error)
   }

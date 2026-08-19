@@ -226,14 +226,8 @@ export default function AdminNavbar({ onMenuClick }) {
 
       // Clear admin authentication and preference data from localStorage
       clearModuleAuth('admin');
-      localStorage.removeItem('admin_accessToken');
-      localStorage.removeItem('admin_authenticated');
-      localStorage.removeItem('admin_user');
       localStorage.removeItem('admin_sidebar_state');
       localStorage.removeItem('admin_recent_searches');
-
-      // Clear sessionStorage if any
-      sessionStorage.removeItem('adminAuthData');
 
       // Dispatch auth change event to notify other components
       window.dispatchEvent(new Event('adminAuthChanged'));
@@ -246,12 +240,8 @@ export default function AdminNavbar({ onMenuClick }) {
 
       // Clear local data anyway
       clearModuleAuth('admin');
-      localStorage.removeItem('admin_accessToken');
-      localStorage.removeItem('admin_authenticated');
-      localStorage.removeItem('admin_user');
       localStorage.removeItem('admin_sidebar_state');
       localStorage.removeItem('admin_recent_searches');
-      sessionStorage.removeItem('adminAuthData');
       window.dispatchEvent(new Event('adminAuthChanged'));
 
       // Navigate to login

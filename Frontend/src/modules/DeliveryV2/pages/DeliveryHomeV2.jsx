@@ -33,6 +33,8 @@ import { getHaversineDistance, calculateETA, calculateHeading } from '@/modules/
 import { useCompanyName } from "@food/hooks/useCompanyName";
 import { useNavigate } from 'react-router-dom';
 import useNotificationInbox from "@food/hooks/useNotificationInbox";
+import { clearModuleAuth } from '@/modules/Food/utils/auth';
+import { getAccessToken } from '@/core/auth/tokenStore';
 
 /** Minimal bottom-sheet popup (Restored from legacy FeedNavbar) */
 function BottomPopup({ isOpen, onClose, title, children }) {
@@ -116,10 +118,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     isLoggingOut.current = true;
     
     // 1. Clear tokens and state
-    localStorage.removeItem('delivery_accessToken');
-    localStorage.removeItem('delivery_refreshToken');
-    localStorage.removeItem('delivery_authenticated');
-    localStorage.removeItem('delivery_user');
+    clearModuleAuth('delivery');
     
     // 2. Alert user and redirect
     toast.error("Session Expired", { description: "Please log in again." });
@@ -538,7 +537,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     if (!claimedOrderId || !claimedOrderId.orderId) return;
     
     // Check if WE were the ones who claimed it
-    const token = localStorage.getItem('delivery_accessToken') || '';
+    const token = getAccessToken('delivery') || '';
     let myUserId = null;
     try {
       if (token) {

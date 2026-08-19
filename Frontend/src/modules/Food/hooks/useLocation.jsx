@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 import { locationAPI, userAPI } from "@food/api"
+import { getAccessToken, hasStoredSession } from "../../../core/auth/tokenStore"
+import { writeUserLocationToStorage } from "../../../core/storage/localStorage.js"
 
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -243,7 +245,7 @@ export function useLocation() {
       }
 
       // Check if user is authenticated before trying to update DB
-      const userToken = localStorage.getItem('user_accessToken') || localStorage.getItem('accessToken')
+      const userToken = getAccessToken("user")
       if (!userToken || userToken === 'null' || userToken === 'undefined') {
         // User not logged in - skip DB update, just use localStorage
         debugLog("?? User not authenticated, skipping DB update (using localStorage only)")
@@ -723,7 +725,7 @@ export function useLocation() {
   const fetchLocationFromDB = async () => {
     try {
       // Check if user is authenticated before trying to fetch from DB
-      const userToken = localStorage.getItem('user_accessToken') || localStorage.getItem('accessToken')
+      const userToken = getAccessToken("user")
       if (!userToken || userToken === 'null' || userToken === 'undefined') {
         // User not logged in - skip DB fetch, return null to use localStorage
         return null
@@ -974,7 +976,7 @@ export function useLocation() {
               }
 
               debugLog("?? Saving location:", finalLoc)
-              localStorage.setItem("userLocation", JSON.stringify(finalLoc))
+              writeUserLocationToStorage(finalLoc)
               setLocation(finalLoc)
               setPermissionGranted(true)
               if (showLoading) setLoading(false)
@@ -1008,7 +1010,7 @@ export function useLocation() {
                     accuracy: pos.coords.accuracy || null
                   }
                   debugLog("? Last resort geocoding succeeded:", lastResortLoc)
-                  localStorage.setItem("userLocation", JSON.stringify(lastResortLoc))
+                  writeUserLocationToStorage(lastResortLoc)
                   setLocation(lastResortLoc)
                   setPermissionGranted(true)
                   if (showLoading) setLoading(false)
@@ -1317,14 +1319,14 @@ export function useLocation() {
             if (coordsChanged) {
               prevLocationCoordsRef.current = { latitude: loc.latitude, longitude: loc.longitude }
               debugLog("?? Updating live location:", loc)
-              localStorage.setItem("userLocation", JSON.stringify(persistedLocation))
+              writeUserLocationToStorage(persistedLocation)
               setLocation(persistedLocation)
               setPermissionGranted(true)
               setError(null)
             } else {
               // Coordinates haven't changed significantly, skip state update to prevent re-renders
               // Still update localStorage silently for persistence
-              localStorage.setItem("userLocation", JSON.stringify(persistedLocation))
+              writeUserLocationToStorage(persistedLocation)
             }
 
             // Debounce DB updates - only update every 5 seconds
@@ -1532,7 +1534,7 @@ export function useLocation() {
           debugLog("?? Permissions API not available - Skipping auto-start");
         }
 
-        const isLoggedIn = !!(localStorage.getItem('user_accessToken') || localStorage.getItem('accessToken'));
+        const isLoggedIn = hasStoredSession("user");
 
         let intentionallySaved = false;
         try {

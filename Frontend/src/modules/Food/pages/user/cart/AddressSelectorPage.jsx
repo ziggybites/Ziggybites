@@ -12,6 +12,7 @@ import { locationAPI, userAPI } from "@food/api"
 import { Loader } from '@googlemaps/js-api-loader'
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
+import { writeUserLocationToStorage } from "../../../../../core/storage/localStorage.js"
 
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -230,7 +231,7 @@ export default function AddressSelectorPage() {
         try { 
           localStorage.setItem("deliveryAddressMode", "current")
           // Also ensure userLocation is saved (hook does this, but being explicit doesn't hurt)
-          localStorage.setItem("userLocation", JSON.stringify(loc))
+          writeUserLocationToStorage(loc)
         } catch {}
         
         toast.success("Location ready: " + (loc.area || loc.city || "Current Location"), { id: "geo" })
@@ -455,7 +456,7 @@ export default function AddressSelectorPage() {
       }
       
       try {
-        localStorage.setItem("userLocation", JSON.stringify(locData))
+        writeUserLocationToStorage(locData)
         localStorage.setItem("deliveryAddressMode", "saved")
         window.dispatchEvent(new CustomEvent("userLocationUpdated", { detail: locData }))
       } catch (e) {}

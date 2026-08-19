@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react"
 import { orderAPI } from "@food/api"
+import { isModuleAuthenticated } from "@food/utils/auth"
+import { writeArrayStorage } from "../../../core/storage/localStorage.js"
 
 const OrdersContext = createContext(null)
 const ORDERS_STORAGE_KEY = "userOrders"
@@ -9,9 +11,7 @@ const ORDERS_STALE_MS = 2 * 60 * 1000
 const ACTIVE_POLL_INTERVAL_MS = 20000
 const IDLE_POLL_INTERVAL_MS = 2 * 60 * 1000
 
-const isUserAuthenticated = () =>
-  localStorage.getItem("user_authenticated") === "true" ||
-  !!localStorage.getItem("user_accessToken")
+const isUserAuthenticated = () => isModuleAuthenticated("user")
 
 const getOrderStatus = (order) => {
   const status = order?.status
@@ -209,10 +209,7 @@ export function OrdersProvider({ children }) {
 
   useEffect(() => {
     try {
-      const isAuthenticated = isUserAuthenticated()
-      if (orders.length > 0 || isAuthenticated) {
-        localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders))
-      }
+      writeArrayStorage(ORDERS_STORAGE_KEY, orders)
     } catch {
       // ignore storage errors
     }

@@ -24,12 +24,12 @@ import {
 } from "lucide-react"
 import { restaurantAPI } from "@food/api"
 import { toast } from "sonner"
-import { clearModuleAuth } from "@food/utils/auth"
+import { clearModuleAuth, isModuleAuthenticated } from "@food/utils/auth"
 
 export default function MenuOverlay({ showMenu, setShowMenu }) {
   const navigate = useNavigate()
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem("restaurant_authenticated") === "true"
+    return isModuleAuthenticated("restaurant")
   })
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false)
   const [deleteStep, setDeleteStep] = useState(1)
@@ -39,7 +39,7 @@ export default function MenuOverlay({ showMenu, setShowMenu }) {
   // Listen for authentication state changes
   useEffect(() => {
     const checkAuth = () => {
-      setIsAuthenticated(localStorage.getItem("restaurant_authenticated") === "true")
+      setIsAuthenticated(isModuleAuthenticated("restaurant"))
     }
 
     // Check on mount
@@ -188,9 +188,8 @@ export default function MenuOverlay({ showMenu, setShowMenu }) {
                                 await restaurantAPI.logout(null, fcmToken, platform);
                               } catch (e) {}
                               
-                              // Clear authentication state
-                              localStorage.removeItem("restaurant_authenticated")
-                              localStorage.removeItem("restaurant_user")
+                              // Clear restaurant auth/session state via shared helper
+                              clearModuleAuth("restaurant")
                               setIsAuthenticated(false)
                               // Dispatch custom event for same-tab updates
                               window.dispatchEvent(new Event('restaurantAuthChanged'))
@@ -322,8 +321,6 @@ export default function MenuOverlay({ showMenu, setShowMenu }) {
                       await restaurantAPI.deleteAccount();
                       toast.success("Restaurant account deleted successfully");
                       clearModuleAuth("restaurant");
-                      localStorage.removeItem("restaurant_authenticated");
-                      localStorage.removeItem("restaurant_user");
                       setIsAuthenticated(false);
                       window.dispatchEvent(new Event('restaurantAuthChanged'));
                       window.location.href = "/restaurant/login";

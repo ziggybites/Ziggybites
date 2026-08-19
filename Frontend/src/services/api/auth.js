@@ -1,5 +1,6 @@
 import apiClient, { userClient, restaurantClient, deliveryClient, adminClient } from './axios.js';
 import { EMAIL_REGEX } from '@/shared/utils/emailValidation';
+import { hasStoredSession } from '../../core/auth/tokenStore.js';
 
 const AUTH = {
   USER_REQUEST_OTP: '/food/auth/user/request-otp',
@@ -97,10 +98,7 @@ const BACKOFF_MS = 10000;
 
 function hasModuleSession(module) {
   try {
-    return (
-      localStorage.getItem(`${module}_authenticated`) === 'true' ||
-      Boolean(localStorage.getItem(`${module}_user`))
-    );
+    return hasStoredSession(module);
   } catch {
     return false;
   }

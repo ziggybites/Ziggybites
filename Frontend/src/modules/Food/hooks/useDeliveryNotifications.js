@@ -6,6 +6,11 @@ import { toast } from 'sonner';
 import notificationSound from '@food/assets/audio/alert.mp3';
 import { dispatchNotificationInboxRefresh } from '@food/hooks/useNotificationInbox';
 import { DeliveryNotificationContext } from '../context/DeliveryNotificationContext';
+import {
+  readPersistedDeliveryOnlineState,
+  useDeliveryStore,
+} from '../../DeliveryV2/store/useDeliveryStore';
+import { getAccessToken } from '../../../core/auth/tokenStore';
 
 const shouldLogDeliverySocket = () => {
   if (typeof window === 'undefined') return import.meta.env.DEV;
@@ -55,14 +60,7 @@ const safeReadJson = (key) => {
 };
 
 const isRiderOnline = () => {
-  try {
-    const raw = localStorage.getItem('delivery-v2-online-pref');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return !!parsed?.state?.isOnline;
-    }
-  } catch (e) {}
-  return false;
+  return readPersistedDeliveryOnlineState();
 };
 
 const decodeJwtPayload = (token) => {
@@ -102,9 +100,7 @@ const resolveDeliveryPartnerIdFromClient = () => {
 
     if (nestedCandidate) return String(nestedCandidate);
 
-    const token =
-      localStorage.getItem('delivery_accessToken') ||
-      localStorage.getItem('accessToken');
+    const token = getAccessToken('delivery');
     const payload = decodeJwtPayload(token);
     const tokenCandidate =
       payload?.userId ||
@@ -487,9 +483,7 @@ export const useDeliveryNotifications = () => {
           isConnected,
           socketId: socketRef.current?.id || null,
           socketConnected: Boolean(socketRef.current?.connected),
-          socketAuthTokenPresent: Boolean(
-            localStorage.getItem('delivery_accessToken') || localStorage.getItem('accessToken')
-          ),
+          socketAuthTokenPresent: Boolean(getAccessToken('delivery')),
         };
       },
     };
@@ -676,7 +670,7 @@ export const useDeliveryNotifications = () => {
       }
     };
     
-    const token = localStorage.getItem('delivery_accessToken') || localStorage.getItem('accessToken');
+    const token = getAccessToken('delivery');
     if (token) {
       fetchDeliveryPartnerId();
     }
@@ -748,7 +742,7 @@ export const useDeliveryNotifications = () => {
       return; // Don't try to connect with invalid URL
     }
 
-    const token = localStorage.getItem('delivery_accessToken') || localStorage.getItem('accessToken');
+    const token = getAccessToken('delivery');
     if (!token) {
       debugLog('No auth token found, skipping socket connection.');
       setIsConnected(false);
@@ -999,7 +993,6 @@ export const useDeliveryNotifications = () => {
     socketRef.current.on('admin_force_status', async (payload) => {
       debugLog('Admin force status received via socket', payload);
       try {
-        const { useDeliveryStore } = await import('@/modules/DeliveryV2/store/useDeliveryStore');
         const isOnline = payload?.status === 'online';
         useDeliveryStore.getState().setOnline(isOnline);
         
@@ -1018,7 +1011,7 @@ export const useDeliveryNotifications = () => {
 
     // Auth change/refresh listeners
     const handleAuthChange = () => {
-      const newToken = localStorage.getItem('delivery_accessToken') || localStorage.getItem('accessToken');
+      const newToken = getAccessToken('delivery');
       if (socketRef.current && newToken) {
         debugLog('?? Auth changed, updating socket token');
         socketRef.current.auth.token = newToken;

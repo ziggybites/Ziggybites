@@ -33,7 +33,7 @@ import {
 } from "lucide-react"
 import { Card, CardContent } from "@food/components/ui/card"
 import { DateRangeCalendar } from "@food/components/ui/date-range-calendar"
-import { clearModuleAuth, clearAuthData, getCurrentUser } from "@food/utils/auth"
+import { clearModuleAuth, getCurrentUser } from "@food/utils/auth"
 import { restaurantAPI, notificationAPI } from "@food/api"
 import { firebaseAuth, ensureFirebaseInitialized } from "@food/firebase"
 import { toast } from "sonner"
@@ -549,13 +549,6 @@ export default function ExploreMore() {
 
       // Clear any onboarding data from localStorage
       localStorage.removeItem("restaurant_onboarding")
-      localStorage.removeItem("restaurant_accessToken")
-      localStorage.removeItem("restaurant_authenticated")
-      localStorage.removeItem("restaurant_user")
-
-      // Clear sessionStorage
-      sessionStorage.removeItem("restaurantAuthData")
-
       // Dispatch auth change event to notify other components
       window.dispatchEvent(new Event("restaurantAuthChanged"))
 
@@ -568,10 +561,6 @@ export default function ExploreMore() {
       debugError("Error during logout:", error)
       clearModuleAuth("restaurant")
       localStorage.removeItem("restaurant_onboarding")
-      localStorage.removeItem("restaurant_accessToken")
-      localStorage.removeItem("restaurant_authenticated")
-      localStorage.removeItem("restaurant_user")
-      sessionStorage.removeItem("restaurantAuthData")
       window.dispatchEvent(new Event("restaurantAuthChanged"))
       navigate("/food/restaurant/welcome", { replace: true })
     } finally {
@@ -587,10 +576,6 @@ export default function ExploreMore() {
       // Clear auth and redirect
       clearModuleAuth("restaurant")
       localStorage.removeItem("restaurant_onboarding")
-      localStorage.removeItem("restaurant_accessToken")
-      localStorage.removeItem("restaurant_authenticated")
-      localStorage.removeItem("restaurant_user")
-      sessionStorage.removeItem("restaurantAuthData")
       window.dispatchEvent(new Event("restaurantAuthChanged"))
       navigate("/food/restaurant/welcome", { replace: true })
     } catch (error) {

@@ -5,6 +5,11 @@ import { deliveryAPI } from "@food/api"
 import { toast } from "sonner"
 import { isFlutterBridgeAvailable, openCamera } from "@food/utils/imageUploadUtils"
 import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
+import {
+  DELIVERY_NEEDS_REGISTRATION_KEY,
+  DELIVERY_SIGNUP_DETAILS_KEY,
+  DELIVERY_SIGNUP_DOCS_KEY,
+} from "../../../../core/auth/storageKeys.js"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -206,9 +211,13 @@ export default function SignupStep2() {
     drivingLicensePhoto: null
   })
   const [uploadedDocs, setUploadedDocs] = useState(() => {
-    const saved = localStorage.getItem("deliverySignupDocs")
+    const saved =
+      sessionStorage.getItem(DELIVERY_SIGNUP_DOCS_KEY) ||
+      localStorage.getItem(DELIVERY_SIGNUP_DOCS_KEY)
     if (saved) {
       try {
+        sessionStorage.setItem(DELIVERY_SIGNUP_DOCS_KEY, saved)
+        localStorage.removeItem(DELIVERY_SIGNUP_DOCS_KEY)
         return sanitizeUploadedDocs(JSON.parse(saved))
       } catch (e) {
         debugError("Error parsing saved docs:", e)
@@ -255,7 +264,7 @@ export default function SignupStep2() {
 
   // Save uploaded docs metadata to session storage whenever they change
   useEffect(() => {
-    localStorage.setItem("deliverySignupDocs", JSON.stringify(uploadedDocs))
+    sessionStorage.setItem(DELIVERY_SIGNUP_DOCS_KEY, JSON.stringify(uploadedDocs))
   }, [uploadedDocs])
 
   // Removed incorrect URL.revokeObjectURL cleanup that was breaking image previews
@@ -337,7 +346,9 @@ export default function SignupStep2() {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    const raw = localStorage.getItem("deliverySignupDetails")
+    const raw =
+      sessionStorage.getItem(DELIVERY_SIGNUP_DETAILS_KEY) ||
+      localStorage.getItem(DELIVERY_SIGNUP_DETAILS_KEY)
     if (!raw) {
       toast.error("Session expired. Please start from Create Account.")
       navigate("/food/delivery/signup", { replace: true })
@@ -424,7 +435,9 @@ export default function SignupStep2() {
       formData.append("platform", platform);
     }
 
-    const isCompleteProfile = localStorage.getItem("deliveryNeedsRegistration") === "true"
+    const isCompleteProfile =
+      sessionStorage.getItem(DELIVERY_NEEDS_REGISTRATION_KEY) === "true" ||
+      localStorage.getItem(DELIVERY_NEEDS_REGISTRATION_KEY) === "true"
 
     setIsSubmitting(true)
 
@@ -436,10 +449,13 @@ export default function SignupStep2() {
         : await deliveryAPI.completeProfile(formData)
 
       if (response?.data?.success) {
-        localStorage.removeItem("deliverySignupDetails")
-        localStorage.removeItem("deliverySignupDocs")
+        sessionStorage.removeItem(DELIVERY_SIGNUP_DETAILS_KEY)
+        sessionStorage.removeItem(DELIVERY_SIGNUP_DOCS_KEY)
+        sessionStorage.removeItem(DELIVERY_NEEDS_REGISTRATION_KEY)
+        localStorage.removeItem(DELIVERY_SIGNUP_DETAILS_KEY)
+        localStorage.removeItem(DELIVERY_SIGNUP_DOCS_KEY)
+        localStorage.removeItem(DELIVERY_NEEDS_REGISTRATION_KEY)
         await clearAllFilesFromDB()
-        localStorage.removeItem("deliveryNeedsRegistration")
         setIsSuccess(true)
       }
     } catch (error) {

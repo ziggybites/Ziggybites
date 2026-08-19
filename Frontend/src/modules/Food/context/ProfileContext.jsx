@@ -1,5 +1,15 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react"
 import { authAPI, userAPI } from "@food/api"
+import { isModuleAuthenticated } from "@food/utils/auth"
+import {
+  readUserProfileFromStorage,
+  writeUserProfileToStorage,
+} from "../../../core/auth/storageKeys"
+import {
+  normalizeUserLocationForStorage,
+  writeArrayStorage,
+  writeUserLocationToStorage,
+} from "../../../core/storage/localStorage.js"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -37,23 +47,7 @@ export function ProfileProvider({ children }) {
     return Array.from(addressMap.values())
   }
   const [userProfile, setUserProfile] = useState(() => {
-    const userStr = localStorage.getItem("user_user")
-    if (userStr) {
-      try {
-        return JSON.parse(userStr)
-      } catch (e) {
-        debugError("Error parsing user_user from localStorage:", e)
-      }
-    }
-    const saved = localStorage.getItem("userProfile")
-    if (saved) {
-      try {
-        return JSON.parse(saved)
-      } catch (e) {
-        debugError("Error parsing userProfile from localStorage:", e)
-      }
-    }
-    return null
+    return readUserProfileFromStorage()
   })
   
   const [loading, setLoading] = useState(true)
@@ -90,13 +84,13 @@ export function ProfileProvider({ children }) {
 
   // Helper to check if authenticated
   const isAuthenticated = useMemo(() => {
-    return localStorage.getItem("user_authenticated") === "true" || !!localStorage.getItem("user_accessToken")
+    return isModuleAuthenticated("user")
   }, [userProfile])
 
   // Save to localStorage whenever userProfile, addresses or paymentMethods change
   useEffect(() => {
     if (userProfile || isAuthenticated) {
-      localStorage.setItem("userProfile", JSON.stringify(userProfile))
+      writeUserProfileToStorage(userProfile)
     }
   }, [userProfile, isAuthenticated])
 
@@ -107,21 +101,15 @@ export function ProfileProvider({ children }) {
   }, [addresses, isAuthenticated])
 
   useEffect(() => {
-    if (paymentMethods.length > 0 || isAuthenticated) {
-      localStorage.setItem("userPaymentMethods", JSON.stringify(paymentMethods))
-    }
+    writeArrayStorage("userPaymentMethods", paymentMethods)
   }, [paymentMethods, isAuthenticated])
 
   useEffect(() => {
-    if (favorites.length > 0 || isAuthenticated) {
-      localStorage.setItem("userFavorites", JSON.stringify(favorites))
-    }
+    writeArrayStorage("userFavorites", favorites)
   }, [favorites, isAuthenticated])
 
   useEffect(() => {
-    if (dishFavorites.length > 0 || isAuthenticated) {
-      localStorage.setItem("userDishFavorites", JSON.stringify(dishFavorites))
-    }
+    writeArrayStorage("userDishFavorites", dishFavorites)
   }, [dishFavorites, isAuthenticated])
 
   useEffect(() => {
@@ -135,8 +123,7 @@ export function ProfileProvider({ children }) {
   useEffect(() => {
     const fetchUserProfile = async () => {
       // Check if user is authenticated
-      const isAuthenticated = localStorage.getItem("user_authenticated") === "true" || 
-                             localStorage.getItem("user_accessToken")
+      const isAuthenticated = isModuleAuthenticated("user")
       
       if (!isAuthenticated) {
         setUserProfile(null)
@@ -162,9 +149,7 @@ export function ProfileProvider({ children }) {
         
         if (userData) {
           setUserProfile(userData)
-          // Update localStorage
-          localStorage.setItem("user_user", JSON.stringify(userData))
-          localStorage.setItem("userProfile", JSON.stringify(userData))
+          writeUserProfileToStorage(userData)
         }
 
         // Fetch addresses
@@ -352,7 +337,7 @@ export function ProfileProvider({ children }) {
               resolvedAddress || existingLocation?.formattedAddress || "",
           }
 
-          localStorage.setItem("userLocation", JSON.stringify(syncedLocation))
+          writeUserLocationToStorage(normalizeUserLocationForStorage(syncedLocation))
           window.dispatchEvent(
             new CustomEvent("userLocationUpdated", {
               detail: { location: syncedLocation },

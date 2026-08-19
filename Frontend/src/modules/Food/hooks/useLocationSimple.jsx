@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { writeUserLocationToStorage } from "../../../core/storage/localStorage.js"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -197,7 +198,7 @@ export function useLocationSimple() {
             state: "",
             formattedAddress: "",
           }
-          localStorage.setItem("userLocation", JSON.stringify(locationData))
+          writeUserLocationToStorage(locationData)
           resolve(locationData)
         },
         (err) => {

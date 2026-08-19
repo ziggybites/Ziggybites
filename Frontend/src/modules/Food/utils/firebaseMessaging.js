@@ -1,6 +1,7 @@
 import { toast } from "sonner";
 import { userAPI, restaurantAPI, deliveryAPI, adminAPI } from "@food/api";
 import { initializeApp, getApp, getApps } from "firebase/app";
+import { getAccessToken } from "../../../core/auth/tokenStore.js";
 import fallbackNotificationSound from "@food/assets/audio/alert.mp3";
 import pushNotificationSoundPath from "@food/assets/audio/zomato_sms.mp3";
 
@@ -820,7 +821,7 @@ export async function registerWebPushForCurrentModule(pathname = window.location
   if (moduleName === "admin") return;
   initPushNotificationClient();
 
-  const accessToken = localStorage.getItem(`${moduleName}_accessToken`);
+  const accessToken = getAccessToken(moduleName);
   if (!accessToken) return;
 
   const supportsBrowserPush = isSupportedBrowser() && isSecureContextForPush();

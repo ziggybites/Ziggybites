@@ -9,6 +9,10 @@ const debugError = (...args) => {}
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import {
+  readPersistedDeliveryOnlineState,
+  syncPersistedDeliveryOnlineState,
+} from '../../DeliveryV2/store/useDeliveryStore'
 
 // User level configuration
 export const USER_LEVELS = {
@@ -23,7 +27,7 @@ const DEFAULT_STATE = {
   selectedSlots: [],
   bookedGigs: [],
   userLevel: 'Brown', // Default level
-  isOnline: true,
+  isOnline: false,
   currentGig: null, // Currently active gig
   zoneMapVisible: false,
   selectedDropLocation: null // Selected drop location
@@ -61,6 +65,7 @@ export const useGigStore = create(
       ...DEFAULT_STATE,
       userLevel: getUserLevel(),
       selectedDropLocation: getSelectedDropLocation(),
+      isOnline: readPersistedDeliveryOnlineState(),
 
       // Set user level
       setUserLevel: (level) => {
@@ -189,7 +194,8 @@ export const useGigStore = create(
           zoneMapVisible: true
         })
 
-        localStorage.setItem('delivery_online_status', 'true')
+        syncPersistedDeliveryOnlineState(true)
+        localStorage.removeItem('delivery_online_status')
         window.dispatchEvent(new CustomEvent('gigStateUpdated'))
         window.dispatchEvent(new CustomEvent('deliveryOnlineStatusChanged'))
         return true
@@ -216,7 +222,8 @@ export const useGigStore = create(
           zoneMapVisible: false
         })
 
-        localStorage.setItem('delivery_online_status', 'false')
+        syncPersistedDeliveryOnlineState(false)
+        localStorage.removeItem('delivery_online_status')
         window.dispatchEvent(new CustomEvent('gigStateUpdated'))
         window.dispatchEvent(new CustomEvent('deliveryOnlineStatusChanged'))
       },
@@ -274,7 +281,6 @@ export const useGigStore = create(
       partialize: (state) => ({
         bookedGigs: state.bookedGigs,
         userLevel: state.userLevel,
-        isOnline: state.isOnline,
         currentGig: state.currentGig,
         selectedDropLocation: state.selectedDropLocation
       })
@@ -352,7 +358,8 @@ function parseTime(timeStr) {
  */
 export const initializeOnlineStatus = () => {
   try {
-    const isOnline = localStorage.getItem('delivery_online_status') === 'true'
+    const isOnline = readPersistedDeliveryOnlineState()
+    localStorage.removeItem('delivery_online_status')
     if (isOnline) {
       useGigStore.setState({ isOnline: true })
     }

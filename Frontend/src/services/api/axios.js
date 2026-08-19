@@ -4,23 +4,38 @@
 
 import axios from 'axios';
 import { bootstrapTokenStore, getAccessToken, hasStoredSession, setAccessToken } from '../../core/auth/tokenStore.js';
+import { clearModuleAuth } from '../../modules/Food/utils/auth.js';
 
 bootstrapTokenStore();
+
+function getStoredRequestLocation() {
+  let location = null;
+
+  try {
+    const rawLocation = localStorage.getItem('userLocation');
+    if (rawLocation) {
+      location = JSON.parse(rawLocation);
+    }
+  } catch {
+    location = null;
+  }
+
+  const zoneId = localStorage.getItem('userZoneId');
+  const latFromLocation = Number(location?.latitude ?? location?.lat);
+  const lngFromLocation = Number(location?.longitude ?? location?.lng);
+  const fallbackLat = Number(localStorage.getItem('userLat'));
+  const fallbackLng = Number(localStorage.getItem('userLng'));
+
+  const lat = Number.isFinite(latFromLocation) ? latFromLocation : fallbackLat;
+  const lng = Number.isFinite(lngFromLocation) ? lngFromLocation : fallbackLng;
+
+  return { zoneId, lat, lng };
+}
 
 const baseURL =
   typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL
     ? String(import.meta.env.VITE_API_BASE_URL).replace(/\/$/, '')
     : '/api/v1';
-
-function clearModuleAuth(module) {
-  try {
-    localStorage.removeItem(`${module}_accessToken`);
-    localStorage.removeItem(`${module}_refreshToken`);
-    localStorage.removeItem(`${module}_authenticated`);
-    localStorage.removeItem(`${module}_user`);
-  } catch {
-  }
-}
 
 function createModuleClient(moduleName) {
   const client = axios.create({
@@ -40,7 +55,10 @@ function createModuleClient(moduleName) {
   };
 
   const onRefreshFailed = () => {
-    clearModuleAuth(moduleName);
+    try {
+      clearModuleAuth(moduleName);
+    } catch {
+    }
     subscribers.forEach((cb) => cb(null));
     subscribers = [];
     if (typeof window !== 'undefined') {
@@ -63,13 +81,11 @@ function createModuleClient(moduleName) {
       }
 
       if (moduleName === 'user' || moduleName === 'public' || moduleName === 'delivery') {
-        const zoneId = localStorage.getItem('userZoneId');
-        const lat = localStorage.getItem('userLat');
-        const lng = localStorage.getItem('userLng');
+        const { zoneId, lat, lng } = getStoredRequestLocation();
         if (zoneId) config.headers['X-Zone-Id'] = zoneId;
-        if (lat && lng) {
-          config.headers['X-User-Lat'] = lat;
-          config.headers['X-User-Lng'] = lng;
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          config.headers['X-User-Lat'] = String(lat);
+          config.headers['X-User-Lng'] = String(lng);
         }
       }
 
@@ -178,13 +194,11 @@ apiClient.interceptors.request.use(
     if (token) config.headers.Authorization = `Bearer ${token}`;
 
     if (moduleName === 'user' || moduleName === 'public' || moduleName === 'delivery') {
-      const zoneId = localStorage.getItem('userZoneId');
-      const lat = localStorage.getItem('userLat');
-      const lng = localStorage.getItem('userLng');
+      const { zoneId, lat, lng } = getStoredRequestLocation();
       if (zoneId) config.headers['X-Zone-Id'] = zoneId;
-      if (lat && lng) {
-        config.headers['X-User-Lat'] = lat;
-        config.headers['X-User-Lng'] = lng;
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        config.headers['X-User-Lat'] = String(lat);
+        config.headers['X-User-Lng'] = String(lng);
       }
     }
 

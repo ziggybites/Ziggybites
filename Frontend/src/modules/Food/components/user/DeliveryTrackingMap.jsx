@@ -12,6 +12,7 @@ import bikeLogo from '@food/assets/bikelogo.png';
 import { subscribeOrderTracking } from '@food/realtimeTracking';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Navigation } from 'lucide-react';
+import { getAccessToken } from '../../../../core/auth/tokenStore';
 
 const MAP_LIBRARIES = Object.freeze(['geometry', 'places']);
 
@@ -169,7 +170,7 @@ const DeliveryTrackingMap = ({
     }));
 
     // B. SOCKET.IO REALTIME
-    const token = localStorage.getItem('user_accessToken') || localStorage.getItem('accessToken') || '';
+    const token = getAccessToken('user') || '';
     socketRef.current = io(backendUrl, {
       transports: ['websocket'],
       auth: { token }

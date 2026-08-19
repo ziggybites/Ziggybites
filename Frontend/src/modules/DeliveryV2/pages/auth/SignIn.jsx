@@ -5,6 +5,7 @@ import { ArrowRight, Loader2, Phone } from "lucide-react"
 import { toast } from "sonner"
 import { deliveryAPI } from "@food/api"
 import { clearModuleAuth } from "@food/utils/auth"
+import { DELIVERY_AUTH_FLOW_KEY } from "../../../../core/auth/storageKeys.js"
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings"
 
 const DEFAULT_COUNTRY_CODE = "+91"
@@ -12,10 +13,14 @@ const DEFAULT_COUNTRY_CODE = "+91"
 export default function DeliverySignIn() {
   const navigate = useNavigate()
   const [phone, setPhone] = useState(() => {
-    const stored = localStorage.getItem("deliveryAuthData")
+    const stored =
+      sessionStorage.getItem(DELIVERY_AUTH_FLOW_KEY) ||
+      localStorage.getItem(DELIVERY_AUTH_FLOW_KEY)
     if (!stored) return ""
     try {
       const data = JSON.parse(stored)
+      sessionStorage.setItem(DELIVERY_AUTH_FLOW_KEY, stored)
+      localStorage.removeItem(DELIVERY_AUTH_FLOW_KEY)
       return data.phone ? data.phone.replace("+91", "").trim() : ""
     } catch {
       return ""
@@ -73,7 +78,7 @@ export default function DeliverySignIn() {
     try {
       clearModuleAuth("delivery")
       await deliveryAPI.sendOTP(fullPhone, "login")
-      localStorage.setItem("deliveryAuthData", JSON.stringify({
+      sessionStorage.setItem(DELIVERY_AUTH_FLOW_KEY, JSON.stringify({
         method: "phone",
         phone: fullPhone,
         isSignUp: false,

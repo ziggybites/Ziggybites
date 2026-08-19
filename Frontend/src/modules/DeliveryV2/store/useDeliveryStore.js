@@ -1,6 +1,24 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export const DELIVERY_ONLINE_PERSIST_KEY = 'delivery-v2-online-pref';
+
+export const readPersistedDeliveryOnlineState = () => {
+  try {
+    const raw = localStorage.getItem(DELIVERY_ONLINE_PERSIST_KEY);
+    if (!raw) return false;
+
+    const parsed = JSON.parse(raw);
+    return Boolean(parsed?.state?.isOnline);
+  } catch {
+    return false;
+  }
+};
+
+export const syncPersistedDeliveryOnlineState = (isOnline) => {
+  useDeliveryStore.setState({ isOnline: Boolean(isOnline) });
+};
+
 /**
  * @typedef {Object} Location
  * @property {number} lat
@@ -24,7 +42,7 @@ export const useDeliveryStore = create(
   persist(
     (set, get) => ({
       // --- Rider Status ---
-      isOnline: false,
+      isOnline: readPersistedDeliveryOnlineState(),
       riderLocation: null, // { lat, lng }
       
       // --- Trip State ---
@@ -74,7 +92,7 @@ export const useDeliveryStore = create(
       }
     }),
     {
-      name: 'delivery-v2-online-pref',
+      name: DELIVERY_ONLINE_PERSIST_KEY,
       // ONLY persist the 'isOnline' state, ignoring orders/location to prevent dummy order bugs
       partialize: (state) => ({ isOnline: state.isOnline }),
     }

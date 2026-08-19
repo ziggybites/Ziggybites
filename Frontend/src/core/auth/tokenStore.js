@@ -1,11 +1,17 @@
+import {
+  AUTH_MODULES,
+  getAccessTokenLegacyKey,
+  getAuthenticatedKey,
+  getRefreshTokenLegacyKey,
+  getSessionAccessTokenKey,
+  getUserKey,
+  LEGACY_AUTH_TOKEN_KEYS,
+} from "./storageKeys.js";
+
 const ACCESS_TOKEN_KEYS = new Set(['accessToken']);
 const REFRESH_TOKEN_KEYS = new Set(['refreshToken']);
 const accessTokenStore = new Map();
 let storagePatched = false;
-const SESSION_TOKEN_SUFFIX = '_accessToken_session';
-
-const getSessionTokenKey = (moduleName) =>
-  `${String(moduleName || 'user').trim() || 'user'}${SESSION_TOKEN_SUFFIX}`;
 
 const isAccessTokenKey = (key) => {
   const normalized = String(key || '').trim();
@@ -68,7 +74,7 @@ const installStoragePatch = () => {
   };
 
   try {
-    ['accessToken', 'refreshToken', 'user_accessToken', 'user_refreshToken', 'admin_accessToken', 'admin_refreshToken', 'restaurant_accessToken', 'restaurant_refreshToken', 'delivery_accessToken', 'delivery_refreshToken'].forEach((key) => originalRemoveItem(key));
+    LEGACY_AUTH_TOKEN_KEYS.forEach((key) => originalRemoveItem(key));
   } catch {
   }
 
@@ -83,7 +89,7 @@ export const setAccessToken = (moduleName, token) => {
   if (!token) {
     accessTokenStore.delete(safeModule);
     try {
-      window.sessionStorage?.removeItem(getSessionTokenKey(safeModule));
+      window.sessionStorage?.removeItem(getSessionAccessTokenKey(safeModule));
     } catch {
     }
     return;
@@ -91,7 +97,7 @@ export const setAccessToken = (moduleName, token) => {
   const normalizedToken = String(token);
   accessTokenStore.set(safeModule, normalizedToken);
   try {
-    window.sessionStorage?.setItem(getSessionTokenKey(safeModule), normalizedToken);
+    window.sessionStorage?.setItem(getSessionAccessTokenKey(safeModule), normalizedToken);
   } catch {
   }
 };
@@ -103,7 +109,7 @@ export const getAccessToken = (moduleName) => {
   if (inMemoryToken) return inMemoryToken;
 
   try {
-    const sessionToken = window.sessionStorage?.getItem(getSessionTokenKey(safeModule)) || null;
+    const sessionToken = window.sessionStorage?.getItem(getSessionAccessTokenKey(safeModule)) || null;
     if (sessionToken) {
       accessTokenStore.set(safeModule, sessionToken);
       return sessionToken;
@@ -119,7 +125,7 @@ export const clearAccessToken = (moduleName) => {
   const safeModule = String(moduleName || 'user').trim() || 'user';
   accessTokenStore.delete(safeModule);
   try {
-    window.sessionStorage?.removeItem(getSessionTokenKey(safeModule));
+    window.sessionStorage?.removeItem(getSessionAccessTokenKey(safeModule));
   } catch {
   }
 };
@@ -130,7 +136,7 @@ export const clearAllAccessTokens = () => {
   accessTokenStore.clear();
   try {
     modules.forEach((moduleName) => {
-      window.sessionStorage?.removeItem(getSessionTokenKey(moduleName));
+      window.sessionStorage?.removeItem(getSessionAccessTokenKey(moduleName));
     });
   } catch {
   }
@@ -141,8 +147,8 @@ export const hasStoredSession = (moduleName) => {
   if (typeof window === 'undefined' || !window.localStorage) return false;
   const safeModule = String(moduleName || 'user').trim() || 'user';
   return (
-    window.localStorage.getItem(`${safeModule}_authenticated`) === 'true' ||
-    Boolean(window.localStorage.getItem(`${safeModule}_user`))
+    window.localStorage.getItem(getAuthenticatedKey(safeModule)) === 'true' ||
+    Boolean(window.localStorage.getItem(getUserKey(safeModule)))
   );
 };
 
@@ -150,7 +156,7 @@ export const removeLegacyStoredTokens = (moduleName) => {
   installStoragePatch();
   if (typeof window === 'undefined' || !window.localStorage) return;
   const safeModule = String(moduleName || 'user').trim() || 'user';
-  const legacyKeys = [`${safeModule}_accessToken`, `${safeModule}_refreshToken`];
+  const legacyKeys = [getAccessTokenLegacyKey(safeModule), getRefreshTokenLegacyKey(safeModule)];
   if (safeModule === 'user') {
     legacyKeys.push('accessToken', 'refreshToken');
   }
@@ -167,8 +173,8 @@ export const bootstrapTokenStore = () => {
   if (typeof window === 'undefined' || !window.sessionStorage) return;
 
   try {
-    ['user', 'restaurant', 'delivery', 'admin'].forEach((moduleName) => {
-      const token = window.sessionStorage.getItem(getSessionTokenKey(moduleName));
+    AUTH_MODULES.forEach((moduleName) => {
+      const token = window.sessionStorage.getItem(getSessionAccessTokenKey(moduleName));
       if (token) {
         accessTokenStore.set(moduleName, token);
       }

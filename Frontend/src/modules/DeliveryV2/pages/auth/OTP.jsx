@@ -6,6 +6,11 @@ import { Input } from "@food/components/ui/input"
 import { Button } from "@food/components/ui/button"
 import { deliveryAPI } from "@food/api"
 import { setAuthData as storeAuthData, getModuleToken } from "@food/utils/auth"
+import {
+  DELIVERY_AUTH_FLOW_KEY,
+  DELIVERY_NEEDS_REGISTRATION_KEY,
+  DELIVERY_SIGNUP_DETAILS_KEY,
+} from "../../../../core/auth/storageKeys.js"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -31,10 +36,13 @@ export default function DeliveryOTP() {
   const inputRefs = useRef([])
 
   useEffect(() => {
-    // Get auth data from localStorage (delivery module key)
-    const stored = localStorage.getItem("deliveryAuthData")
+    const stored =
+      sessionStorage.getItem(DELIVERY_AUTH_FLOW_KEY) ||
+      localStorage.getItem(DELIVERY_AUTH_FLOW_KEY)
     if (stored) {
       const data = JSON.parse(stored)
+      sessionStorage.setItem(DELIVERY_AUTH_FLOW_KEY, stored)
+      localStorage.removeItem(DELIVERY_AUTH_FLOW_KEY)
       setAuthData(data)
     } else {
       // No active OTP flow: if already authenticated, go to delivery home
@@ -229,7 +237,8 @@ export default function DeliveryOTP() {
       debugLog("Parsed Delivery OTP Data:", data)
 
       if (data.pendingApproval === true) {
-        localStorage.removeItem("deliveryAuthData")
+        sessionStorage.removeItem(DELIVERY_AUTH_FLOW_KEY)
+        localStorage.removeItem(DELIVERY_AUTH_FLOW_KEY)
         setIsLoading(false)
         setError("")
         setPendingMessage(data.message || "Your account is pending admin verification. You will be notified once approved.")
@@ -242,15 +251,16 @@ export default function DeliveryOTP() {
 
       if (needsRegistration) {
         // No DB record yet; redirect to registration details page WITHOUT creating anything in DB.
-        localStorage.removeItem("deliveryAuthData")
-        localStorage.setItem("deliveryNeedsRegistration", "true")
+        sessionStorage.removeItem(DELIVERY_AUTH_FLOW_KEY)
+        localStorage.removeItem(DELIVERY_AUTH_FLOW_KEY)
+        sessionStorage.setItem(DELIVERY_NEEDS_REGISTRATION_KEY, "true")
         const digits = String(phone || "").replace(/\D/g, "")
         const details = {
           name: "",
           phone: digits.slice(-10),
           countryCode: "+91",
         }
-        localStorage.setItem("deliverySignupDetails", JSON.stringify(details))
+        sessionStorage.setItem(DELIVERY_SIGNUP_DETAILS_KEY, JSON.stringify(details))
         setIsLoading(false)
         navigate("/food/delivery/signup/details", { replace: true })
         return
@@ -264,7 +274,8 @@ export default function DeliveryOTP() {
         throw new Error("Invalid response from server")
       }
 
-      localStorage.removeItem("deliveryAuthData")
+      sessionStorage.removeItem(DELIVERY_AUTH_FLOW_KEY)
+      localStorage.removeItem(DELIVERY_AUTH_FLOW_KEY)
 
       try {
         debugLog("Storing auth data for delivery:", { hasToken: !!accessToken, hasUser: !!user })
@@ -334,7 +345,8 @@ export default function DeliveryOTP() {
       }
 
       // Clear auth data from localStorage
-      localStorage.removeItem("deliveryAuthData")
+      sessionStorage.removeItem(DELIVERY_AUTH_FLOW_KEY)
+      localStorage.removeItem(DELIVERY_AUTH_FLOW_KEY)
 
       // Store auth data using utility function to ensure proper role handling
       // The setAuthData function includes error handling and verification
@@ -494,13 +506,13 @@ export default function DeliveryOTP() {
                     onClick={() => {
                       const phone = authData?.phone
                       const digits = String(phone || "").replace(/\D/g, "")
-                      localStorage.setItem("deliveryNeedsRegistration", "true")
+                      sessionStorage.setItem(DELIVERY_NEEDS_REGISTRATION_KEY, "true")
                       const details = {
                         name: "",
                         phone: digits.slice(-10),
                         countryCode: "+91",
                       }
-                      localStorage.setItem("deliverySignupDetails", JSON.stringify(details))
+                      sessionStorage.setItem(DELIVERY_SIGNUP_DETAILS_KEY, JSON.stringify(details))
                       navigate("/food/delivery/signup/details", { replace: true })
                     }}
                     className="w-full py-3 bg-red-600 text-white rounded-lg font-bold text-sm hover:bg-red-700 shadow-md transition-all active:scale-95"

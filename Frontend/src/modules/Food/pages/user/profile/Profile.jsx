@@ -407,10 +407,7 @@ export default function Profile() {
       // Clear user module authentication data using utility function
       clearModuleAuth("user");
 
-      // Clear legacy token data for backward compatibility
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("user_authenticated");
-      localStorage.removeItem("user_user");
+      // Clear feature-specific user data that is not part of auth storage
       localStorage.removeItem("user");
       localStorage.removeItem("cart");
       USER_SESSION_PREFERENCE_KEYS.forEach((key) => localStorage.removeItem(key));
@@ -427,10 +424,7 @@ export default function Profile() {
       // Clear local data anyway using utility function
       clearModuleAuth("user");
 
-      // Clear legacy token data for backward compatibility
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("user_authenticated");
-      localStorage.removeItem("user_user");
+      // Clear feature-specific user data that is not part of auth storage
       localStorage.removeItem("user");
       localStorage.removeItem("cart");
       USER_SESSION_PREFERENCE_KEYS.forEach((key) => localStorage.removeItem(key));
@@ -456,9 +450,7 @@ export default function Profile() {
       toast.success("Account deleted successfully");
       // Clear all local data
       clearModuleAuth("user");
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("user_authenticated");
-      localStorage.removeItem("user_user");
+      // Clear feature-specific user data that is not part of auth storage
       localStorage.removeItem("user");
       localStorage.removeItem("cart");
       USER_SESSION_PREFERENCE_KEYS.forEach((key) => localStorage.removeItem(key));

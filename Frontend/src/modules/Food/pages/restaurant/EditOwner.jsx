@@ -526,13 +526,7 @@ export default function EditOwner() {
       // Clear all restaurant-related localStorage data
       localStorage.removeItem(STORAGE_KEY)
       localStorage.removeItem("restaurant_onboarding")
-      localStorage.removeItem("restaurant_accessToken")
-      localStorage.removeItem("restaurant_authenticated")
-      localStorage.removeItem("restaurant_user")
       localStorage.removeItem("restaurant_invited_users")
-      
-      // Clear sessionStorage
-      sessionStorage.removeItem("restaurantAuthData")
       
       // Dispatch auth change event to notify other components
       window.dispatchEvent(new Event("restaurantAuthChanged"))

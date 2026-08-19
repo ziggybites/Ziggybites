@@ -7,12 +7,16 @@ import { toast } from "sonner";
 import { deliveryAPI } from "@food/api";
 import { useCompanyName } from "@food/hooks/useCompanyName";
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings";
+import {
+  DELIVERY_ONLINE_PERSIST_KEY,
+  readPersistedDeliveryOnlineState,
+  syncPersistedDeliveryOnlineState,
+} from "../store/useDeliveryStore";
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
 
-const LS_KEY = "app:isOnline";
 const TOAST_ID_KEY = "feedNavbar-onlineStatus";
 
 /** Minimal bottom-sheet popup (self-contained) */
@@ -90,20 +94,19 @@ export default function FeedNavbar({ className = "" }) {
 
   const normalizePhoneForDial = (value) => String(value || "").replace(/[^\d]/g, "");
 
-  // 1) Init from localStorage (no toast on mount)
+  // 1) Init from canonical delivery online persistence (no toast on mount)
   const [isOnline, setIsOnline] = useState(() => {
     try {
-      const raw = localStorage.getItem(LS_KEY);
-      return raw ? JSON.parse(raw) === true : false;
+      return readPersistedDeliveryOnlineState();
     } catch {
       return false;
     }
   });
 
-  // 2) Persist to localStorage whenever it changes and notify other components
+  // 2) Persist via the shared delivery store and notify other components
   useEffect(() => {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(isOnline));
+      syncPersistedDeliveryOnlineState(isOnline);
       // Dispatch custom event for same-tab sync (storage event only works across tabs)
       window.dispatchEvent(new CustomEvent('onlineStatusChanged'));
     } catch {}
@@ -112,8 +115,8 @@ export default function FeedNavbar({ className = "" }) {
   // 3) Optional: sync across tabs/windows
   useEffect(() => {
     const onStorage = (e) => {
-      if (e.key === LS_KEY && e.newValue != null) {
-        const next = JSON.parse(e.newValue) === true;
+      if (e.key === DELIVERY_ONLINE_PERSIST_KEY) {
+        const next = readPersistedDeliveryOnlineState();
         setIsOnline((prev) => (prev === next ? prev : next));
       }
     };

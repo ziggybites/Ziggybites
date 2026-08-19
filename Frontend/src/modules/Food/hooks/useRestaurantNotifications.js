@@ -5,6 +5,7 @@ import { restaurantAPI } from '@food/api';
 import alertSound from '@food/assets/audio/alert.mp3';
 import { dispatchNotificationInboxRefresh } from '@food/hooks/useNotificationInbox';
 import { RestaurantNotificationContext } from '../context/RestaurantNotificationContext';
+import { getAccessToken } from '../../../core/auth/tokenStore';
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -287,7 +288,7 @@ export const useRestaurantNotifications = () => {
         debugError('Error fetching restaurant:', error);
       }
     };
-    const token = localStorage.getItem('restaurant_accessToken') || localStorage.getItem('accessToken');
+    const token = getAccessToken('restaurant');
     if (token) {
       fetchRestaurantId();
     }
@@ -470,7 +471,7 @@ export const useRestaurantNotifications = () => {
       return;
     }
     
-    const token = localStorage.getItem('restaurant_accessToken') || localStorage.getItem('accessToken');
+    const token = getAccessToken('restaurant');
     if (!token) {
       debugLog('? No auth token found, skipping socket connection.');
       setIsConnected(false);
@@ -642,7 +643,7 @@ export const useRestaurantNotifications = () => {
       forceNew: false,
       autoConnect: true,
       auth: {
-        token: localStorage.getItem('restaurant_accessToken') || localStorage.getItem('accessToken')
+        token
       }
     });
 

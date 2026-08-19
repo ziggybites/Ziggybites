@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react"
 import { toast } from "sonner"
 import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
 import { EMAIL_REGEX } from "@/shared/utils/emailValidation"
+import { DELIVERY_SIGNUP_DETAILS_KEY } from "../../../../core/auth/storageKeys.js"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -13,7 +14,9 @@ export default function SignupStep1() {
   const navigate = useNavigate()
   const goBack = useDeliveryBackNavigation()
   const [formData, setFormData] = useState(() => {
-    const saved = localStorage.getItem("deliverySignupDetails")
+    const saved =
+      sessionStorage.getItem(DELIVERY_SIGNUP_DETAILS_KEY) ||
+      localStorage.getItem(DELIVERY_SIGNUP_DETAILS_KEY)
     const base = {
       name: "",
       phone: "",
@@ -32,6 +35,8 @@ export default function SignupStep1() {
     }
     if (saved) {
       try {
+        sessionStorage.setItem(DELIVERY_SIGNUP_DETAILS_KEY, saved)
+        localStorage.removeItem(DELIVERY_SIGNUP_DETAILS_KEY)
         return { ...base, ...JSON.parse(saved) }
       } catch (e) {
         debugError("Error parsing saved details:", e)
@@ -64,7 +69,7 @@ export default function SignupStep1() {
 
   // Save data to session storage whenever formData changes
   useEffect(() => {
-    localStorage.setItem("deliverySignupDetails", JSON.stringify(formData))
+    sessionStorage.setItem(DELIVERY_SIGNUP_DETAILS_KEY, JSON.stringify(formData))
   }, [formData])
 
   const handleChange = (e) => {
@@ -206,7 +211,7 @@ export default function SignupStep1() {
         panNumber: formData.panNumber.trim().toUpperCase(),
         aadharNumber: formData.aadharNumber.replace(/\s/g, "")
       }
-      localStorage.setItem("deliverySignupDetails", JSON.stringify(details))
+      sessionStorage.setItem(DELIVERY_SIGNUP_DETAILS_KEY, JSON.stringify(details))
       toast.success("Details saved")
       navigate("/food/delivery/signup/documents")
     } catch (error) {

@@ -19,6 +19,7 @@ import { deliveryAPI, notificationAPI } from "@food/api"
 import { toast } from "sonner"
 import { clearModuleAuth } from "@food/utils/auth"
 import { registerWebPushForCurrentModule } from "@food/utils/firebaseMessaging"
+import { syncPersistedDeliveryOnlineState } from "../store/useDeliveryStore"
 
 /**
  * ProfileV2 - 1:1 EXACT Restoration of the Legacy Profile Hub.
@@ -112,7 +113,7 @@ export const ProfileV2 = () => {
       await deliveryAPI.logout(null, fcmToken, platform)
     } catch (error) {}
     clearModuleAuth("delivery")
-    localStorage.removeItem("app:isOnline")
+    syncPersistedDeliveryOnlineState(false)
     toast.success("Logged out successfully")
     navigate("/food/delivery/login", { replace: true })
     setLogoutSubmitting(false)
@@ -417,7 +418,7 @@ export const ProfileV2 = () => {
                         await deliveryAPI.deleteAccount();
                         toast.success("Account deleted successfully");
                         clearModuleAuth("delivery");
-                        localStorage.removeItem("app:isOnline");
+                        syncPersistedDeliveryOnlineState(false);
                         navigate("/food/delivery/login", { replace: true });
                       } catch (err) {
                         toast.error(err?.response?.data?.message || "Failed to delete account");
