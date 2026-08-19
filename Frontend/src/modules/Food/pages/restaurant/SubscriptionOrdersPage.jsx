@@ -141,6 +141,17 @@ const getRestaurantOrderStatus = (meal = {}) => {
 const isAcceptedByDeliveryBoy = (meal = {}) =>
   String(meal?.order?.dispatch?.status || "").toLowerCase().trim() === "accepted";
 
+const isTerminalSubscriptionMealOrder = (meal = {}) => {
+  const orderStatus = String(meal?.order?.orderStatus || meal?.order?.status || "").toLowerCase().trim();
+  return [
+    "delivered",
+    "cancelled_by_user",
+    "cancelled_by_restaurant",
+    "cancelled_by_admin",
+    "dead",
+  ].includes(orderStatus);
+};
+
 const getMealProgressStatus = (meal = {}) => {
   const orderStatus = String(meal?.order?.orderStatus || meal?.order?.status || "").toLowerCase().trim();
   const dispatchStatus = String(meal?.order?.dispatch?.status || "").toLowerCase().trim();
@@ -479,7 +490,18 @@ function SubscriptionOrdersPage() {
                       const scheduleId = meal.scheduleId || meal._id;
                       const sent = meal.status === "sent_to_delivery";
                       const cancelled = ["cancelled", "skipped"].includes(String(meal.status || "").toLowerCase());
-                      const canSend = !sent && !cancelled && isMealDueToday(meal.serviceDate);
+                      const hasAnotherActiveSubscriptionOrder = group.items.some((item) => {
+                        const itemScheduleId = item.scheduleId || item._id;
+                        if (String(itemScheduleId) === String(scheduleId)) return false;
+                        if (String(item?.status || "").toLowerCase() !== "sent_to_delivery") return false;
+                        if (!item?.order) return true;
+                        return !isTerminalSubscriptionMealOrder(item);
+                      });
+                      const canSend =
+                        !sent &&
+                        !cancelled &&
+                        isMealDueToday(meal.serviceDate) &&
+                        !hasAnotherActiveSubscriptionOrder;
                       const linkedOrderStatus = getLinkedOrderStatus(meal);
                       const linkedOrderStatusLabel = getLinkedOrderStatusLabel(meal);
                       const acceptedByDeliveryBoy = isAcceptedByDeliveryBoy(meal);
@@ -553,7 +575,13 @@ function SubscriptionOrdersPage() {
                               ) : (
                                 <Send className="h-4 w-4" />
                               )}
-                              {sent ? "Already sent" : canSend ? "Send to delivery boy" : "Available on service day"}
+                              {sent
+                                ? "Already sent"
+                                : hasAnotherActiveSubscriptionOrder
+                                  ? "Finish current order first"
+                                  : canSend
+                                    ? "Send to delivery boy"
+                                    : "Available on service day"}
                             </button>
                             {canResend ? (
                               <button

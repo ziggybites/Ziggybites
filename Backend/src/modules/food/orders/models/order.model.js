@@ -1,5 +1,9 @@
 import mongoose from 'mongoose';
 
+// Delivery order:
+// execution record created when a normal order or subscription meal is sent to delivery.
+// This model owns dispatch, rider assignment, tracking, OTP, payment execution snapshot,
+// and delivery lifecycle state.
 const orderItemSchema = new mongoose.Schema(
     {
         itemId: { type: String, required: true, trim: true },

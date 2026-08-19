@@ -92,6 +92,30 @@ async function listNearbyOnlineDeliveryPartners(
   return { partners: cashEligibleFinal };
 }
 
+async function listAllOnlineDeliveryPartners(
+  { requiredAmount = 0, allowOverLimitFallback = true } = {},
+) {
+  const allOnline = await FoodDeliveryPartner.find({
+    availabilityStatus: "online",
+    status: "approved",
+  })
+    .select("_id status")
+    .lean();
+
+  const normalized = allOnline.map((partner) => ({
+    partnerId: partner._id,
+    distanceKm: null,
+    status: partner.status,
+  }));
+
+  const cashEligibleFinal = await filterPartnersByCashLimit(normalized, {
+    requiredAmount,
+    allowOverLimitFallback,
+  });
+
+  return { partners: cashEligibleFinal };
+}
+
 export async function getDispatchSettings() {
   return { dispatchMode: "auto" };
 }
@@ -449,9 +473,55 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     },
   });
 
-  // Manual resend should widen the initial search one tier so nearby riders
-  // immediately receive the request instead of waiting for timeout retries.
-  await tryAutoAssign(order._id, { attempt: 2 });
+  // Manual resend should behave like a true global rebroadcast:
+  // clear previous offers, then notify every currently online approved partner
+  // regardless of radius so the restaurant can force a fresh marketplace-wide send.
+  const { partners: globalPartners } = await listAllOnlineDeliveryPartners({
+    requiredAmount,
+    allowOverLimitFallback: true,
+  });
+
+  const io = getIO();
+  const payload = buildDeliverySocketPayload(order, order.restaurantId);
+  for (const partner of globalPartners) {
+    const roomName = rooms.delivery(partner.partnerId);
+    if (io) {
+      io.to(roomName).emit('new_order_available', payload);
+    }
+  }
+
+  if (globalPartners.length > 0) {
+    try {
+      await notifyOwnersSafely(
+        globalPartners.map((partner) => ({
+          ownerType: 'DELIVERY_PARTNER',
+          ownerId: partner.partnerId,
+        })),
+        {
+          title: 'New Order Nearby!',
+          body: `Order #${order.order_id || order._id} is waiting. Be the first to accept!`,
+          dataOnly: true,
+          data: { type: 'new_order', orderId: order._id.toString() },
+        },
+      );
+    } catch (err) {
+      logger.warn(`Global resend push notifications failed: ${err.message}`);
+    }
+  }
+
+  await FoodOrder.findByIdAndUpdate(order._id, {
+    $push: {
+      'dispatch.offeredTo': {
+        $each: globalPartners.map((partner) => ({
+          partnerId: partner.partnerId,
+          at: new Date(),
+          action: 'offered',
+          allowOverLimit: Boolean(partner.allowOverLimit),
+          requiredCashForOrder: Number(partner.requiredCashForOrder || requiredAmount || 0),
+        })),
+      },
+    },
+  });
 
   const refreshed = await FoodOrder.findById(order._id)
     .select('dispatch.offeredTo dispatch.status dispatch.deliveryPartnerId')
@@ -464,11 +534,11 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
         .filter((entry) => entry?.action === 'offered' && entry?.partnerId)
         .map((entry) => String(entry.partnerId))
     : [];
-  const io = getIO();
-  const connectedSocketCount = io
+  const metricsIo = getIO();
+  const connectedSocketCount = metricsIo
     ? notifiedPartnerIds.reduce((count, pid) => {
         const roomName = rooms.delivery(pid);
-        const roomSize = io?.sockets?.adapter?.rooms?.get(roomName)?.size || 0;
+        const roomSize = metricsIo?.sockets?.adapter?.rooms?.get(roomName)?.size || 0;
         return count + roomSize;
       }, 0)
     : 0;

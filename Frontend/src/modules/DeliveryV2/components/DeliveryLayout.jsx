@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import BottomNavigation from "./BottomNavigation"
 import { getUnreadDeliveryNotificationCount } from "@food/utils/deliveryNotifications"
 import { deliveryAPI } from "@food/api"
+import { registerWebPushForCurrentModule } from "@food/utils/firebaseMessaging"
 
 export default function DeliveryLayout({
   children,
@@ -36,6 +37,10 @@ export default function DeliveryLayout({
         if (!cancelled) setApprovalStatus("pending")
       })
     return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    registerWebPushForCurrentModule("/food/delivery").catch(() => {})
   }, [])
 
   useEffect(() => {

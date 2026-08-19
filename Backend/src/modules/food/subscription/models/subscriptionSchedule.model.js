@@ -1,5 +1,9 @@
 import mongoose from 'mongoose';
 
+// Subscription meal / schedule:
+// one occurrence of a meal generated from a subscription.
+// Restaurant operations should primarily reason about this model, while live delivery
+// execution is delegated to the linked FoodOrder when a meal is sent.
 const subscriptionScheduleSchema = new mongoose.Schema(
   {
     subscriptionId: {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useContext } from 'react';
 import io from 'socket.io-client';
+import { useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '@food/api/config';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
@@ -177,6 +178,11 @@ const triggerWebViewNativeNotification = async (orderData = {}) => {
 export const useDeliveryNotifications = () => {
   const context = useContext(DeliveryNotificationContext);
   if (context) return context;
+  const location = useLocation();
+  const pathname = String(location?.pathname || '');
+  const isDeliveryRoute =
+    pathname.startsWith('/food/delivery') ||
+    pathname.startsWith('/delivery');
   
   // CRITICAL: All hooks must be called unconditionally and in the same order every render
   // Order: useRef -> useState -> useEffect -> useCallback
@@ -378,6 +384,7 @@ export const useDeliveryNotifications = () => {
   }, [playNotificationSound, showBackgroundOrderNotification, startAlertLoop]);
 
   const recoverDeliveryState = useCallback(async () => {
+    if (!isDeliveryRoute) return;
     if (!deliveryPartnerId) return;
 
     try {
@@ -432,7 +439,7 @@ export const useDeliveryNotifications = () => {
     } catch (error) {
       debugWarn('Delivery recovery sync failed:', error?.message || error);
     }
-  }, [deliveryPartnerId, handleIncomingOrderAlert]);
+  }, [deliveryPartnerId, handleIncomingOrderAlert, isDeliveryRoute]);
 
   const joinDeliveryRoomIfPossible = useCallback(() => {
     if (!socketRef.current?.connected || !deliveryPartnerId) {
@@ -497,6 +504,7 @@ export const useDeliveryNotifications = () => {
 
   // Step 4: All effects (unconditional hook calls, conditional logic inside)
   useEffect(() => {
+    if (!isDeliveryRoute) return;
     if (!supportsBrowserNotifications()) return;
 
     if (Notification.permission !== 'default') return;
@@ -524,9 +532,10 @@ export const useDeliveryNotifications = () => {
       window.removeEventListener('pointerdown', askOnInteraction);
       window.removeEventListener('keydown', askOnInteraction);
     };
-  }, []);
+  }, [isDeliveryRoute]);
 
   useEffect(() => {
+    if (!isDeliveryRoute) return;
     const onVisibilityChange = () => {
       if (typeof document === 'undefined') return;
       if (document.visibilityState !== 'hidden') {
@@ -543,10 +552,43 @@ export const useDeliveryNotifications = () => {
     return () => {
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
-  }, [playNotificationSound, showBackgroundOrderNotification, recoverDeliveryState]);
+  }, [playNotificationSound, showBackgroundOrderNotification, recoverDeliveryState, isDeliveryRoute]);
+
+  useEffect(() => {
+    if (!isDeliveryRoute) return;
+    const handleDeliveryPushOrderReceived = (event) => {
+      const detail = event?.detail || {};
+      debugLog('Delivery push order received', detail);
+
+      if (!isRiderOnline()) {
+        debugLog('Ignored delivery push order - rider is offline');
+        return;
+      }
+
+      const normalizedOrder = {
+        orderId: detail?.orderId || detail?.payload?.data?.orderId || detail?.payload?.data?.order_id,
+        orderMongoId:
+          detail?.payload?.data?.orderMongoId ||
+          detail?.payload?.data?.order_mongo_id ||
+          null,
+        source: detail?.source || 'firebase',
+        pushPayload: detail?.payload || null,
+      };
+
+      setNewOrder((prev) => prev || normalizedOrder);
+      handleIncomingOrderAlert(normalizedOrder);
+      void recoverDeliveryState();
+    };
+
+    window.addEventListener('deliveryPushOrderReceived', handleDeliveryPushOrderReceived);
+    return () => {
+      window.removeEventListener('deliveryPushOrderReceived', handleDeliveryPushOrderReceived);
+    };
+  }, [handleIncomingOrderAlert, recoverDeliveryState, isDeliveryRoute]);
 
   // Track user interaction for autoplay policy
   useEffect(() => {
+    if (!isDeliveryRoute) return;
     const handleUserInteraction = async () => {
       userInteractedRef.current = true;
 
@@ -604,10 +646,11 @@ export const useDeliveryNotifications = () => {
       document.removeEventListener('keydown', handleUserInteraction);
       window.removeEventListener('pointerdown', handleUserInteraction);
     };
-  }, []);
+  }, [isDeliveryRoute]);
   
   // Initialize audio on mount - use selected preference from localStorage
   useEffect(() => {
+    if (!isDeliveryRoute) return;
     // Always use original sound for delivery
     const soundFile = resolveAudioSource(notificationSound, 'delivery-zomato');
     
@@ -634,10 +677,11 @@ export const useDeliveryNotifications = () => {
         audioRef.current = null;
       }
     };
-  }, []); // Note: This runs once on mount. To update dynamically, we'd need to listen to storage events
+  }, [isDeliveryRoute]); // Note: This runs once per active delivery shell mount. To update dynamically, we'd need to listen to storage events
 
   // Fetch delivery partner ID
   useEffect(() => {
+    if (!isDeliveryRoute) return;
     const fallbackId = resolveDeliveryPartnerIdFromClient();
     if (fallbackId) {
       setDeliveryPartnerId(fallbackId);
@@ -674,10 +718,14 @@ export const useDeliveryNotifications = () => {
     if (token) {
       fetchDeliveryPartnerId();
     }
-  }, []);
+  }, [isDeliveryRoute]);
 
   // Socket connection effect (no backend when API_BASE_URL is empty)
   useEffect(() => {
+    if (!isDeliveryRoute) {
+      setIsConnected(false);
+      return;
+    }
     if (!API_BASE_URL || !String(API_BASE_URL).trim()) {
       setIsConnected(false);
       return;
@@ -1061,9 +1109,10 @@ export const useDeliveryNotifications = () => {
         socketRef.current = null;
       }
     };
-  }, [deliveryPartnerId, handleIncomingOrderAlert, joinDeliveryRoomIfPossible, playNotificationSound, recoverDeliveryState, showBackgroundOrderNotification, startAlertLoop, stopAlertLoop]);
+  }, [deliveryPartnerId, handleIncomingOrderAlert, joinDeliveryRoomIfPossible, playNotificationSound, recoverDeliveryState, showBackgroundOrderNotification, startAlertLoop, stopAlertLoop, isDeliveryRoute]);
 
   useEffect(() => {
+    if (!isDeliveryRoute) return;
     if (!deliveryPartnerId) {
       debugLog('? Waiting for deliveryPartnerId...');
       return;
@@ -1079,7 +1128,7 @@ export const useDeliveryNotifications = () => {
       socketRef.current.emit('resync');
       void recoverDeliveryState();
     }
-  }, [deliveryPartnerId, joinDeliveryRoomIfPossible, recoverDeliveryState]);
+  }, [deliveryPartnerId, joinDeliveryRoomIfPossible, recoverDeliveryState, isDeliveryRoute]);
 
   // Helper functions
   const clearNewOrder = () => {

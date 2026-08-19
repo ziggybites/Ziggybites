@@ -584,6 +584,26 @@ function showForegroundNotification(payload = {}, options = {}) {
     return;
   }
 
+  const currentModule = normalizeModuleFromPath();
+  const pushOrderId =
+    payload?.data?.orderId ||
+    payload?.data?.orderMongoId ||
+    payload?.data?.order_id ||
+    payload?.data?.order_mongo_id ||
+    "";
+
+  if (currentModule === "delivery" && pushOrderId && typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("deliveryPushOrderReceived", {
+        detail: {
+          orderId: String(pushOrderId),
+          payload,
+          source: options.fromSwRelay ? "firebase-sw-relay" : "firebase-foreground",
+        },
+      }),
+    );
+  }
+
   const title =
     payload?.notification?.title ||
     payload?.data?.title ||

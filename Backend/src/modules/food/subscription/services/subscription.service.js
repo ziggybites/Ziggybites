@@ -162,6 +162,17 @@ function normalizeDeliveryAddress(address = {}, { customerName = '', customerPho
   };
 }
 
+function isTerminalSubscriptionOrderStatus(order = null) {
+  const normalized = String(order?.orderStatus || order?.status || '').toLowerCase().trim();
+  return [
+    'delivered',
+    'cancelled_by_user',
+    'cancelled_by_restaurant',
+    'cancelled_by_admin',
+    'dead',
+  ].includes(normalized);
+}
+
 const BUSINESS_TZ_OFFSET_MINUTES = Number(
   process.env.FOOD_BUSINESS_TZ_OFFSET_MINUTES || 330,
 );
@@ -823,6 +834,32 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
   if (!subscription) throw new ValidationError('Subscription is not active');
   if (!isSubscriptionActiveNow(subscription)) {
     throw new ValidationError('Subscription is not active for today');
+  }
+
+  const siblingSchedules = await FoodSubscriptionSchedule.find({
+    subscriptionId: schedule.subscriptionId,
+    restaurantId: new mongoose.Types.ObjectId(restaurantId),
+    _id: { $ne: schedule._id },
+    status: 'sent_to_delivery',
+  })
+    .populate('orderId', 'order_id orderStatus status dispatch')
+    .sort({ serviceDate: 1, createdAt: 1 });
+
+  const activeSiblingSchedule = siblingSchedules.find((item) => {
+    if (!item?.orderId) return true;
+    return !isTerminalSubscriptionOrderStatus(item.orderId);
+  });
+
+  if (activeSiblingSchedule) {
+    const activeOrder = activeSiblingSchedule.orderId || null;
+    const activeLabel =
+      activeOrder?.order_id ||
+      activeOrder?._id?.toString?.() ||
+      activeSiblingSchedule._id?.toString?.() ||
+      'current subscription order';
+    throw new ValidationError(
+      `Only one subscription order can be sent at a time. Finish active order ${activeLabel} first.`,
+    );
   }
 
   const [restaurant, user, foodItem] = await Promise.all([

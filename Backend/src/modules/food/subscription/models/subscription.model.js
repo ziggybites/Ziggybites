@@ -1,5 +1,8 @@
 import mongoose from 'mongoose';
 
+// Subscription master:
+// owns the commercial contract, default configuration, and lifecycle of a user's plan.
+// It should not own rider dispatch or live delivery execution state.
 const subscriptionDeliveryAddressSchema = new mongoose.Schema(
   {
     label: { type: String, default: 'Home', trim: true },
