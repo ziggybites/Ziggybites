@@ -1,10 +1,11 @@
 import { sendResponse } from '../../../../utils/response.js';
-import { getUserWallet, createWalletTopupOrder, verifyWalletTopupPayment } from '../services/userWallet.service.js';
+import { createWalletTopupOrder, verifyWalletTopupPayment } from '../services/userWallet.service.js';
+import { getUserWalletForFrontend } from '../../../../core/payments/wallet.service.js';
 
 export const getUserWalletController = async (req, res, next) => {
     try {
         const userId = req.user?.userId;
-        const wallet = await getUserWallet(userId);
+        const wallet = await getUserWalletForFrontend(userId);
         return sendResponse(res, 200, 'Wallet fetched successfully', { wallet });
     } catch (error) {
         next(error);

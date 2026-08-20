@@ -20,6 +20,7 @@ import {
 } from '../helpers/razorpay.helper.js';
 import { fetchPolyline } from '../utils/googleMaps.js';
 import * as foodTransactionService from './foodTransaction.service.js';
+import { distributeCompletedOrderFinance } from './orderFinanceDistribution.service.js';
 import * as dispatchService from './order-dispatch.service.js';
 import {
   buildOrderIdentityFilter,
@@ -1153,6 +1154,12 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
     recordedByRole: 'DELIVERY_PARTNER',
     recordedById: deliveryPartnerId,
     note: `Rider finalized payment as ${finalPayMethod}. Order is now delivered.`,
+  });
+
+  await distributeCompletedOrderFinance(order._id, {
+    orderDisplayId: order.orderId || order.order_id || order._id?.toString?.(),
+    recordedByRole: 'DELIVERY_PARTNER',
+    recordedById: deliveryPartnerId,
   });
 
   emitOrderUpdate(order, deliveryPartnerId);

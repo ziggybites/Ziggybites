@@ -1,8 +1,8 @@
 import { logger } from '../../utils/logger.js';
-import { creditWallet } from '../../core/payments/wallet.service.js';
 import { createPayment, markPaymentSuccess } from '../../core/payments/payment.service.js';
 import { initiateRefund } from '../../core/payments/refund.service.js';
 import { checkEarningAddonCompletions } from '../../modules/food/admin/services/admin.service.js';
+import { distributeCompletedOrderFinance } from '../../modules/food/orders/services/orderFinanceDistribution.service.js';
 
 /**
  * Post-delivery financial settlement processor.
@@ -51,82 +51,19 @@ export const processPaymentJob = async (job) => {
  * Split money to all parties.
  */
 async function handleDeliveryCompleted(data) {
-    const {
-        orderMongoId, orderId,
-        restaurantId, deliveryPartnerId,
-        riderEarning = 0, platformProfit = 0,
-        commissionAmount = 0,
-        total = 0, paymentMethod
-    } = data;
+    const { orderMongoId, orderId, deliveryPartnerId } = data;
 
-    // 1. Credit restaurant wallet with their commission (payout)
-    if (restaurantId && commissionAmount > 0) {
+    await distributeCompletedOrderFinance(orderMongoId, {
+        orderDisplayId: orderId,
+        recordedByRole: 'SYSTEM',
+        recordedById: deliveryPartnerId || undefined,
+    });
+
+    if (deliveryPartnerId) {
         try {
-            await creditWallet({
-                entityType: 'restaurant',
-                entityId: restaurantId,
-                amount: commissionAmount,
-                description: `Order ${orderId} - restaurant commission`,
-                category: 'commission',
-                orderId: orderMongoId,
-                metadata: { orderId, paymentMethod }
-            });
-            logger.info(`[PaymentProcessor] Restaurant ${restaurantId} credited ${commissionAmount} for order ${orderId}`);
-        } catch (err) {
-            logger.error(`[PaymentProcessor] Failed to credit restaurant: ${err.message}`);
-        }
-    }
-
-    // 2. Credit delivery partner wallet with their earning
-    if (deliveryPartnerId && riderEarning > 0) {
-        try {
-            await creditWallet({
-                entityType: 'deliveryBoy',
-                entityId: deliveryPartnerId,
-                amount: riderEarning,
-                description: `Order ${orderId} - delivery earning`,
-                category: 'delivery_earning',
-                orderId: orderMongoId,
-                metadata: { orderId, paymentMethod }
-            });
-
-            // Increment delivery count
-            const { FoodDeliveryWallet } = await import('../../modules/food/delivery/models/deliveryWallet.model.js');
-            const mongoose = await import('mongoose');
-            await FoodDeliveryWallet.updateOne(
-                { deliveryPartnerId: new mongoose.default.Types.ObjectId(deliveryPartnerId) },
-                { $inc: { totalDeliveries: 1 } }
-            );
-
-            logger.info(`[PaymentProcessor] Delivery partner ${deliveryPartnerId} credited ${riderEarning} for order ${orderId}`);
-
-            // Automatically check and credit any completed earning addons
-            try {
-                await checkEarningAddonCompletions(deliveryPartnerId, false, true);
-            } catch (addonErr) {
-                logger.error(`[PaymentProcessor] Error checking earning addons for ${deliveryPartnerId}: ${addonErr.message}`);
-            }
-
-        } catch (err) {
-            logger.error(`[PaymentProcessor] Failed to credit delivery partner: ${err.message}`);
-        }
-    }
-
-    // 3. Credit admin/platform wallet with platform profit
-    if (platformProfit > 0) {
-        try {
-            await creditWallet({
-                entityType: 'admin',
-                entityId: 'platform',
-                amount: platformProfit,
-                description: `Order ${orderId} - platform profit`,
-                category: 'platform_fee',
-                orderId: orderMongoId,
-                metadata: { orderId, paymentMethod, riderEarning }
-            });
-            logger.info(`[PaymentProcessor] Platform credited ${platformProfit} for order ${orderId}`);
-        } catch (err) {
-            logger.error(`[PaymentProcessor] Failed to credit platform: ${err.message}`);
+            await checkEarningAddonCompletions(deliveryPartnerId, false, true);
+        } catch (addonErr) {
+            logger.error(`[PaymentProcessor] Error checking earning addons for ${deliveryPartnerId}: ${addonErr.message}`);
         }
     }
 }

@@ -6,6 +6,7 @@ import { DeliveryBonusTransaction } from '../../admin/models/deliveryBonusTransa
 import { validateDeliveryRegisterDto, validateDeliveryProfileUpdateDto, validateDeliveryBankDetailsDto } from '../validators/delivery.validator.js';
 import { sendResponse } from '../../../../utils/response.js';
 import { getDeliveryReferralStats } from '../services/deliveryReferral.service.js';
+import { getDeliveryWalletForFrontend } from '../../../../core/payments/wallet.service.js';
 
 export const registerDeliveryPartnerController = async (req, res, next) => {
     try {
@@ -134,7 +135,7 @@ export const getWalletController = async (req, res, next) => {
                 return sendResponse(res, 200, 'Wallet fetched successfully', { wallet: { transactions: [] } });
             }
 
-            const wallet = await getDeliveryPartnerWalletEnhanced(deliveryPartnerId);
+            const wallet = await getDeliveryWalletForFrontend(deliveryPartnerId, { page: 1, limit });
             if (requestedTypeRaw === 'bonus') {
                 const bonusList = await DeliveryBonusTransaction.find({ deliveryPartnerId })
                     .sort({ createdAt: -1 })
@@ -164,7 +165,7 @@ export const getWalletController = async (req, res, next) => {
             return sendResponse(res, 200, 'Wallet fetched successfully', { wallet });
         }
 
-        const wallet = await getDeliveryPartnerWalletEnhanced(deliveryPartnerId);
+        const wallet = await getDeliveryWalletForFrontend(deliveryPartnerId, { page: 1, limit });
         return sendResponse(res, 200, 'Wallet fetched successfully', { wallet });
     } catch (error) {
         next(error);

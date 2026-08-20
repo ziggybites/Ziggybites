@@ -37,12 +37,17 @@ const ADMIN_ENTITY_OID = new mongoose.Types.ObjectId('000000000000000000000001')
 /**
  * Ensure wallet exists, creating it if needed. Returns the wallet document.
  */
-export async function ensureWallet(entityType, entityId) {
+export async function ensureWallet(entityType, entityId, options = {}) {
     const { Model, filter, idField } = resolveWallet(entityType, entityId);
-    let wallet = await Model.findOne(filter);
+    const session = options.session || null;
+    let wallet = await Model.findOne(filter).session(session);
     if (!wallet) {
         const createPayload = { ...filter, balance: 0 };
-        wallet = await Model.create(createPayload);
+        if (session) {
+            [wallet] = await Model.create([{ ...createPayload }], { session });
+        } else {
+            wallet = await Model.create(createPayload);
+        }
     }
     return wallet;
 }
@@ -50,8 +55,8 @@ export async function ensureWallet(entityType, entityId) {
 /**
  * Get balance for an entity wallet.
  */
-export async function getBalance(entityType, entityId) {
-    const wallet = await ensureWallet(entityType, entityId);
+export async function getBalance(entityType, entityId, options = {}) {
+    const wallet = await ensureWallet(entityType, entityId, options);
     return {
         balance: Number(wallet.balance) || 0,
         lockedAmount: Number(wallet.lockedAmount) || 0,
@@ -80,7 +85,8 @@ export async function recordTransaction(payload) {
         entityType, entityId, type, amount,
         description = '', category = 'other',
         orderId = null, paymentId = null,
-        metadata = undefined, module = 'food'
+        metadata = undefined, module = 'food',
+        session: externalSession = null
     } = payload;
 
     if (!['credit', 'debit'].includes(type)) throw new Error('type must be credit or debit');
@@ -88,8 +94,11 @@ export async function recordTransaction(payload) {
 
     const { Model, filter } = resolveWallet(entityType, entityId);
 
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const session = externalSession || await mongoose.startSession();
+    const ownsSession = !externalSession;
+    if (ownsSession) {
+        session.startTransaction();
+    }
 
     try {
         // 1. Ensure wallet exists
@@ -152,7 +161,9 @@ export async function recordTransaction(payload) {
             await Model.updateOne(filter, { $set: { balance: newBalance } }, { session });
         }
 
-        await session.commitTransaction();
+        if (ownsSession) {
+            await session.commitTransaction();
+        }
 
         logger.info(`Transaction recorded: ${type} ${amount} INR for ${entityType}:${entityId} → balance ${newBalance}`);
 
@@ -161,11 +172,15 @@ export async function recordTransaction(payload) {
             wallet: { balance: newBalance }
         };
     } catch (err) {
-        await session.abortTransaction();
+        if (ownsSession) {
+            await session.abortTransaction();
+        }
         logger.error(`recordTransaction failed: ${err.message}`);
         throw err;
     } finally {
-        session.endSession();
+        if (ownsSession) {
+            session.endSession();
+        }
     }
 }
 

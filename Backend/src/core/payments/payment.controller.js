@@ -1,7 +1,7 @@
 import { sendResponse } from '../../utils/response.js';
 import { getPaymentsByOrder } from './payment.service.js';
 import { getTransactionsByOrder } from './transaction.service.js';
-import { getWalletBalance, getWalletWithTransactions, getUserWalletForFrontend } from './wallet.service.js';
+import { getWalletBalance, getWalletWithTransactions, getUserWalletForFrontend, getRestaurantWalletForFrontend, getDeliveryWalletForFrontend, getAdminWalletForFrontend } from './wallet.service.js';
 import { getRefundsByOrder, listRefunds } from './refund.service.js';
 import { createSettlement, processSettlement, listSettlements } from './settlement.service.js';
 import { logger } from '../../utils/logger.js';
@@ -41,9 +41,7 @@ export const getUserWalletBalanceController = async (req, res, next) => {
 export const getUserWalletTransactionsController = async (req, res, next) => {
     try {
         const userId = req.user?.userId;
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 20;
-        const data = await getWalletWithTransactions('user', userId, { page, limit });
+        const data = await getUserWalletForFrontend(userId);
         return sendResponse(res, 200, 'Wallet transactions fetched', data);
     } catch (err) {
         next(err);
@@ -57,7 +55,7 @@ export const getRestaurantWalletController = async (req, res, next) => {
         const restaurantId = req.user?.restaurantId || req.params.restaurantId;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
-        const data = await getWalletWithTransactions('restaurant', restaurantId, { page, limit });
+        const data = await getRestaurantWalletForFrontend(restaurantId, { page, limit });
         return sendResponse(res, 200, 'Restaurant wallet fetched', data);
     } catch (err) {
         next(err);
@@ -71,7 +69,7 @@ export const getDeliveryWalletController = async (req, res, next) => {
         const deliveryPartnerId = req.user?.deliveryPartnerId || req.params.deliveryPartnerId;
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 20;
-        const data = await getWalletWithTransactions('deliveryBoy', deliveryPartnerId, { page, limit });
+        const data = await getDeliveryWalletForFrontend(deliveryPartnerId, { page, limit });
         return sendResponse(res, 200, 'Delivery wallet fetched', data);
     } catch (err) {
         next(err);
@@ -82,7 +80,9 @@ export const getDeliveryWalletController = async (req, res, next) => {
 
 export const getAdminWalletController = async (req, res, next) => {
     try {
-        const data = await getWalletBalance('admin', 'platform');
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 20;
+        const data = await getAdminWalletForFrontend({ page, limit });
         return sendResponse(res, 200, 'Admin wallet fetched', data);
     } catch (err) {
         next(err);
@@ -92,9 +92,38 @@ export const getAdminWalletController = async (req, res, next) => {
 export const getAdminFinanceSummaryController = async (req, res, next) => {
     try {
         const { FoodAdminWallet } = await import('../../modules/food/admin/models/adminWallet.model.js');
+        const { FoodRestaurantWallet } = await import('../../modules/food/restaurant/models/restaurantWallet.model.js');
+        const { FoodDeliveryWallet } = await import('../../modules/food/delivery/models/deliveryWallet.model.js');
+        const { FoodTransaction } = await import('../../modules/food/orders/models/foodTransaction.model.js');
         const adminWallet = await FoodAdminWallet.findOne({ key: 'platform' }).lean();
-        const pendingSettlements = await listSettlements({ status: 'pending', limit: 100 });
-        const pendingRefunds = await listRefunds({ status: 'pending', limit: 100 });
+        const [pendingSettlements, pendingRefunds, restaurantWalletAgg, deliveryWalletAgg, financeSeries] = await Promise.all([
+            listSettlements({ status: 'pending', limit: 100 }),
+            listRefunds({ status: 'pending', limit: 100 }),
+            FoodRestaurantWallet.aggregate([{ $group: { _id: null, total: { $sum: { $ifNull: ['$balance', 0] } } } }]),
+            FoodDeliveryWallet.aggregate([{ $group: { _id: null, total: { $sum: { $ifNull: ['$balance', 0] } } } }]),
+            FoodTransaction.aggregate([
+                {
+                    $match: {
+                        createdAt: {
+                            $gte: new Date(Date.now() - (14 * 24 * 60 * 60 * 1000)),
+                        },
+                    },
+                },
+                {
+                    $group: {
+                        _id: {
+                            $dateToString: { format: '%Y-%m-%d', date: '$createdAt' },
+                        },
+                        grossSales: { $sum: { $ifNull: ['$amounts.totalCustomerPaid', 0] } },
+                        restaurantEarnings: { $sum: { $ifNull: ['$amounts.restaurantShare', 0] } },
+                        riderEarnings: { $sum: { $ifNull: ['$amounts.riderShare', 0] } },
+                        platformProfit: { $sum: { $ifNull: ['$amounts.platformNetProfit', 0] } },
+                        orders: { $sum: 1 },
+                    },
+                },
+                { $sort: { _id: 1 } },
+            ]),
+        ]);
 
         return sendResponse(res, 200, 'Finance summary', {
             platform: {
@@ -103,6 +132,10 @@ export const getAdminFinanceSummaryController = async (req, res, next) => {
                 totalPayouts: adminWallet?.totalPayouts || 0,
                 totalRefunds: adminWallet?.totalRefunds || 0
             },
+            liabilities: {
+                restaurantWalletBalance: restaurantWalletAgg?.[0]?.total || 0,
+                deliveryWalletBalance: deliveryWalletAgg?.[0]?.total || 0,
+            },
             pendingSettlements: {
                 count: pendingSettlements.total,
                 totalAmount: pendingSettlements.settlements.reduce((s, v) => s + (v.amount || 0), 0)
@@ -110,7 +143,17 @@ export const getAdminFinanceSummaryController = async (req, res, next) => {
             pendingRefunds: {
                 count: pendingRefunds.total,
                 totalAmount: pendingRefunds.refunds.reduce((s, v) => s + (v.amount || 0), 0)
-            }
+            },
+            graphs: {
+                dailyFinance: financeSeries.map((row) => ({
+                    date: row._id,
+                    orders: row.orders || 0,
+                    grossSales: row.grossSales || 0,
+                    restaurantEarnings: row.restaurantEarnings || 0,
+                    riderEarnings: row.riderEarnings || 0,
+                    platformProfit: row.platformProfit || 0,
+                })),
+            },
         });
     } catch (err) {
         next(err);
