@@ -32,6 +32,8 @@ import {
 import { FoodMealSlot } from '../../landing/models/mealSlot.model.js';
 import { FoodDeliveryCommissionRule } from '../../admin/models/deliveryCommissionRule.model.js';
 import { FoodFeeSettings } from '../../admin/models/feeSettings.model.js';
+import { FoodOffer } from '../../admin/models/offer.model.js';
+import { FoodOfferUsage } from '../../admin/models/offerUsage.model.js';
 
 function normalizeMeals(meals = []) {
   return meals
@@ -597,7 +599,99 @@ export async function createSubscriptionOrder(userId, dto) {
     ? Number(dto.deliveryFeePerDay)
     : 10;
   const deliveryCharges = roundMoney(deliveryFeePerDay * planDays);
-  const payableAmount = roundMoney(foodSubtotal + gstAmount + deliveryCharges);
+  const totalBeforeDiscount = roundMoney(foodSubtotal + gstAmount + deliveryCharges);
+  let couponDiscount = 0;
+  let couponCode = dto.couponCode ? String(dto.couponCode).trim().toUpperCase() : '';
+
+  if (couponCode) {
+    const now = new Date();
+    let offer = await FoodOffer.findOne({ couponCode }).lean();
+
+    if (!offer) {
+      const { default: Promocode } = await import('../../../../models/Promocode.js');
+      const promo = await Promocode.findOne({
+        code: couponCode,
+        restaurantId: dto.restaurantId,
+      }).lean();
+
+      if (promo) {
+        offer = {
+          _id: promo._id,
+          status: promo.isActive ? 'active' : 'inactive',
+          startDate: promo.startDate,
+          endDate: promo.expiryDate,
+          restaurantScope: 'selected',
+          restaurantId: promo.restaurantId,
+          minOrderValue: promo.minOrderAmount || 0,
+          usageLimit: promo.usageLimit || 0,
+          usedCount: promo.usageCount || 0,
+          discountType: promo.discountType === 'PERCENTAGE' ? 'percentage' : 'flat',
+          discountValue: promo.discountValue,
+          maxDiscount: promo.maxDiscountAmount || 0,
+          perUserLimit: 0,
+          customerScope: 'all',
+        };
+      }
+    }
+
+    if (!offer) {
+      throw new ValidationError('Invalid or expired coupon code.');
+    }
+
+    const statusOk = offer.status === 'active';
+    const startOk = !offer.startDate || now >= new Date(offer.startDate);
+    const endOk = !offer.endDate || now < new Date(offer.endDate);
+    const scopeOk =
+      offer.restaurantScope !== 'selected' ||
+      String(offer.restaurantId || '') === String(dto.restaurantId || '');
+    const minOk = foodSubtotal >= (Number(offer.minOrderValue) || 0);
+    const usageOk =
+      !(Number(offer.usageLimit) > 0 &&
+        Number(offer.usedCount || 0) >= Number(offer.usageLimit));
+
+    let perUserOk = true;
+    if (Number(offer.perUserLimit) > 0) {
+      const usage = await FoodOfferUsage.findOne({
+        offerId: offer._id,
+        userId: new mongoose.Types.ObjectId(userId),
+      }).lean();
+      if (usage && Number(usage.count) >= Number(offer.perUserLimit)) {
+        perUserOk = false;
+      }
+    }
+
+    let firstOrderOk = true;
+    if (offer.customerScope === 'first-time' || offer.customerScope === 'new' || offer.isFirstOrderOnly === true) {
+      const existingOrderCount = await FoodOrder.countDocuments({
+        userId: new mongoose.Types.ObjectId(userId),
+      });
+      firstOrderOk = existingOrderCount === 0;
+    }
+
+    if (!(statusOk && startOk && endOk && scopeOk && minOk && usageOk && perUserOk && firstOrderOk)) {
+      if (!minOk) {
+        throw new ValidationError(`Minimum order value of ${offer.minOrderValue} required for this coupon.`);
+      }
+      if (!firstOrderOk) {
+        throw new ValidationError('This coupon is only for first-time users.');
+      }
+      throw new ValidationError('This coupon is not applicable right now.');
+    }
+
+    if (offer.discountType === 'percentage') {
+      const rawDiscount = foodSubtotal * ((Number(offer.discountValue) || 0) / 100);
+      const cappedDiscount = Number(offer.maxDiscount)
+        ? Math.min(rawDiscount, Number(offer.maxDiscount))
+        : rawDiscount;
+      couponDiscount = roundMoney(Math.max(0, Math.min(foodSubtotal, cappedDiscount)));
+    } else {
+      couponDiscount = roundMoney(
+        Math.max(0, Math.min(foodSubtotal, Number(offer.discountValue) || 0)),
+      );
+    }
+  }
+
+  const payableAmount = roundMoney(Math.max(0, totalBeforeDiscount - couponDiscount));
   const dtoTotalAmount = roundMoney(dto.totalAmount || 0);
   if (!Number.isFinite(dtoTotalAmount) || dtoTotalAmount <= 0) {
     throw new ValidationError('Total amount must be greater than 0');
@@ -643,6 +737,9 @@ export async function createSubscriptionOrder(userId, dto) {
     planTitle: String(plan?.title || `${planDays} Days`).trim(),
     planDays,
     totalAmount: payableAmount,
+    totalBeforeDiscount,
+    couponCode,
+    couponDiscount,
     creditPerOrder,
     totalCredits,
     usedCredits: 0,

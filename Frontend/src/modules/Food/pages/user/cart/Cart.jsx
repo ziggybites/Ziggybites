@@ -840,17 +840,29 @@ export default function Cart() {
                 // Convert backend coupon format to frontend format
                 allCoupons.push({
                   code: coupon.couponCode,
-                  discount: coupon.originalPrice - coupon.discountedPrice,
+                  discount: coupon.discountType === "percentage"
+                    ? 0
+                    : Math.max(
+                      0,
+                      Number(coupon.discountValue ?? ((coupon.originalPrice || 0) - (coupon.discountedPrice || 0))) || 0,
+                    ),
                   discountPercentage: coupon.discountPercentage,
                   discountDisplay: coupon.discountType === "percentage"
                     ? `${coupon.discountPercentage}% OFF`
-                    : `${RUPEE_SYMBOL}${Math.max(0, (coupon.originalPrice || 0) - (coupon.discountedPrice || 0))} OFF`,
+                    : `${RUPEE_SYMBOL}${Math.max(
+                      0,
+                      Number(coupon.discountValue ?? ((coupon.originalPrice || 0) - (coupon.discountedPrice || 0))) || 0,
+                    )} OFF`,
                   minOrder: coupon.minOrderValue || 0,
                   description: coupon.discountType === "percentage"
                     ? `${coupon.discountPercentage}% OFF with '${coupon.couponCode}'`
-                    : `Save ${RUPEE_SYMBOL}${Math.max(0, (coupon.originalPrice || 0) - (coupon.discountedPrice || 0))} with '${coupon.couponCode}'`,
+                    : `Save ${RUPEE_SYMBOL}${Math.max(
+                      0,
+                      Number(coupon.discountValue ?? ((coupon.originalPrice || 0) - (coupon.discountedPrice || 0))) || 0,
+                    )} with '${coupon.couponCode}'`,
                   originalPrice: coupon.originalPrice,
                   discountedPrice: coupon.discountedPrice,
+                  discountValue: coupon.discountValue,
                   customerGroup: coupon.customerGroup || "all",
                   isGlobalCoupon: Boolean(coupon.isGlobalCoupon),
                   itemId: couponItemId,

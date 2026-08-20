@@ -389,93 +389,131 @@ export default function Help() {
   })
 
   return (
-    <AnimatedPage className="min-h-screen bg-gradient-to-b from-yellow-50/30 via-white to-orange-50/20 dark:from-[#0a0a0a] dark:via-[#0a0a0a] dark:to-[#0a0a0a] p-4 md:p-6 lg:p-8">
-      <div className="max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto space-y-4 md:space-y-5 lg:space-y-6">
+    <AnimatedPage className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(251,191,36,0.16),_transparent_28%),linear-gradient(180deg,_#fffdf7_0%,_#ffffff_45%,_#fff8ef_100%)] p-4 md:p-6 lg:p-8 dark:bg-[#0a0a0a]">
+      <div className="max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto space-y-5 md:space-y-6 lg:space-y-7">
         <ScrollReveal>
-          <div className="mb-6 md:mb-8">
-            <div className="flex items-center gap-3 md:gap-4 mb-4">
+          <div className="relative overflow-hidden rounded-[28px] border border-amber-100 bg-white/95 shadow-[0_20px_60px_rgba(15,23,42,0.08)] backdrop-blur">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500" />
+            <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-amber-100/70 blur-3xl" />
+            <div className="absolute -left-10 bottom-0 h-28 w-28 rounded-full bg-orange-100/60 blur-2xl" />
+            <div className="relative p-5 md:p-7 lg:p-9">
+            <div className="flex items-center gap-3 md:gap-4 mb-6">
               <Link to="/food/user">
-                <Button variant="ghost" size="icon" className="h-9 w-9 md:h-10 md:w-10 p-0">
+                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full border border-slate-200 bg-white/80 p-0 text-slate-700 shadow-sm hover:bg-slate-50">
                   <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
                 </Button>
               </Link>
-              <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold">Help Center</h1>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-600">Customer Care</p>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-4xl lg:text-5xl">Help & Support</h1>
+              </div>
             </div>
-            <div className="text-center space-y-3 md:space-y-4">
-              <p className="text-base md:text-lg lg:text-xl text-muted-foreground">
-                Find answers to common questions or contact our support team
-              </p>
+            <div className="grid gap-5 md:grid-cols-[1.5fr_1fr] md:items-end">
+              <div className="space-y-3">
+                <p className="max-w-2xl text-sm leading-6 text-slate-600 md:text-base md:leading-7">
+                  Find answers faster, raise a ticket when needed, and reach the right team without jumping between pages.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Badge className="rounded-full bg-amber-100 px-3 py-1 text-amber-800 hover:bg-amber-100">FAQs</Badge>
+                  <Badge className="rounded-full bg-orange-100 px-3 py-1 text-orange-800 hover:bg-orange-100">Ticket Support</Badge>
+                  <Badge className="rounded-full bg-slate-100 px-3 py-1 text-slate-700 hover:bg-slate-100">Order Help</Badge>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-center">
+                  <p className="text-xl font-bold text-slate-900">{helpCategories.length}</p>
+                  <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">Categories</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-center">
+                  <p className="text-xl font-bold text-slate-900">24/7</p>
+                  <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">Coverage</p>
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-center">
+                  <p className="text-xl font-bold text-slate-900">{tickets.length}</p>
+                  <p className="mt-1 text-[11px] font-medium uppercase tracking-wide text-slate-500">My Tickets</p>
+                </div>
+              </div>
             </div>
+          </div>
           </div>
         </ScrollReveal>
 
-        {/* Search Bar */}
         <ScrollReveal delay={0.1}>
-          <Card className="shadow-lg">
+          <Card className="overflow-hidden rounded-3xl border border-slate-200 bg-white/95 shadow-[0_16px_40px_rgba(15,23,42,0.06)]">
             <CardContent className="p-4 md:p-5 lg:p-6">
               <div className="relative">
-                <Search className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 md:h-6 md:w-6 text-muted-foreground" />
+                <Search className="absolute left-3 md:left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 md:h-6 md:w-6 text-slate-400" />
                 <Input
                   type="text"
                   placeholder="Search for help topics, questions, or keywords..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 md:pl-12 h-12 md:h-14 text-base md:text-lg"
+                  className="h-12 rounded-2xl border-slate-200 bg-slate-50 pl-10 text-base shadow-none focus-visible:ring-1 focus-visible:ring-orange-400 md:h-14 md:pl-12 md:text-lg"
                 />
               </div>
             </CardContent>
           </Card>
         </ScrollReveal>
 
-        {/* Quick Actions */}
         <ScrollReveal delay={0.2}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5 lg:gap-6">
             <Link to="/food/user/orders" state={helpBackState}>
-              <CardContent className="p-4 md:p-5 lg:p-6">
+              <Card className="h-full rounded-3xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(15,23,42,0.08)]">
+              <CardContent className="p-5 md:p-6">
                 <div className="flex items-center gap-3 md:gap-4">
-                  <div className="p-2 md:p-3 bg-yellow-100 rounded-lg">
+                  <div className="rounded-2xl bg-amber-50 p-3">
                     <Package className="h-5 w-5 md:h-6 md:w-6 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-sm md:text-base font-semibold">Track Your Order</h3>
-                    <p className="text-xs md:text-sm text-muted-foreground">View order status</p>
+                    <h3 className="text-sm font-semibold text-slate-900 md:text-base">Track Your Order</h3>
+                    <p className="text-xs text-slate-500 md:text-sm">View order status and delivery updates</p>
                   </div>
                 </div>
               </CardContent>
+              </Card>
             </Link>
             <Link to="/food/user/profile" state={helpBackState}>
-              <CardContent className="p-4 md:p-5 lg:p-6">
+              <Card className="h-full rounded-3xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] transition-all duration-200 hover:-translate-y-1 hover:shadow-[0_20px_40px_rgba(15,23,42,0.08)]">
+              <CardContent className="p-5 md:p-6">
                 <div className="flex items-center gap-3 md:gap-4">
-                  <div className="p-2 md:p-3 bg-orange-100 rounded-lg">
+                  <div className="rounded-2xl bg-orange-50 p-3">
                     <User className="h-5 w-5 md:h-6 md:w-6 text-primary" />
                   </div>
                   <div>
-                    <h3 className="text-sm md:text-base font-semibold">Manage Account</h3>
-                    <p className="text-xs md:text-sm text-muted-foreground">Update profile & settings</p>
+                    <h3 className="text-sm font-semibold text-slate-900 md:text-base">Manage Account</h3>
+                    <p className="text-xs text-slate-500 md:text-sm">Update profile, addresses and settings</p>
                   </div>
                 </div>
               </CardContent>
+              </Card>
             </Link>
-            <CardContent className="p-4 md:p-5 lg:p-6">
-              <div className="flex items-center gap-3 md:gap-4">
-                <div className="p-2 md:p-3 bg-orange-100 rounded-lg">
-                  <MessageCircle className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+            <Card className="h-full rounded-3xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
+              <CardContent className="p-5 md:p-6">
+                <div className="flex items-center gap-3 md:gap-4">
+                  <div className="rounded-2xl bg-rose-50 p-3">
+                    <MessageCircle className="h-5 w-5 md:h-6 md:w-6 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 md:text-base">Contact Support</h3>
+                    <p className="text-xs text-slate-500 md:text-sm">Raise a ticket and follow replies here</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm md:text-base font-semibold">Contact Support</h3>
-                  <p className="text-xs md:text-sm text-muted-foreground">Get help from our team</p>
-                </div>
-              </div>
-            </CardContent>
+              </CardContent>
+            </Card>
           </div>
         </ScrollReveal>
 
-        {/* Help Categories */}
         <ScrollReveal delay={0.3}>
           <div className="space-y-4 md:space-y-5 lg:space-y-6">
-            <h2 className="text-xl md:text-2xl lg:text-3xl font-bold">Browse by Category</h2>
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Knowledge Base</p>
+                <h2 className="text-2xl font-bold tracking-tight text-slate-950 md:text-3xl">Browse by Category</h2>
+              </div>
+              <p className="hidden text-sm text-slate-500 md:block">Professional help, clearly organized</p>
+            </div>
             {filteredCategories.length === 0 ? (
-              <Card>
+              <Card className="rounded-3xl border border-slate-200 bg-white shadow-sm">
                 <CardContent className="py-12 text-center">
                   <HelpCircle className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                   <p className="text-lg font-semibold mb-2">No results found</p>
@@ -496,19 +534,19 @@ export default function Help() {
                 const isExpanded = expandedCategory === category.id
 
                 return (
-                  <Card key={category.id} className="shadow-lg">
+                  <Card key={category.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)]">
                     <CardHeader
                       onClick={() => toggleCategory(category.id)}
-                      className="p-4 md:p-5 lg:p-6"
+                      className="cursor-pointer p-5 md:p-6"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 md:gap-4">
-                          <div className={`p-2 md:p-3 ${category.bgColor} rounded-lg`}>
+                          <div className={`rounded-2xl p-3 ${category.bgColor}`}>
                             <Icon className={`h-5 w-5 md:h-6 md:w-6 ${category.color}`} />
                           </div>
                           <div>
-                            <CardTitle className="text-lg md:text-xl lg:text-2xl">{category.title}</CardTitle>
-                            <CardDescription className="text-sm md:text-base">{category.description}</CardDescription>
+                            <CardTitle className="text-lg text-slate-900 md:text-xl lg:text-2xl">{category.title}</CardTitle>
+                            <CardDescription className="text-sm text-slate-500 md:text-base">{category.description}</CardDescription>
                           </div>
                         </div>
                         {isExpanded ? (
@@ -519,7 +557,7 @@ export default function Help() {
                       </div>
                     </CardHeader>
                     {isExpanded && (
-                      <CardContent className="space-y-3 md:space-y-4 pt-0 p-4 md:p-5 lg:p-6">
+                      <CardContent className="space-y-3 border-t border-slate-100 bg-slate-50/55 p-4 pt-4 md:space-y-4 md:p-5 lg:p-6">
                         {category.topics.map((topic, topicIndex) => {
                           const questionIndex = `${category.id}-${topicIndex}`
                           const isQuestionExpanded = expandedQuestion === questionIndex
@@ -527,10 +565,11 @@ export default function Help() {
                           return (
                             <div
                               key={topicIndex}
-                              className="border rounded-lg overflow-hidden"
+                              className="overflow-hidden rounded-2xl border border-slate-200 bg-white"
                             >
                               <button
                                 onClick={() => toggleQuestion(questionIndex)}
+                                className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left text-sm text-slate-900 transition-colors hover:bg-slate-50 md:text-base"
                               >
                                 <span className="font-semibold pr-4">{topic.question}</span>
                                 {isQuestionExpanded ? (
@@ -540,7 +579,7 @@ export default function Help() {
                                 )}
                               </button>
                               {isQuestionExpanded && (
-                                <div className="p-4 text-muted-foreground border-t bg-muted/30">
+                                <div className="border-t border-slate-100 bg-slate-50/80 p-4 text-sm leading-6 text-slate-600 md:text-base">
                                   <p>{topic.answer}</p>
                                 </div>
                               )}
@@ -557,20 +596,20 @@ export default function Help() {
         </ScrollReveal>
 
         <ScrollReveal delay={0.35}>
-          <Card className="bg-white dark:bg-[#1a1a1a] shadow-lg border-slate-200 dark:border-gray-800">
+          <Card className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_16px_40px_rgba(15,23,42,0.06)] dark:border-gray-800 dark:bg-[#1a1a1a]">
             <CardHeader className="p-4 md:p-5 lg:p-6">
-              <CardTitle className="text-xl md:text-2xl lg:text-3xl flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-xl text-slate-950 md:text-2xl lg:text-3xl dark:text-white">
                 <HelpCircle className="h-5 w-5 md:h-6 md:w-6 text-primary" />
                 Raise a Support Ticket
               </CardTitle>
-              <CardDescription className="text-sm md:text-base">
+              <CardDescription className="text-sm text-slate-500 md:text-base">
                 Report order, restaurant, payment, or app issues and track replies in one place.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 p-4 md:p-5 lg:p-6">
               {supportStep === "pick" && (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <button onClick={() => handlePickSupportType("order")} className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                  <button onClick={() => handlePickSupportType("order")} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-sm dark:border-slate-700 dark:hover:bg-slate-800">
                     <div className="flex items-center justify-between">
                       <ShoppingBag className="h-5 w-5 text-slate-700 dark:text-slate-200" />
                       <ChevronRight className="h-4 w-4 text-slate-400" />
@@ -579,7 +618,7 @@ export default function Help() {
                     <p className="text-xs text-slate-500 mt-1">Missing item, wrong item, delivery issue</p>
                   </button>
 
-                  <button onClick={() => handlePickSupportType("restaurant")} className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                  <button onClick={() => handlePickSupportType("restaurant")} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-sm dark:border-slate-700 dark:hover:bg-slate-800">
                     <div className="flex items-center justify-between">
                       <Building2 className="h-5 w-5 text-slate-700 dark:text-slate-200" />
                       <ChevronRight className="h-4 w-4 text-slate-400" />
@@ -588,7 +627,7 @@ export default function Help() {
                     <p className="text-xs text-slate-500 mt-1">Service, listing info, behavior report</p>
                   </button>
 
-                  <button onClick={() => handlePickSupportType("other")} className="w-full border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-left hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                  <button onClick={() => handlePickSupportType("other")} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition-all hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-sm dark:border-slate-700 dark:hover:bg-slate-800">
                     <div className="flex items-center justify-between">
                       <HelpCircle className="h-5 w-5 text-slate-700 dark:text-slate-200" />
                       <ChevronRight className="h-4 w-4 text-slate-400" />
@@ -707,25 +746,25 @@ export default function Help() {
 
         {/* Contact Support Section */}
         <ScrollReveal delay={0.4}>
-          <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-200 shadow-lg">
+          <Card className="overflow-hidden rounded-3xl border border-amber-200 bg-[linear-gradient(135deg,_#fff7db_0%,_#fff3e8_52%,_#fff_100%)] shadow-[0_16px_40px_rgba(251,146,60,0.12)]">
             <CardHeader className="p-4 md:p-5 lg:p-6">
-              <CardTitle className="text-xl md:text-2xl lg:text-3xl flex items-center gap-2">
+              <CardTitle className="flex items-center gap-2 text-xl text-slate-950 md:text-2xl lg:text-3xl">
                 <MessageCircle className="h-5 w-5 md:h-6 md:w-6 text-primary" />
                 Still Need Help?
               </CardTitle>
-              <CardDescription className="text-sm md:text-base">
+              <CardDescription className="text-sm text-slate-600 md:text-base">
                 {supportDetails.supportHours || "Our support team is here to assist you 24/7"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 md:space-y-5 lg:space-y-6 p-4 md:p-5 lg:p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 lg:gap-6">
-                <div className="flex items-start gap-3 p-4 bg-white rounded-lg">
-                  <div className="p-2 bg-orange-100 rounded-lg">
+                <div className="flex items-start gap-3 rounded-2xl border border-white/70 bg-white/90 p-4 shadow-sm">
+                  <div className="rounded-2xl bg-orange-100 p-2">
                     <Phone className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">Phone Support</h3>
-                    <p className="text-sm text-muted-foreground mb-2">
+                    <h3 className="mb-1 font-semibold text-slate-900">Phone Support</h3>
+                    <p className="mb-2 text-sm text-slate-500">
                       {supportDetails.supportHours || "Call us anytime"}
                     </p>
                     {supportPhoneHref ? (
@@ -740,13 +779,13 @@ export default function Help() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-start gap-3 p-4 bg-white rounded-lg">
-                  <div className="p-2 bg-orange-100 rounded-lg">
+                <div className="flex items-start gap-3 rounded-2xl border border-white/70 bg-white/90 p-4 shadow-sm">
+                  <div className="rounded-2xl bg-orange-100 p-2">
                     <Mail className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold mb-1">Email Support</h3>
-                    <p className="text-sm text-muted-foreground mb-2">
+                    <h3 className="mb-1 font-semibold text-slate-900">Email Support</h3>
+                    <p className="mb-2 text-sm text-slate-500">
                       We'll respond within 24 hours
                     </p>
                     {supportEmailHref ? (
@@ -762,8 +801,8 @@ export default function Help() {
                   </div>
                 </div>
               </div>
-              <div className="pt-4 border-t">
-                <p className="text-sm text-muted-foreground mb-3">
+              <div className="border-t border-amber-200/70 pt-4">
+                <p className="mb-3 text-sm text-slate-600">
                   <Clock className="h-4 w-4 inline mr-1" />
                   Average response time: Less than 5 minutes
                 </p>
@@ -773,11 +812,14 @@ export default function Help() {
         </ScrollReveal>
 
         <ScrollReveal delay={0.45}>
-          <Card className="bg-white dark:bg-[#1a1a1a] rounded-xl shadow-sm border border-slate-200 dark:border-gray-800">
-            <CardContent className="p-4">
+          <Card className="rounded-3xl border border-slate-200 bg-white shadow-[0_12px_30px_rgba(15,23,42,0.05)] dark:border-gray-800 dark:bg-[#1a1a1a]">
+            <CardContent className="p-5">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">My Tickets</h3>
-                <span className="text-xs font-medium px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Support History</p>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">My Tickets</h3>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
                   {tickets.length}
                 </span>
               </div>
@@ -787,9 +829,9 @@ export default function Help() {
               ) : tickets.length === 0 ? (
                 <p className="text-sm text-slate-500">No tickets yet</p>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {tickets.map((ticket) => (
-                    <div key={ticket._id || ticket.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 bg-white dark:bg-[#171717]">
+                    <div key={ticket._id || ticket.id} className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-[#171717]">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="text-sm font-semibold text-slate-900 dark:text-white">

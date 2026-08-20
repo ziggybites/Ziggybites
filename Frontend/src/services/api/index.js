@@ -1153,11 +1153,13 @@ export const restaurantAPI = {
         })
         .map((o) => {
           const isPct = o.discountType === "percentage";
+          const flatDiscountValue = isPct ? 0 : Number(o.discountValue) || 0;
           return {
             couponCode: o.couponCode,
             discountType: o.discountType,
             discountPercentage: isPct ? Number(o.discountValue) || 0 : 0,
-            originalPrice: 0,
+            discountValue: flatDiscountValue,
+            originalPrice: flatDiscountValue,
             discountedPrice: 0,
             minOrderValue: Number(o.minOrderValue || 0),
             minOrder: Number(o.minOrderValue || 0),

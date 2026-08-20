@@ -90,6 +90,22 @@ const foodSubscriptionSchema = new mongoose.Schema(
       required: true,
       min: 1,
     },
+    totalBeforeDiscount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    couponCode: {
+      type: String,
+      trim: true,
+      uppercase: true,
+      default: '',
+    },
+    couponDiscount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     creditPerOrder: {
       type: Number,
       default: 0,

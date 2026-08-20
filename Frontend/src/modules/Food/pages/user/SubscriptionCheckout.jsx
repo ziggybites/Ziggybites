@@ -4,14 +4,16 @@ import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   HelpCircle,
   IndianRupee,
   Lock,
   MapPin,
+  TicketPercent,
 } from "lucide-react";
 import { toast } from "sonner";
-import { subscriptionAPI } from "@food/api";
+import { orderAPI, restaurantAPI, subscriptionAPI } from "@food/api";
 import { initRazorpayPayment } from "@food/utils/razorpay";
 import { getCompanyNameAsync } from "@food/utils/businessSettings";
 import { useProfile } from "@food/context/ProfileContext";
@@ -55,6 +57,12 @@ export default function SubscriptionCheckout() {
 
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [appCustomization, setAppCustomization] = useState(DEFAULT_APP_CUSTOMIZATION);
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [loadingCoupons, setLoadingCoupons] = useState(false);
+  const [showCoupons, setShowCoupons] = useState(false);
+  const [manualCouponCode, setManualCouponCode] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [userOrderCount, setUserOrderCount] = useState(0);
 
   const { dish, selectedMeals = [], subscriptionPlan, selectedDeliveryAddress } = location.state || {};
 
@@ -81,7 +89,17 @@ export default function SubscriptionCheckout() {
   const gstAmount = roundMoney(totalFoodCost * (SUBSCRIPTION_GST_RATE / 100));
   const deliveryFeePerDay = SUBSCRIPTION_DELIVERY_FEE_PER_DAY;
   const totalDeliveryCharges = roundMoney(deliveryFeePerDay * days);
-  const totalAmount = roundMoney(totalFoodCost + gstAmount + totalDeliveryCharges);
+  const totalBeforeDiscount = roundMoney(totalFoodCost + gstAmount + totalDeliveryCharges);
+  const couponDiscount = roundMoney(
+    Math.max(
+      0,
+      Math.min(
+        totalFoodCost,
+        Number(appliedCoupon?.discount ?? 0),
+      ),
+    ),
+  );
+  const totalAmount = roundMoney(Math.max(0, totalBeforeDiscount - couponDiscount));
   const totalDeliveries = mealCount * days;
 
   const savedAddress = getDefaultAddress();
@@ -115,6 +133,80 @@ export default function SubscriptionCheckout() {
     };
   }, [currentLocation, savedAddress, selectedDeliveryAddress, userProfile?.phone]);
 
+  useEffect(() => {
+    const fetchCoupons = async () => {
+      const restaurantId = dish?.restaurantId;
+      const itemId = dish?.itemId || dish?.id;
+
+      if (!restaurantId || !itemId) {
+        setAvailableCoupons([]);
+        return;
+      }
+
+      setLoadingCoupons(true);
+      try {
+        const response = await restaurantAPI.getCouponsByItemIdPublic(restaurantId, itemId);
+        const coupons = response?.data?.data?.coupons || [];
+        const normalized = coupons
+          .filter((coupon) => coupon?.showInCart !== false && coupon?.couponCode)
+          .map((coupon) => {
+            const minOrder = Number(coupon.minOrderValue || coupon.minOrder || 0);
+            const discountValue =
+              coupon.discountType === "percentage"
+                ? Math.min(
+                    totalFoodCost,
+                    coupon.maxDiscount
+                      ? (totalFoodCost * (Number(coupon.discountPercentage || 0) / 100) > Number(coupon.maxDiscount)
+                        ? Number(coupon.maxDiscount)
+                        : totalFoodCost * (Number(coupon.discountPercentage || 0) / 100))
+                      : totalFoodCost * (Number(coupon.discountPercentage || 0) / 100),
+                  )
+                : Math.min(totalFoodCost, Number(coupon.discountValue || coupon.discount || 0));
+
+            return {
+              code: String(coupon.couponCode).toUpperCase(),
+              discount: roundMoney(discountValue),
+              discountPercentage: Number(coupon.discountPercentage || 0),
+              discountDisplay:
+                coupon.discountType === "percentage"
+                  ? `${Number(coupon.discountPercentage || 0)}% OFF`
+                  : `${RUPEE_SYMBOL}${roundMoney(discountValue)} OFF`,
+              minOrder,
+              description:
+                coupon.discountType === "percentage"
+                  ? `${Number(coupon.discountPercentage || 0)}% OFF with '${coupon.couponCode}'`
+                  : `Save ${formatCurrency(discountValue)} with '${coupon.couponCode}'`,
+              customerGroup: coupon.customerGroup || "all",
+              maxDiscount: Number(coupon.maxDiscount || 0),
+              discountType: coupon.discountType || "flat",
+            };
+          });
+
+        setAvailableCoupons(normalized);
+      } catch {
+        setAvailableCoupons([]);
+      } finally {
+        setLoadingCoupons(false);
+      }
+    };
+
+    fetchCoupons();
+  }, [dish?.id, dish?.itemId, dish?.restaurantId, totalFoodCost]);
+
+  useEffect(() => {
+    const fetchOrderCount = async () => {
+      try {
+        const response = await orderAPI.getOrders({ page: 1, limit: 1 });
+        const totalOrders = response?.data?.data?.pagination?.total || response?.data?.data?.meta?.total || 0;
+        setUserOrderCount(Number(totalOrders) || 0);
+      } catch {
+        setUserOrderCount(0);
+      }
+    };
+
+    fetchOrderCount();
+  }, []);
+
   const addressLabel = formatFullAddress(defaultAddress);
   const selectedMealLabel = selectedMeals
     .map((meal) => String(meal?.title || meal?.name || "").trim())
@@ -128,6 +220,58 @@ export default function SubscriptionCheckout() {
     ].filter(Boolean);
     return noteParts.join(" | ");
   }, [days, selectedMealLabel, subscriptionPlan?.title]);
+
+  const validateCouponLocally = (coupon) => {
+    if (!coupon) return "Invalid coupon";
+    if ((coupon.customerGroup === "new" || coupon.customerGroup === "first-time") && userOrderCount > 0) {
+      return "This coupon is only for first-time users";
+    }
+    if (totalFoodCost < Number(coupon.minOrder || 0)) {
+      return `Minimum order ${formatCurrency(coupon.minOrder || 0)} required`;
+    }
+    return null;
+  };
+
+  const handleApplyCoupon = async (coupon) => {
+    const localError = validateCouponLocally(coupon);
+    if (localError) {
+      toast.error(localError);
+      return;
+    }
+
+    setAppliedCoupon({
+      ...coupon,
+      discount: roundMoney(coupon.discount || 0),
+    });
+    setManualCouponCode(coupon.code);
+    setShowCoupons(false);
+    toast.success("Coupon applied");
+  };
+
+  const handleApplyCouponCode = async () => {
+    const inputCode = manualCouponCode.trim().toUpperCase();
+    if (!inputCode) {
+      toast.error("Enter coupon code");
+      return;
+    }
+
+    const matchedCoupon = availableCoupons.find(
+      (coupon) => String(coupon.code || "").toUpperCase() === inputCode,
+    );
+
+    if (!matchedCoupon) {
+      toast.error("Invalid or unavailable coupon code");
+      return;
+    }
+
+    await handleApplyCoupon(matchedCoupon);
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setManualCouponCode("");
+    toast.success("Coupon removed");
+  };
 
   const redirectToLogin = () => {
     navigate("/user/auth/login", {
@@ -185,16 +329,18 @@ export default function SubscriptionCheckout() {
 
     console.log("[SubscriptionCheckout] Proceed to pay clicked", {
       rawState: location.state || null,
-      dish,
-      selectedMeals,
-      subscriptionPlan,
-      defaultAddress,
-      addressLabel,
-      totalFoodCost,
-      totalDeliveryCharges,
-      gstAmount,
-      totalAmount,
-    });
+        dish,
+        selectedMeals,
+        subscriptionPlan,
+        defaultAddress,
+        addressLabel,
+        totalFoodCost,
+        totalDeliveryCharges,
+        gstAmount,
+        couponDiscount,
+        couponCode: appliedCoupon?.code || null,
+        totalAmount,
+      });
 
     if (!dish?.restaurantId) {
       console.warn("[SubscriptionCheckout] Missing restaurantId", {
@@ -253,7 +399,10 @@ export default function SubscriptionCheckout() {
         gstAmount,
         deliveryFeePerDay,
         deliveryCharges: totalDeliveryCharges,
+        totalBeforeDiscount,
         totalAmount,
+        couponCode: appliedCoupon?.code || undefined,
+        couponDiscount,
         currency: "INR",
         customerName,
         customerPhone,
@@ -498,6 +647,124 @@ export default function SubscriptionCheckout() {
         </div>
 
         <div className="bg-white rounded-[20px] p-5 shadow-sm border border-gray-100">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-[#e3282c]">
+              <TicketPercent className="h-4 w-4" strokeWidth={2.5} />
+            </div>
+            <h2 className="font-bold text-[15px]">Coupons & offers</h2>
+          </div>
+
+          {appliedCoupon ? (
+            <div className="rounded-[14px] border border-green-200 bg-green-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold text-green-800">{appliedCoupon.code} applied</p>
+                  <p className="mt-1 text-xs font-medium text-green-700">
+                    You saved {formatCurrency(couponDiscount)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRemoveCoupon}
+                  className="text-xs font-bold text-[#e3282c]"
+                >
+                  REMOVE
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={manualCouponCode}
+                  onChange={(e) => setManualCouponCode(e.target.value.toUpperCase())}
+                  placeholder="Enter coupon code"
+                  className="flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#e3282c]"
+                />
+                <button
+                  type="button"
+                  onClick={handleApplyCouponCode}
+                  className="rounded-xl bg-[#e3282c] px-4 py-2.5 text-sm font-bold text-white"
+                >
+                  Apply
+                </button>
+              </div>
+
+              {loadingCoupons ? (
+                <p className="text-xs text-gray-500">Loading coupons...</p>
+              ) : availableCoupons.length > 0 ? (
+                <div className="rounded-[14px] border border-gray-100 bg-[#fafafa] p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">
+                        Save with {availableCoupons[0].code}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {availableCoupons[0].discountDisplay || availableCoupons[0].description}
+                      </p>
+                      {validateCouponLocally(availableCoupons[0]) ? (
+                        <p className="mt-1 text-[11px] font-semibold text-blue-600">
+                          {validateCouponLocally(availableCoupons[0])}
+                        </p>
+                      ) : null}
+                      {availableCoupons.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowCoupons((prev) => !prev)}
+                          className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-[#e3282c]"
+                        >
+                          {showCoupons ? "Hide coupons" : "View all coupons"}
+                          {showCoupons ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                        </button>
+                      ) : null}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyCoupon(availableCoupons[0])}
+                      disabled={Boolean(validateCouponLocally(availableCoupons[0]))}
+                      className="rounded-full border border-[#e3282c] px-3 py-1.5 text-xs font-bold text-[#e3282c] disabled:opacity-50"
+                    >
+                      Apply
+                    </button>
+                  </div>
+
+                  {showCoupons ? (
+                    <div className="mt-3 space-y-3 border-t border-gray-200 pt-3">
+                      {availableCoupons.slice(1).map((coupon) => (
+                        <div key={coupon.code} className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">{coupon.code}</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {coupon.discountDisplay || coupon.description}
+                            </p>
+                            {validateCouponLocally(coupon) ? (
+                              <p className="mt-1 text-[11px] font-semibold text-blue-600">
+                                {validateCouponLocally(coupon)}
+                              </p>
+                            ) : null}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleApplyCoupon(coupon)}
+                            disabled={Boolean(validateCouponLocally(coupon))}
+                            className="rounded-full border border-[#e3282c] px-3 py-1.5 text-xs font-bold text-[#e3282c] disabled:opacity-50"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-500">No coupons available for this plan right now.</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-[20px] p-5 shadow-sm border border-gray-100">
           <div className="flex items-center gap-3 mb-5">
             <div className="w-8 h-8 rounded-lg bg-red-50 flex items-center justify-center text-[#e3282c]">
               <IndianRupee className="h-4 w-4" strokeWidth={2.5} />
@@ -559,6 +826,18 @@ export default function SubscriptionCheckout() {
               </div>
               <span className="shrink-0 font-bold">{formatCurrency(totalDeliveryCharges)}</span>
             </div>
+
+            {couponDiscount > 0 ? (
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="font-semibold text-green-700">Coupon discount</p>
+                  <p className="mt-0.5 text-xs font-medium text-green-600">
+                    {appliedCoupon?.code || "Applied coupon"}
+                  </p>
+                </div>
+                <span className="shrink-0 font-bold text-green-700">- {formatCurrency(couponDiscount)}</span>
+              </div>
+            ) : null}
 
             <div className="border-t border-dashed border-gray-200 my-4"></div>
 
