@@ -75,7 +75,6 @@ const Cancellation = lazy(() => import("@food/pages/user/profile/Cancellation"))
 const ReportSafetyEmergency = lazy(() => import("@food/pages/user/profile/ReportSafetyEmergency"))
 const Accessibility = lazy(() => import("@food/pages/user/profile/Accessibility"))
 const Logout = lazy(() => import("@food/pages/user/profile/Logout"))
-const ReferEarn = lazy(() => import("@food/pages/user/profile/ReferEarn"))
 const MySubscriptions = lazy(() => import("@food/pages/user/profile/MySubscriptions"))
 const SubscriptionDetails = lazy(() => import("@food/pages/user/profile/SubscriptionDetails"))
 const ChangeSubscriptionDish = lazy(() => import("@food/pages/user/profile/ChangeSubscriptionDish"))
@@ -336,14 +335,6 @@ export default function UserRouter() {
             element={
               <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
                 <Logout />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="profile/refer-earn"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <ReferEarn />
               </ProtectedRoute>
             }
           />
