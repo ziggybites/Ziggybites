@@ -855,6 +855,10 @@ export const adminAPI = {
       {},
       { contextModule: "admin" },
     ),
+  updateGlobalRestaurantCommissionSettings: (body) =>
+    apiClient.post("/food/admin/restaurant-commissions/global", body ?? {}, {
+      contextModule: "admin",
+    }),
   /** Backward-compatible alias used in UI */
   getApprovedRestaurants: (params = {}) =>
     apiClient.get("/food/admin/restaurants", {
