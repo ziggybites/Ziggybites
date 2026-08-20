@@ -994,6 +994,10 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
     deliveryFee: 0,
     platformFee: 0,
     restaurantCommission: 0,
+    gstOnItem: 0,
+    gstOnCommission: 0,
+    paymentGatewayFee: 0,
+    tcs: 0,
     discount: 0,
     originalTotal: creditPerOrder,
     payableTotal: 0,
@@ -1015,6 +1019,28 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
   }
 
   const riderEarning = await getSubscriptionRiderEarning(distanceKm);
+  const commissionSnapshot = await foodTransactionService.getRestaurantCommissionSnapshot({
+    pricing,
+    restaurantId: subscription.restaurantId,
+  });
+
+  pricing.restaurantCommission = commissionSnapshot.commissionAmount || 0;
+  pricing.gstOnItem = commissionSnapshot.gstOnItem || 0;
+  pricing.gstOnCommission = commissionSnapshot.gstOnCommission || 0;
+  pricing.paymentGatewayFee = commissionSnapshot.paymentGatewayFee || 0;
+  pricing.tcs = commissionSnapshot.tcs || 0;
+
+  const platformProfit = Math.max(
+    0,
+    (Number.isFinite(pricing.deliveryFee) ? pricing.deliveryFee : 0) +
+      (Number.isFinite(pricing.platformFee) ? pricing.platformFee : 0) +
+      pricing.restaurantCommission +
+      pricing.gstOnItem +
+      pricing.paymentGatewayFee +
+      pricing.tcs -
+      riderEarning,
+  );
+
   const order = new FoodOrder({
     userId: subscription.userId,
     restaurantId: subscription.restaurantId,
@@ -1070,7 +1096,7 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
     deliveryFleet: 'standard',
     scheduledAt: schedule.serviceDate,
     riderEarning: Number.isFinite(riderEarning) ? Math.max(0, riderEarning) : 0,
-    platformProfit: 0,
+    platformProfit,
   });
 
   await order.save();
