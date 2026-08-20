@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from "react"
-import { useNavigate } from "react-router-dom"
+import { useLocation, useNavigate } from "react-router-dom"
 import { ChevronLeft, ChevronRight, Plus, MapPin, MoreHorizontal, Navigation, Home, Building2, Briefcase, Phone, X, Crosshair, Search, Trash2, Pencil } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
@@ -48,6 +48,7 @@ const getAddressIcon = (address) => {
 
 export default function AddressSelectorPage() {
   const navigate = useNavigate()
+  const locationState = useLocation()
   const goBack = useAppBackNavigation()
   const { location, loading, requestLocation } = useGeoLocation()
   const { addresses = [], addAddress, updateAddress, deleteAddress, setDefaultAddress, userProfile, isAuthenticated } = useProfile()
@@ -85,8 +86,38 @@ export default function AddressSelectorPage() {
   const ENABLE_NOMINATIM_SEARCH = import.meta.env.VITE_ENABLE_NOMINATIM_SEARCH !== "false"
   const getAddressId = (address) => address?.id || address?._id || null
 
-  const handleBack = () => {
+  const navigateBackToCaller = useCallback((extraState = null) => {
+    const navState = locationState.state || {}
+    const returnTo =
+      typeof navState.returnTo === "string" && navState.returnTo.trim()
+        ? navState.returnTo.trim()
+        : null
+
+    if (returnTo) {
+      const checkoutState =
+        navState.checkoutState && typeof navState.checkoutState === "object"
+          ? navState.checkoutState
+          : null
+      const mergedState =
+        checkoutState || extraState
+          ? {
+              ...(checkoutState || {}),
+              ...(extraState || {}),
+            }
+          : undefined
+
+      navigate(returnTo, {
+        replace: true,
+        ...(mergedState ? { state: mergedState } : {}),
+      })
+      return
+    }
+
     goBack()
+  }, [goBack, locationState.state, navigate])
+
+  const handleBack = () => {
+    navigateBackToCaller()
   }
 
   const addressAutocompleteSuggestions = useMemo(() => {
@@ -238,7 +269,7 @@ export default function AddressSelectorPage() {
         
         // Return to previous page after a short delay to allow map to pan visually
         setTimeout(() => {
-          handleBack()
+          navigateBackToCaller({ selectedDeliveryAddress: loc })
         }, 200)
       }
     } catch (e) {
@@ -252,7 +283,7 @@ export default function AddressSelectorPage() {
       await setDefaultAddress(id)
       try { localStorage.setItem("deliveryAddressMode", "saved") } catch {}
       toast.success("Address selected")
-      handleBack()
+      navigateBackToCaller({ selectedDeliveryAddress: address })
     }
   }
 
@@ -462,7 +493,7 @@ export default function AddressSelectorPage() {
       } catch (e) {}
       
       toast.success("Location set successfully")
-      handleBack()
+      navigateBackToCaller({ selectedDeliveryAddress: locData })
       return
     }
     if (!addressFormData.street || !addressFormData.city) {
@@ -490,7 +521,7 @@ export default function AddressSelectorPage() {
         if (id) await setDefaultAddress(id)
         try { localStorage.setItem("deliveryAddressMode", "saved") } catch {}
         toast.success(addressFormData.id ? "Address updated" : "Address saved")
-        handleBack()
+        navigateBackToCaller({ selectedDeliveryAddress: createdOrUpdated })
       }
     } catch (error) {
       toast.error("Failed to save address")

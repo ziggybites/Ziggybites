@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { Link, useNavigate } from "react-router-dom"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { ArrowLeft, Search, MoreVertical, ChevronRight, Star, RotateCcw, AlertCircle, Loader2, Clock, X, Share2, MessageCircle, Send, Copy, Mail, MessagesSquare, Link2, Phone } from "lucide-react"
 import { orderAPI } from "@food/api"
 import { useCart } from "@food/context/CartContext"
@@ -13,6 +13,7 @@ const debugError = (...args) => {}
 
 export default function Orders() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { replaceCart } = useCart()
   const { orders, loading, patchOrder } = useOrders()
   const [searchQuery, setSearchQuery] = useState("")
@@ -27,6 +28,11 @@ export default function Orders() {
   const [deliveryFeedbackText, setDeliveryFeedbackText] = useState("")
   const [submittingRating, setSubmittingRating] = useState(false)
   const [countdowns, setCountdowns] = useState({})
+  const backTarget =
+    typeof location.state?.backTo === "string" && location.state.backTo.trim()
+      ? location.state.backTo.trim()
+      : "/food/user"
+  const helpReturnState = { backTo: backTarget }
   // Track orders that have shown rating popup - persist in localStorage
   const [shownRatingForOrders, setShownRatingForOrders] = useState(() => {
     try {
@@ -398,9 +404,9 @@ Order again from this restaurant in the ${companyName} app.`
     const isTerminal = ['delivered', 'cancelled', 'completed', 'failed'].includes(status) || status.includes('cancelled')
     
     if (isTerminal) {
-      navigate(`/user/orders/${order.id}/details`)
+      navigate(`/user/orders/${order.id}/details`, { state: helpReturnState })
     } else {
-      navigate(`/user/orders/${order.id}`)
+      navigate(`/user/orders/${order.id}`, { state: helpReturnState })
     }
   }
 
@@ -479,7 +485,7 @@ Order again from this restaurant in the ${companyName} app.`
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] pb-24">
         <div className="bg-white dark:bg-[#121212] p-4 flex items-center shadow-sm sticky top-0 z-10 border-b dark:border-gray-800">
-          <Link to="/user">
+          <Link to={backTarget}>
             <ArrowLeft className="w-6 h-6 text-gray-700 dark:text-gray-300 cursor-pointer" />
           </Link>
           <h1 className="ml-4 text-xl font-semibold text-gray-800 dark:text-gray-100">Your Orders</h1>
@@ -495,14 +501,14 @@ Order again from this restaurant in the ${companyName} app.`
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] pb-24">
         <div className="bg-white dark:bg-[#121212] p-4 flex items-center shadow-sm sticky top-0 z-10 border-b dark:border-gray-800">
-          <Link to="/user">
+          <Link to={backTarget}>
             <ArrowLeft className="w-6 h-6 text-gray-700 dark:text-gray-300 cursor-pointer" />
           </Link>
           <h1 className="ml-4 text-xl font-semibold text-gray-800 dark:text-gray-100">Your Orders</h1>
         </div>
         <div className="px-4 py-8 text-center text-gray-600 dark:text-gray-400">
           <p>You haven't placed any orders yet</p>
-          <Link to="/user">
+          <Link to={backTarget}>
             <button className="mt-4 text-primary font-medium">Start Ordering</button>
           </Link>
         </div>
@@ -514,7 +520,7 @@ Order again from this restaurant in the ${companyName} app.`
     <div className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] pb-24 font-sans">
       {/* Header */}
       <div className="bg-white dark:bg-[#121212] p-4 flex items-center shadow-sm sticky top-0 z-10 border-b dark:border-gray-800">
-        <Link to="/user">
+        <Link to={backTarget}>
           <ArrowLeft className="w-6 h-6 text-gray-700 dark:text-gray-300 cursor-pointer" />
         </Link>
         <h1 className="ml-4 text-xl font-semibold text-gray-800 dark:text-gray-100">Your Orders</h1>
@@ -811,7 +817,10 @@ Order again from this restaurant in the ${companyName} app.`
                     )}
                   </div>
                   <div className="flex items-center ml-4">
-                    <Link to={(isDelivered || isCancelled) ? `/user/orders/${order.id}/details` : `/user/orders/${order.id}`}>
+                    <Link
+                      to={(isDelivered || isCancelled) ? `/user/orders/${order.id}/details` : `/user/orders/${order.id}`}
+                      state={helpReturnState}
+                    >
                       <button className="text-xs text-primary font-medium hover:text-secondary flex items-center gap-1">
                         View Details
                         <ChevronRight className="w-4 h-4" />

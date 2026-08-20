@@ -26,6 +26,11 @@ const iconMap = {
   Award
 }
 
+const replaceLegacyBranding = (value, companyName) => {
+  const fallbackName = String(companyName || "ZiggyBites").trim() || "ZiggyBites"
+  return String(value || "").replace(/foodelo/gi, fallbackName)
+}
+
 export default function About() {
   const companyName = useCompanyName()
   const [loading, setLoading] = useState(true)
@@ -80,6 +85,15 @@ export default function About() {
     }
   }
 
+  const displayAppName = replaceLegacyBranding(
+    aboutData.appName || companyName || "About",
+    companyName
+  )
+  const displayDescription = replaceLegacyBranding(
+    aboutData.description || "This page will appear once the admin adds About content.",
+    companyName
+  )
+
   if (loading) {
     return (
       <AnimatedPage className="min-h-screen bg-gradient-to-b from-gray-50 to-white dark:from-[#0a0a0a] dark:to-[#1a1a1a]">
@@ -125,7 +139,7 @@ export default function About() {
                   <div className="relative bg-white dark:bg-gray-800 rounded-full p-4 md:p-6 shadow-xl">
                     <img
                       src={logoUrl || quickSpicyLogo}
-                      alt={`${aboutData.appName} Logo`}
+                      alt={`${displayAppName} Logo`}
                       className="h-16 w-16 md:h-20 md:w-20 object-contain rounded-full"
                       onError={(e) => {
                         if (e.target.src !== quickSpicyLogo) {
@@ -143,7 +157,7 @@ export default function About() {
                 transition={{ delay: 0.3, duration: 0.5 }}
                 className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 dark:text-white mb-2"
               >
-                {aboutData.appName || companyName || "About"}
+                {displayAppName}
               </motion.h2>
 
               <motion.p
@@ -161,9 +175,7 @@ export default function About() {
                 transition={{ delay: 0.5, duration: 0.5 }}
                 className="text-gray-700 dark:text-gray-300 leading-relaxed text-base md:text-lg max-w-2xl mx-auto"
               >
-                {aboutData.description
-                  ? aboutData.description
-                  : "This page will appear once the admin adds About content."}
+                {displayDescription}
               </motion.p>
             </div>
           </Card>

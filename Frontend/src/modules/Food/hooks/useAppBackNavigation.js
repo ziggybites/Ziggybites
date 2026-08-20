@@ -24,6 +24,10 @@ const resolveBackPath = ({ pathname, search, state }) => {
   const explicitBackPath = toFoodPath(state?.backTo) || toFoodPath(state?.from) || toFoodPath(state?.returnTo)
   const searchParams = new URLSearchParams(search || "")
 
+  if (explicitBackPath && explicitBackPath !== pathname) {
+    return explicitBackPath
+  }
+
   if (
     normalizedPath === "/user/profile/payments/new" ||
     /^\/user\/profile\/payments\/[^/]+\/edit$/.test(normalizedPath)
@@ -94,7 +98,7 @@ const resolveBackPath = ({ pathname, search, state }) => {
   }
 
   if (normalizedPath === "/user/address-selector") {
-    return "/food/user"
+    return explicitBackPath || "/food/user"
   }
 
   if (/^\/user\/collections\/[^/]+$/.test(normalizedPath)) {
@@ -123,10 +127,6 @@ const resolveBackPath = ({ pathname, search, state }) => {
 
   if (/^\/user\/complaints(\/|$)/.test(normalizedPath)) {
     return explicitBackPath || "/food/user/orders"
-  }
-
-  if (explicitBackPath && explicitBackPath !== pathname) {
-    return explicitBackPath
   }
 
   return "/food/user"

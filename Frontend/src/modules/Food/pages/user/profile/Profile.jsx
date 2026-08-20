@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   ArrowLeft,
@@ -68,8 +68,13 @@ export default function Profile() {
   const { userProfile, vegMode, setVegMode, getDefaultAddress, addresses } =
     useProfile();
   const { openLocationSelector } = useLocationSelector();
+  const location = useLocation();
   const navigate = useNavigate();
   const companyName = useCompanyName();
+  const backTarget =
+    typeof location.state?.backTo === "string" && location.state.backTo.trim()
+      ? location.state.backTo.trim()
+      : "/food/user";
   const defaultAddress = getDefaultAddress?.();
   const savedAddressSummary = defaultAddress
     ? [
@@ -485,7 +490,7 @@ export default function Profile() {
       <div className="max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-5xl mx-auto px-4 sm:px-6 md:px-8 lg:px-10 xl:px-12 py-4 sm:py-6 md:py-8 lg:py-10 pb-20 sm:pb-24">
         {/* Header: Back Arrow */}
         <div className="flex items-center mb-4">
-          <Link to="/user">
+          <Link to={backTarget}>
             <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
               <ArrowLeft className="h-5 w-5 text-black dark:text-white" />
             </Button>
