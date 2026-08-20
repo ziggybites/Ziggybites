@@ -22,7 +22,7 @@ import { calculateDistance } from "@food/utils/common"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
-import { hasStoredSession } from "@core/auth/tokenStore"
+import { hasStoredSession } from "../../../../../core/auth/tokenStore.js"
 import { writeUserLocationToStorage } from "../../../../../core/storage/localStorage.js"
 const debugLog = (...args) => { }
 const debugWarn = (...args) => { }

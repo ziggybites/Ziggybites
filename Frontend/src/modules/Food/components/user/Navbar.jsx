@@ -151,7 +151,7 @@ export default function Navbar() {
             </Button>
 
             {/* Cart */}
-            <Link to="/food/cart">
+            <Link to="/food/user/cart">
               <Button variant="ghost" size="icon" className="relative h-10 w-10 hover:bg-gray-100">
                 <ShoppingCart className="h-5 w-5 text-gray-700" />
                 {cartCount > 0 && (

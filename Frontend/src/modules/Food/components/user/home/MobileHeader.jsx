@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { MapPin, ChevronDown, Search, Mic, ShoppingCart } from "lucide-react";
 
 export default function MobileHeader({ 
@@ -6,8 +7,11 @@ export default function MobileHeader({
   handleLocationClick, 
   handleSearchFocus, 
   vegMode, 
-  handleVegModeChange
+  handleVegModeChange,
+  cartCount = 0,
 }) {
+  const navigate = useNavigate();
+
   return (
     <header className="sticky top-0 z-50 bg-[#fff9f2]/95 backdrop-blur-md px-5 pt-3 pb-2">
             <div className="relative flex min-h-[34px] items-center justify-between gap-3">
@@ -32,8 +36,20 @@ export default function MobileHeader({
                 </div>
               </div>
 
-              <div className="ml-auto flex w-[34%] items-center justify-end gap-3 text-gray-900">
-                <ShoppingCart className="h-5 w-5" />
+              <div className="relative z-10 ml-auto flex w-[34%] items-center justify-end gap-3 text-gray-900">
+                <button
+                  type="button"
+                  onClick={() => navigate("/food/user/cart")}
+                  className="relative flex h-9 w-9 items-center justify-center rounded-full transition-colors active:scale-95"
+                  aria-label="Open cart"
+                >
+                  <ShoppingCart className="h-5 w-5" />
+                  {cartCount > 0 && (
+                    <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-[#e92823] px-1 text-[9px] font-black leading-4 text-white">
+                      {cartCount > 99 ? "99+" : cartCount}
+                    </span>
+                  )}
+                </button>
               </div>
             </div>
 

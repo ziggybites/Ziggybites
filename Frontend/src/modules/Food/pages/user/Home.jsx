@@ -2226,13 +2226,14 @@ export default function Home() {
         </div>
 
         <div className="md:hidden relative overflow-x-clip bg-[#fff9f2] min-h-screen pb-24">
-          <MobileHeader 
-  effectiveLocation={effectiveLocation} 
-  handleLocationClick={handleLocationClick} 
-  handleSearchFocus={handleSearchFocus} 
-  vegMode={vegMode} 
-  handleVegModeChange={handleVegModeChange} 
-/>
+          <MobileHeader
+            effectiveLocation={effectiveLocation}
+            handleLocationClick={handleLocationClick}
+            handleSearchFocus={handleSearchFocus}
+            vegMode={vegMode}
+            handleVegModeChange={handleVegModeChange}
+            cartCount={cartCount}
+          />
 
           <main className="px-5">
             {renderHeroBannerSection(true)}
