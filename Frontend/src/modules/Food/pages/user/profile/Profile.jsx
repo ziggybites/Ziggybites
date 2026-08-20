@@ -976,7 +976,7 @@ export default function Profile() {
             </h3>
           </div>
           <div className="space-y-2">
-            <Link to="/user/profile/support" className="block">
+            <Link to="/food/user/help&support" className="block">
               <motion.div
                 whileHover={{ x: 4, scale: 1.01 }}
                 transition={{ duration: 0.2, type: "spring", stiffness: 300 }}>

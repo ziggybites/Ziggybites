@@ -65,7 +65,6 @@ const Payments = lazy(() => import("@food/pages/user/profile/Payments"))
 const AddPayment = lazy(() => import("@food/pages/user/profile/AddPayment"))
 const EditPayment = lazy(() => import("@food/pages/user/profile/EditPayment"))
 const Favorites = lazy(() => import("@food/pages/user/profile/Favorites"))
-const Support = lazy(() => import("@food/pages/user/profile/Support"))
 const Coupons = lazy(() => import("@food/pages/user/profile/Coupons"))
 const About = lazy(() => import("@food/pages/user/profile/About"))
 const Terms = lazy(() => import("@food/pages/user/profile/Terms"))
@@ -298,14 +297,7 @@ export default function UserRouter() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path="profile/support"
-            element={
-              <ProtectedRoute requiredRole="user" loginPath="/user/auth/login">
-                <Support />
-              </ProtectedRoute>
-            }
-          />
+          <Route path="profile/support" element={<Navigate to="/food/user/help&support" replace />} />
           <Route
             path="profile/coupons"
             element={
@@ -378,8 +370,10 @@ export default function UserRouter() {
           <Route path="auth/callback" element={<AuthCallback />} />
 
           {/* Help */}
-          <Route path="help" element={<Help />} />
-          <Route path="help/orders/:orderId" element={<OrderHelp />} />
+          <Route path="help" element={<Navigate to="/food/user/help&support" replace />} />
+          <Route path="help&support" element={<Help />} />
+          <Route path="help/orders/:orderId" element={<Navigate to="/food/user/help&support/orders/:orderId" replace />} />
+          <Route path="help&support/orders/:orderId" element={<OrderHelp />} />
 
           {/* Notifications - Protected (user auth) */}
           <Route

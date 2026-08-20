@@ -205,7 +205,7 @@ export default function OrderHelp() {
                 <Link to="/user/orders">
                   <Button variant="outline">View All Orders</Button>
                 </Link>
-                <Link to="/user/help">
+                <Link to="/food/user/help&support">
                   <Button>Go to Help Center</Button>
                 </Link>
               </div>
@@ -222,7 +222,7 @@ export default function OrderHelp() {
         {/* Header */}
         <ScrollReveal>
           <div className="flex items-center gap-3 md:gap-4 mb-4 md:mb-6">
-            <Link to="/user/help">
+            <Link to="/food/user/help&support">
               <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 md:h-10 md:w-10">
                 <ArrowLeft className="h-4 w-4 md:h-5 md:w-5" />
               </Button>
@@ -464,7 +464,7 @@ export default function OrderHelp() {
                 Back to All Orders
               </Button>
             </Link>
-            <Link to="/user/help" className="flex-1">
+            <Link to="/food/user/help&support" className="flex-1">
               <Button variant="outline" className="w-full">
                 <HelpCircle className="h-4 w-4 mr-2" />
                 Help Center

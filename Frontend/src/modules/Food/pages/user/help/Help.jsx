@@ -195,7 +195,7 @@ export default function Help() {
   const [searchQuery, setSearchQuery] = useState("")
   const [expandedCategory, setExpandedCategory] = useState(null)
   const [expandedQuestion, setExpandedQuestion] = useState(null)
-  const helpBackState = { backTo: "/food/user/help" }
+  const helpBackState = { backTo: "/food/user/help&support" }
   const [supportStep, setSupportStep] = useState("pick")
   const [orders, setOrders] = useState([])
   const [restaurants, setRestaurants] = useState([])

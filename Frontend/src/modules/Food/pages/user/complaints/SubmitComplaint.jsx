@@ -163,7 +163,7 @@ export default function SubmitComplaint() {
         <h1 className="text-lg font-semibold text-gray-800 dark:text-white ml-3">Submit Complaint</h1>
         <button
           type="button"
-          onClick={() => navigate("/user/profile/support")}
+          onClick={() => navigate("/food/user/help&support")}
           className="ml-auto text-sm font-semibold text-primary"
         >
           View History

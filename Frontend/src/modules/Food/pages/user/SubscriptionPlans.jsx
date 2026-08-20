@@ -250,7 +250,7 @@ export default function SubscriptionPlans() {
         <div className="fixed bottom-24 right-5 z-20 md:right-[calc(50%-13rem)]">
           <button
             type="button"
-            onClick={() => navigate("/food/user/help")}
+            onClick={() => navigate("/food/user/help&support")}
             className="flex h-14 w-14 items-center justify-center rounded-full bg-[#e3282c] text-white shadow-lg"
             aria-label="Help"
           >
