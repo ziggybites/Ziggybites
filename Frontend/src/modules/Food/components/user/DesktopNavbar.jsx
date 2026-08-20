@@ -12,6 +12,7 @@ import { FaLocationDot } from "react-icons/fa6"
 import { AnimatePresence, motion } from "framer-motion"
 import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings"
+import { DEFAULT_APP_CUSTOMIZATION, loadAppCustomization } from "@food/utils/appCustomization"
 import api from "@food/api"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -32,6 +33,7 @@ export default function DesktopNavbar({ showLogo = true }) {
     const [hasScrolledPastBanner, setHasScrolledPastBanner] = useState(false)
     const [under250PriceLimit, setUnder250PriceLimit] = useState(250)
     const [showDining, setShowDining] = useState(true)
+    const [appCustomization, setAppCustomization] = useState(DEFAULT_APP_CUSTOMIZATION)
     const navRef = useRef(null)
     const cartCount = getCartCount()
 
@@ -129,6 +131,19 @@ export default function DesktopNavbar({ showLogo = true }) {
 
         return () => {
             window.removeEventListener('businessSettingsUpdated', handleSettingsUpdate)
+        }
+    }, [])
+
+    useEffect(() => {
+        let mounted = true
+        loadAppCustomization()
+            .then((settings) => {
+                if (mounted) setAppCustomization(settings)
+            })
+            .catch(() => { })
+
+        return () => {
+            mounted = false
         }
     }, [])
 
@@ -324,21 +339,22 @@ export default function DesktopNavbar({ showLogo = true }) {
                                 </Button>
                             </Link>
 
-                            {/* Cart Icon */}
-                            <Link to="/food/user/cart">
-                                <Button
-                                    variant="ghost"
-                                    className="relative h-12 w-12 lg:h-14 lg:w-14 rounded-full p-0 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                    title="Cart"
-                                >
-                                    <ShoppingCart className="!h-5 !w-5 lg:!h-6 lg:!w-6 text-gray-700 dark:text-gray-300" strokeWidth={2} />
-                                    {cartCount > 0 && (
-                                        <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-gray-800">
-                                            <span className="text-xs font-bold text-white">{cartCount > 99 ? "99+" : cartCount}</span>
-                                        </span>
-                                    )}
-                                </Button>
-                            </Link>
+                            {appCustomization.subscriptionFlowEnabled !== true ? (
+                                <Link to="/food/user/cart">
+                                    <Button
+                                        variant="ghost"
+                                        className="relative h-12 w-12 lg:h-14 lg:w-14 rounded-full p-0 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                        title="Cart"
+                                    >
+                                        <ShoppingCart className="!h-5 !w-5 lg:!h-6 lg:!w-6 text-gray-700 dark:text-gray-300" strokeWidth={2} />
+                                        {cartCount > 0 && (
+                                            <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-gray-800">
+                                                <span className="text-xs font-bold text-white">{cartCount > 99 ? "99+" : cartCount}</span>
+                                            </span>
+                                        )}
+                                    </Button>
+                                </Link>
+                            ) : null}
                         </div>
                     </div>
                 </div>

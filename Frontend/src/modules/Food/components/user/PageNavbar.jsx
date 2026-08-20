@@ -7,6 +7,7 @@ import { useCart } from "@food/context/CartContext"
 import { useLocationSelector } from "./UserLayout"
 import { FaLocationDot } from "react-icons/fa6"
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings"
+import { DEFAULT_APP_CUSTOMIZATION, loadAppCustomization } from "@food/utils/appCustomization"
 import quickSpicyLogo from "@food/assets/quicky-spicy-logo.png"
 import { toast } from "sonner"
 
@@ -24,6 +25,7 @@ export default function PageNavbar({
   const cartCount = getCartCount()
   const [logoUrl, setLogoUrl] = useState(null)
   const [companyName, setCompanyName] = useState(null)
+  const [appCustomization, setAppCustomization] = useState(DEFAULT_APP_CUSTOMIZATION)
   const autoLocationAttemptedRef = useRef(false)
   const requestLocationRef = useRef(requestLocation)
   const enableLocationDebugLogs = false
@@ -36,6 +38,19 @@ export default function PageNavbar({
   useEffect(() => {
     requestLocationRef.current = requestLocation
   }, [requestLocation])
+
+  useEffect(() => {
+    let mounted = true
+    loadAppCustomization()
+      .then((settings) => {
+        if (mounted) setAppCustomization(settings)
+      })
+      .catch(() => {})
+
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   // Auto-trigger location fetch once when location is missing/placeholder and permission is already granted.
   useEffect(() => {
@@ -1098,26 +1113,28 @@ export default function PageNavbar({
             </Button>
           </Link>
  
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={(e) => {
-              e.stopPropagation()
-              navigate("/food/user/cart")
-            }}
-            className="relative h-8 w-8 sm:h-9 sm:w-9 rounded-full p-0 hover:opacity-80 transition-opacity"
-            title="Cart"
-          >
-            <div className={`h-full w-full rounded-full bg-transparent flex items-center justify-center shadow-md border border-gray-100/50 dark:border-white/10`}>
-              <ShoppingCart className={`h-4.5 w-4.5 sm:h-5.5 sm:w-5.5 ${textColor === "white" ? "text-white" : "text-primary dark:text-[#a14b84]"}`} strokeWidth={3} />
-            </div>
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-primary rounded-full flex items-center justify-center ring-2 ring-white">
-                <span className="text-[10px] font-black text-white">{cartCount > 99 ? "99+" : cartCount}</span>
-              </span>
-            )}
-          </Button>
+          {appCustomization.subscriptionFlowEnabled !== true ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation()
+                navigate("/food/user/cart")
+              }}
+              className="relative h-8 w-8 sm:h-9 sm:w-9 rounded-full p-0 hover:opacity-80 transition-opacity"
+              title="Cart"
+            >
+              <div className={`h-full w-full rounded-full bg-transparent flex items-center justify-center shadow-md border border-gray-100/50 dark:border-white/10`}>
+                <ShoppingCart className={`h-4.5 w-4.5 sm:h-5.5 sm:w-5.5 ${textColor === "white" ? "text-white" : "text-primary dark:text-[#a14b84]"}`} strokeWidth={3} />
+              </div>
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-primary rounded-full flex items-center justify-center ring-2 ring-white">
+                  <span className="text-[10px] font-black text-white">{cartCount > 99 ? "99+" : cartCount}</span>
+                </span>
+              )}
+            </Button>
+          ) : null}
  
           {/* Profile - Only shown if showProfile is true */}
           {showProfile && (

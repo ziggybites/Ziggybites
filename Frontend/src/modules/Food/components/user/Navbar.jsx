@@ -8,6 +8,7 @@ import { useLocation } from "@food/hooks/useLocation"
 import { useCart } from "@food/context/CartContext"
 import { useLocationSelector } from "./UserLayout"
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings"
+import { DEFAULT_APP_CUSTOMIZATION, loadAppCustomization } from "@food/utils/appCustomization"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -20,6 +21,7 @@ export default function Navbar() {
   const cartCount = getCartCount()
   const [logoUrl, setLogoUrl] = useState(null)
   const [companyName, setCompanyName] = useState(null)
+  const [appCustomization, setAppCustomization] = useState(DEFAULT_APP_CUSTOMIZATION)
 
   // Load business settings logo
   useEffect(() => {
@@ -66,6 +68,19 @@ export default function Navbar() {
 
     return () => {
       window.removeEventListener('businessSettingsUpdated', handleSettingsUpdate)
+    }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    loadAppCustomization()
+      .then((settings) => {
+        if (mounted) setAppCustomization(settings)
+      })
+      .catch(() => {})
+
+    return () => {
+      mounted = false
     }
   }, [])
 
@@ -150,17 +165,18 @@ export default function Navbar() {
               </span>
             </Button>
 
-            {/* Cart */}
-            <Link to="/food/user/cart">
-              <Button variant="ghost" size="icon" className="relative h-10 w-10 hover:bg-gray-100">
-                <ShoppingCart className="h-5 w-5 text-gray-700" />
-                {cartCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-bold shadow-sm">
-                    {cartCount > 99 ? "99+" : cartCount}
-                  </span>
-                )}
-              </Button>
-            </Link>
+            {appCustomization.subscriptionFlowEnabled !== true ? (
+              <Link to="/food/user/cart">
+                <Button variant="ghost" size="icon" className="relative h-10 w-10 hover:bg-gray-100">
+                  <ShoppingCart className="h-5 w-5 text-gray-700" />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-bold shadow-sm">
+                      {cartCount > 99 ? "99+" : cartCount}
+                    </span>
+                  )}
+                </Button>
+              </Link>
+            ) : null}
 
             {/* Profile */}
             <Link to="/food/user/profile">

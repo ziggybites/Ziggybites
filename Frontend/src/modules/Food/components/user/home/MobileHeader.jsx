@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MapPin, ChevronDown, Search, Mic, ShoppingCart } from "lucide-react";
+import { DEFAULT_APP_CUSTOMIZATION, loadAppCustomization } from "@food/utils/appCustomization";
 
 export default function MobileHeader({ 
   effectiveLocation, 
@@ -11,6 +12,20 @@ export default function MobileHeader({
   cartCount = 0,
 }) {
   const navigate = useNavigate();
+  const [appCustomization, setAppCustomization] = useState(DEFAULT_APP_CUSTOMIZATION);
+
+  useEffect(() => {
+    let mounted = true;
+    loadAppCustomization()
+      .then((settings) => {
+        if (mounted) setAppCustomization(settings);
+      })
+      .catch(() => {});
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 bg-[#fff9f2]/95 backdrop-blur-md px-5 pt-3 pb-2">
@@ -37,19 +52,21 @@ export default function MobileHeader({
               </div>
 
               <div className="relative z-10 ml-auto flex w-[34%] items-center justify-end gap-3 text-gray-900">
-                <button
-                  type="button"
-                  onClick={() => navigate("/food/user/cart")}
-                  className="relative flex h-9 w-9 items-center justify-center rounded-full transition-colors active:scale-95"
-                  aria-label="Open cart"
-                >
-                  <ShoppingCart className="h-5 w-5" />
-                  {cartCount > 0 && (
-                    <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-[#e92823] px-1 text-[9px] font-black leading-4 text-white">
-                      {cartCount > 99 ? "99+" : cartCount}
-                    </span>
-                  )}
-                </button>
+                {appCustomization.subscriptionFlowEnabled !== true ? (
+                  <button
+                    type="button"
+                    onClick={() => navigate("/food/user/cart")}
+                    className="relative flex h-9 w-9 items-center justify-center rounded-full transition-colors active:scale-95"
+                    aria-label="Open cart"
+                  >
+                    <ShoppingCart className="h-5 w-5" />
+                    {cartCount > 0 && (
+                      <span className="absolute -right-1 -top-1 min-w-[16px] rounded-full bg-[#e92823] px-1 text-[9px] font-black leading-4 text-white">
+                        {cartCount > 99 ? "99+" : cartCount}
+                      </span>
+                    )}
+                  </button>
+                ) : null}
               </div>
             </div>
 
