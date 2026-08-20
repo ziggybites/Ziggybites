@@ -3,15 +3,20 @@ import { ValidationError } from '../../../../core/auth/errors.js';
 import { FoodUserWallet } from '../models/userWallet.model.js';
 import { createRazorpayOrder, getRazorpayKeyId, isRazorpayConfigured, verifyPaymentSignature } from '../../orders/helpers/razorpay.helper.js';
 
-const ensureWallet = async (userId) => {
+const ensureWallet = async (userId, options = {}) => {
     const id = String(userId || '');
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
         throw new ValidationError('User not found');
     }
     const oid = new mongoose.Types.ObjectId(id);
-    const existing = await FoodUserWallet.findOne({ userId: oid });
+    const session = options.session || null;
+    const existing = await FoodUserWallet.findOne({ userId: oid }).session(session);
     if (existing) return existing;
-    return FoodUserWallet.create({ userId: oid, balance: 0, transactions: [] });
+    const [created] = await FoodUserWallet.create(
+        [{ userId: oid, balance: 0, transactions: [] }],
+        session ? { session } : undefined
+    );
+    return created;
 };
 
 export const creditReferralReward = async (userId, amountInr, metadata = {}) => {
@@ -142,13 +147,14 @@ export const verifyWalletTopupPayment = async (userId, payload) => {
     return { wallet: await getUserWallet(userId) };
 };
 
-export const deductWalletBalance = async (userId, amountInr, description = 'Order payment', metadata = {}) => {
+export const deductWalletBalance = async (userId, amountInr, description = 'Order payment', metadata = {}, options = {}) => {
     const amount = Number(amountInr);
     if (!Number.isFinite(amount) || amount <= 0) {
         throw new ValidationError('Invalid deduction amount');
     }
 
-    const wallet = await ensureWallet(userId);
+    const session = options.session || null;
+    const wallet = await ensureWallet(userId, { session });
     if (wallet.balance < amount) {
         throw new ValidationError('Insufficient wallet balance');
     }
@@ -162,18 +168,19 @@ export const deductWalletBalance = async (userId, amountInr, description = 'Orde
     });
 
     wallet.balance = Number(wallet.balance) - amount;
-    await wallet.save();
+    await wallet.save(session ? { session } : undefined);
 
     return { wallet: await getUserWallet(userId) };
 };
 
-export const refundWalletBalance = async (userId, amountInr, description = 'Order refund', metadata = {}) => {
+export const refundWalletBalance = async (userId, amountInr, description = 'Order refund', metadata = {}, options = {}) => {
     const amount = Number(amountInr);
     if (!Number.isFinite(amount) || amount <= 0) {
         return { wallet: await getUserWallet(userId) };
     }
 
-    const wallet = await ensureWallet(userId);
+    const session = options.session || null;
+    const wallet = await ensureWallet(userId, { session });
     wallet.transactions.unshift({
         type: 'refund',
         amount,
@@ -183,7 +190,7 @@ export const refundWalletBalance = async (userId, amountInr, description = 'Orde
     });
 
     wallet.balance = Number(wallet.balance) + amount;
-    await wallet.save();
+    await wallet.save(session ? { session } : undefined);
 
     return { wallet: await getUserWallet(userId) };
 };

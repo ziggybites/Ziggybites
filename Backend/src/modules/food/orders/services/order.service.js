@@ -312,26 +312,32 @@ export async function createOrder(userId, dto) {
     }
   }
 
-  await order.save();
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      order.$session(session);
+      await order.save({ session });
 
-  if (isWallet) {
-    try {
-      await userWalletService.deductWalletBalance(userId, order.pricing.total, `Payment for order #${order.order_id || order._id}`, { orderId: order._id });
-    } catch (err) {
-      // If wallet deduction fails (e.g. insufficient balance), we should not have saved the order or we should delete/cancel it.
-      // But since we already saved it, let's at least throw the error so the user knows.
-      // Ideally this should be in a transaction.
-      await FoodOrder.deleteOne({ _id: order._id });
-      throw err;
-    }
+      if (isWallet) {
+        await userWalletService.deductWalletBalance(
+          userId,
+          order.pricing.total,
+          `Payment for order #${order.order_id || order._id}`,
+          { orderId: order._id },
+          { session },
+        );
+      }
+
+      await foodTransactionService.createInitialTransaction({
+        ...(order.toObject?.() || order),
+        pricing: normalizedPricing,
+        payment,
+        __session: session,
+      });
+    });
+  } finally {
+    await session.endSession();
   }
-
-  // Phase 2: store financials in ledger only.
-  await foodTransactionService.createInitialTransaction({
-    ...(order.toObject?.() || order),
-    pricing: normalizedPricing,
-    payment,
-  });
 
   if (paymentMethod === "razorpay" && payment?.razorpay?.orderId) {
     // Audit can still happen here or via FinanceService events
@@ -439,25 +445,34 @@ export async function verifyPayment(userId, dto) {
   );
   if (!valid) throw new ValidationError("Payment verification failed");
 
-  order.payment.status = "paid";
-  order.payment.razorpay.paymentId = dto.razorpayPaymentId;
-  order.payment.razorpay.signature = dto.razorpaySignature;
-  pushStatusHistory(order, {
-    byRole: "USER",
-    byId: userId,
-    from: order.orderStatus,
-    to: "created",
-    note: "Payment verified",
-  });
-  await order.save();
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      order.$session(session);
+      order.payment.status = "paid";
+      order.payment.razorpay.paymentId = dto.razorpayPaymentId;
+      order.payment.razorpay.signature = dto.razorpaySignature;
+      pushStatusHistory(order, {
+        byRole: "USER",
+        byId: userId,
+        from: order.orderStatus,
+        to: "created",
+        note: "Payment verified",
+      });
+      await order.save({ session });
 
-  await foodTransactionService.updateTransactionStatus(order._id, 'captured', {
-    status: 'captured',
-    razorpayPaymentId: dto.razorpayPaymentId,
-    razorpaySignature: dto.razorpaySignature,
-    recordedByRole: "USER",
-    recordedById: new mongoose.Types.ObjectId(userId)
-  });
+      await foodTransactionService.updateTransactionStatus(order._id, 'captured', {
+        status: 'captured',
+        razorpayPaymentId: dto.razorpayPaymentId,
+        razorpaySignature: dto.razorpaySignature,
+        recordedByRole: "USER",
+        recordedById: new mongoose.Types.ObjectId(userId),
+        session,
+      });
+    });
+  } finally {
+    await session.endSession();
+  }
 
   // After online payment is verified, now notify restaurant about the new order.
   await notifyRestaurantNewOrder(order);
@@ -843,16 +858,6 @@ export async function cancelOrder(orderId, userId, reason, refundDestination = "
       throw new ValidationError("Order cannot be cancelled in its current state");
   }
 
-  const from = order.orderStatus;
-  order.orderStatus = "cancelled_by_user";
-  pushStatusHistory(order, {
-    byRole: "USER",
-    byId: userId,
-    from,
-    to: "cancelled_by_user",
-    note: reason || "",
-  });
-
   const paymentMethod = String(order.payment?.method || "cash").toLowerCase();
   const paymentStatus = String(order.payment?.status || "cod_pending").toLowerCase();
   const normalizedRefundDestination =
@@ -861,174 +866,226 @@ export async function cancelOrder(orderId, userId, reason, refundDestination = "
       : "source";
   const hasRefundProcessed =
     String(order.payment?.refund?.status || "none").toLowerCase() === "processed";
-
-  // ✅ NEW: Automated Razorpay Refund on User Cancel
-  if (
-    paymentStatus === "paid" &&
-    paymentMethod === "razorpay" &&
-    order.payment?.razorpay?.paymentId &&
-    !hasRefundProcessed
-  ) {
-    try {
-      if (normalizedRefundDestination === "wallet") {
-        await userWalletService.refundWalletBalance(
-          userId,
-          order.pricing.total,
-          `Refund for cancelled order #${order.order_id || order._id}`,
-          { orderId: order._id, source: "order_refund_wallet" },
-        );
-        order.payment.status = "refunded";
-        order.payment.refund = {
-          status: "processed",
-          destination: "wallet",
-          amount: order.pricing.total,
-          refundId: "",
-          processedAt: new Date()
-        };
-      } else {
-        const refundResult = await initiateRazorpayRefund(
-          order.payment.razorpay.paymentId,
-          order.pricing.total
-        );
-
-        if (refundResult.success) {
-          order.payment.status = "refunded";
-          order.payment.refund = {
-            status: "processed",
-            destination: "source",
-            amount: order.pricing.total,
-            refundId: refundResult.refundId,
-            processedAt: new Date()
+  const refundAmount = Number(order.pricing?.total || 0);
+  let resolvedRefundDestination = normalizedRefundDestination;
+  let refundUpdate = null;
+  {
+    if (
+      paymentStatus === "paid" &&
+      paymentMethod === "razorpay" &&
+      order.payment?.razorpay?.paymentId &&
+      !hasRefundProcessed
+    ) {
+      try {
+        if (normalizedRefundDestination === "wallet") {
+          resolvedRefundDestination = "wallet";
+          refundUpdate = {
+            paymentStatus: "refunded",
+            refund: {
+              status: "processed",
+              destination: "wallet",
+              amount: refundAmount,
+              refundId: "",
+              processedAt: new Date(),
+            },
           };
         } else {
-          // Log failure but let order cancellation proceed
-          order.payment.refund = {
+          const refundResult = await initiateRazorpayRefund(
+            order.payment.razorpay.paymentId,
+            refundAmount
+          );
+
+          resolvedRefundDestination = "source";
+          if (refundResult.success) {
+            refundUpdate = {
+              paymentStatus: "refunded",
+              refund: {
+                status: "processed",
+                destination: "source",
+                amount: refundAmount,
+                refundId: refundResult.refundId,
+                processedAt: new Date(),
+              },
+            };
+          } else {
+            refundUpdate = {
+              refund: {
+                status: "failed",
+                destination: "source",
+                amount: refundAmount,
+              },
+            };
+          }
+        }
+      } catch (err) {
+        console.error(`Refund processing error for Order ${orderId}:`, err);
+        refundUpdate = {
+          refund: {
             status: "failed",
-            destination: "source",
-            amount: order.pricing.total
-          };
+            destination: normalizedRefundDestination,
+            amount: refundAmount,
+          },
+        };
+      }
+    } else if (
+      paymentStatus === "paid" &&
+      paymentMethod === "wallet" &&
+      !hasRefundProcessed
+    ) {
+      resolvedRefundDestination = "wallet";
+      refundUpdate = {
+        paymentStatus: "refunded",
+        refund: {
+          status: "processed",
+          destination: "wallet",
+          amount: refundAmount,
+          processedAt: new Date(),
+        },
+      };
+    }
+
+    const cancelSession = await mongoose.startSession();
+    try {
+      await cancelSession.withTransaction(async () => {
+        order.$session(cancelSession);
+        const from = order.orderStatus;
+        order.orderStatus = "cancelled_by_user";
+        pushStatusHistory(order, {
+          byRole: "USER",
+          byId: userId,
+          from,
+          to: "cancelled_by_user",
+          note: reason || "",
+        });
+
+        if (
+          refundUpdate &&
+          paymentStatus === "paid" &&
+          paymentMethod === "razorpay" &&
+          resolvedRefundDestination === "wallet"
+        ) {
+          await userWalletService.refundWalletBalance(
+            userId,
+            refundAmount,
+            `Refund for cancelled order #${order.order_id || order._id}`,
+            { orderId: order._id, source: "order_refund_wallet" },
+            { session: cancelSession },
+          );
+        }
+
+        if (
+          refundUpdate &&
+          paymentStatus === "paid" &&
+          paymentMethod === "wallet" &&
+          !hasRefundProcessed
+        ) {
+          await userWalletService.refundWalletBalance(
+            userId,
+            refundAmount,
+            `Refund for cancelled order #${order.order_id || order._id}`,
+            { orderId: order._id },
+            { session: cancelSession },
+          );
+        }
+
+        if (refundUpdate?.paymentStatus) {
+          order.payment.status = refundUpdate.paymentStatus;
+        }
+        if (refundUpdate?.refund) {
+          order.payment.refund = refundUpdate.refund;
+        }
+
+        await order.save({ session: cancelSession });
+
+        const nextPaymentMethod = String(order.payment?.method || paymentMethod || "cash").toLowerCase();
+        const nextPaymentStatus = String(order.payment?.status || paymentStatus || "cod_pending").toLowerCase();
+        const isOnlineCaptured =
+          nextPaymentMethod === "razorpay" &&
+          (nextPaymentStatus === "paid" || nextPaymentStatus === "refunded");
+        await foodTransactionService.updateTransactionStatus(order._id, 'cancelled_by_user', {
+          status: isOnlineCaptured ? 'refunded' : 'failed',
+          note: `Order cancelled by user: ${reason || "No reason"}`,
+          recordedByRole: 'USER',
+          recordedById: userId,
+          session: cancelSession,
+        });
+      });
+    } finally {
+      await cancelSession.endSession();
+    }
+
+    enqueueOrderEvent("order_cancelled_by_user", {
+      orderMongoId: order._id?.toString?.(),
+      orderId: order._id.toString(),
+      userId,
+      reason: reason || "",
+    });
+
+    const finalPaymentMethodSafe = String(order.payment?.method || paymentMethod || "cash").toLowerCase();
+    const finalPaymentStatusSafe = String(order.payment?.status || paymentStatus || "cod_pending").toLowerCase();
+    const isOnlinePaidSafe =
+      finalPaymentMethodSafe === "razorpay" &&
+      (finalPaymentStatusSafe === "paid" || finalPaymentStatusSafe === "refunded");
+    const settledRefundDestinationSafe =
+      String(order.payment?.refund?.destination || resolvedRefundDestination || "source").toLowerCase() === "wallet"
+        ? "wallet"
+        : "source";
+    const refundDetailSafe = isOnlinePaidSafe
+      ? settledRefundDestinationSafe === "wallet"
+        ? ` Your refund of â‚¹${order.pricing.total} has been credited to your wallet.`
+        : ` Your refund of â‚¹${order.pricing.total} is being processed and will be credited to your original payment method within 5-7 working days.`
+      : "";
+
+    await notifyOwnersSafely(
+      [
+        { ownerType: "USER", ownerId: userId },
+        { ownerType: "RESTAURANT", ownerId: order.restaurantId },
+      ],
+      {
+        title: "Order Cancelled âŒ",
+        body: `Order #${order.order_id || order._id} has been cancelled by the customer. Reason: ${reason || "No reason provided"}.${refundDetailSafe}`,
+        image: "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png",
+        data: {
+          type: "order_cancelled",
+          orderId: String(order._id.toString()),
+          orderMongoId: String(order._id),
+        },
+      },
+    );
+
+    try {
+      const io = getIO();
+      if (io) {
+        const payload = {
+          orderMongoId: order._id?.toString?.(),
+          orderId: order._id.toString(),
+          orderStatus: order.orderStatus,
+          message: `Order #${order.order_id || order._id} has been cancelled by the customer. Reason: ${reason || "No reason provided"}.${refundDetailSafe}`
+        };
+        io.to(rooms.user(userId)).emit("order_status_update", payload);
+        io.to(rooms.restaurant(order.restaurantId)).emit("order_status_update", payload);
+
+        const assignedRiderId = order.dispatch?.deliveryPartnerId;
+        if (assignedRiderId) {
+            io.to(rooms.delivery(assignedRiderId)).emit("order_status_update", payload);
+        } else if (Array.isArray(order.dispatch?.offeredTo)) {
+            const claimedPayload = {
+              orderId: order._id.toString(),
+              orderMongoId: order._id?.toString?.(),
+              claimedBy: 'cancelled',
+            };
+            for (const offer of order.dispatch.offeredTo) {
+              io.to(rooms.delivery(offer.partnerId)).emit('order_claimed', claimedPayload);
+            }
         }
       }
     } catch (err) {
-      console.error(`Refund processing error for Order ${orderId}:`, err);
-      order.payment.refund = {
-        status: "failed",
-        destination: normalizedRefundDestination,
-        amount: order.pricing.total,
-      };
+      logger.warn(`cancelOrder socket emit failed: ${err?.message || err}`);
     }
-  } else if (
-    paymentStatus === "paid" &&
-    paymentMethod === "wallet" &&
-    !hasRefundProcessed
-  ) {
-    try {
-      await userWalletService.refundWalletBalance(userId, order.pricing.total, `Refund for cancelled order #${order.order_id || order._id}`, { orderId: order._id });
-      order.payment.status = "refunded";
-      order.payment.refund = {
-        status: "processed",
-        destination: "wallet",
-        amount: order.pricing.total,
-        processedAt: new Date()
-      };
-    } catch (err) {
-      console.error(`Wallet refund processing error for Order ${orderId}:`, err);
-      order.payment.refund = { status: "failed", destination: "wallet", amount: order.pricing.total };
-    }
+
+    return normalizeOrderForClient(order);
   }
 
-  await order.save();
-
-  enqueueOrderEvent("order_cancelled_by_user", {
-    orderMongoId: order._id?.toString?.(),
-    orderId: order._id.toString(),
-    userId,
-    reason: reason || "",
-  });
-
-  // Sync transaction status
-  try {
-    const finalPaymentMethod = String(order.payment?.method || paymentMethod || "cash").toLowerCase();
-    const finalPaymentStatus = String(order.payment?.status || paymentStatus || "cod_pending").toLowerCase();
-    const isOnlinePaid =
-      finalPaymentMethod === "razorpay" &&
-      (finalPaymentStatus === "paid" || finalPaymentStatus === "refunded");
-    await foodTransactionService.updateTransactionStatus(order._id, 'cancelled_by_user', {
-        status: isOnlinePaid ? 'refunded' : 'failed',
-        note: `Order cancelled by user: ${reason || "No reason"}`,
-        recordedByRole: 'USER',
-        recordedById: userId
-    });
-  } catch (err) {
-    logger.warn(`cancelOrder transaction sync failed: ${err?.message || err}`);
-  }
-
-  // Notify User and Restaurant about the cancellation
-  const finalPaymentMethod = String(order.payment?.method || paymentMethod || "cash").toLowerCase();
-  const finalPaymentStatus = String(order.payment?.status || paymentStatus || "cod_pending").toLowerCase();
-  const isOnlinePaid =
-    finalPaymentMethod === "razorpay" &&
-    (finalPaymentStatus === "paid" || finalPaymentStatus === "refunded");
-  const settledRefundDestination =
-    String(order.payment?.refund?.destination || normalizedRefundDestination || "source").toLowerCase() === "wallet"
-      ? "wallet"
-      : "source";
-  const refundDetail = isOnlinePaid
-    ? settledRefundDestination === "wallet"
-      ? ` Your refund of ₹${order.pricing.total} has been credited to your wallet.`
-      : ` Your refund of ₹${order.pricing.total} is being processed and will be credited to your original payment method within 5-7 working days.`
-    : "";
-  
-  await notifyOwnersSafely(
-    [
-      { ownerType: "USER", ownerId: userId },
-      { ownerType: "RESTAURANT", ownerId: order.restaurantId },
-    ],
-    {
-      title: "Order Cancelled ❌",
-      body: `Order #${order.order_id || order._id} has been cancelled by the customer. Reason: ${reason || "No reason provided"}.${refundDetail}`,
-      image: "https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png",
-      data: {
-        type: "order_cancelled",
-        orderId: String(order._id.toString()),
-        orderMongoId: String(order._id),
-      },
-    },
-  );
-
-  // Real-time: status update via socket
-  try {
-    const io = getIO();
-    if (io) {
-      const payload = {
-        orderMongoId: order._id?.toString?.(),
-        orderId: order._id.toString(),
-        orderStatus: order.orderStatus,
-        message: `Order #${order.order_id || order._id} has been cancelled by the customer. Reason: ${reason || "No reason provided"}.${refundDetail}`
-      };
-      io.to(rooms.user(userId)).emit("order_status_update", payload);
-      io.to(rooms.restaurant(order.restaurantId)).emit("order_status_update", payload);
-      
-      const assignedRiderId = order.dispatch?.deliveryPartnerId;
-      if (assignedRiderId) {
-          io.to(rooms.delivery(assignedRiderId)).emit("order_status_update", payload);
-      } else if (Array.isArray(order.dispatch?.offeredTo)) {
-          // If cancelled before a rider accepts it, dismiss the popup for everyone it was offered to
-          const claimedPayload = {
-            orderId: order._id.toString(),
-            orderMongoId: order._id?.toString?.(),
-            claimedBy: 'cancelled',
-          };
-          for (const offer of order.dispatch.offeredTo) {
-            io.to(rooms.delivery(offer.partnerId)).emit('order_claimed', claimedPayload);
-          }
-      }
-    }
-  } catch (err) {
-    logger.warn(`cancelOrder socket emit failed: ${err?.message || err}`);
-  }
-
-  return normalizeOrderForClient(order);
 }
 
 export async function submitOrderRatings(orderId, userId, dto) {
@@ -1356,66 +1413,108 @@ export async function updateOrderStatusRestaurant(
         from,
         to: orderStatus
     });
+    {
+      const isCancelledStatus = String(orderStatus).includes("cancel");
+      const isRefundProcessed = String(order.payment?.refund?.status || "none").toLowerCase() === "processed";
+      const currentPaymentMethod = String(order.payment?.method || "").toLowerCase();
+      const currentPaymentStatus = String(order.payment?.status || "").toLowerCase();
+      const refundAmount = Number(order.pricing?.total || 0);
+      let refundPatch = null;
 
-    // ✅ NEW: Automated Razorpay Refund on Restaurant Cancel
-    // Triggers if the restaurant sets status to a cancelled state (e.g., cancelled_by_restaurant)
-    if (
-      String(orderStatus).includes("cancel") &&
-      order.payment.status === "paid" &&
-      order.payment.method === "razorpay" &&
-      order.payment.razorpay?.paymentId &&
-      (!order.payment.refund || order.payment.refund.status !== "processed")
-    ) {
-      try {
-        const refundResult = await initiateRazorpayRefund(
-          order.payment.razorpay.paymentId,
-          order.pricing.total
-        );
+      if (
+        isCancelledStatus &&
+        currentPaymentStatus === "paid" &&
+        currentPaymentMethod === "razorpay" &&
+        order.payment?.razorpay?.paymentId &&
+        !isRefundProcessed
+      ) {
+        try {
+          const refundResult = await initiateRazorpayRefund(
+            order.payment.razorpay.paymentId,
+            refundAmount
+          );
 
-        if (refundResult.success) {
-          order.payment.status = "refunded";
-          order.payment.refund = {
-            status: "processed",
-            amount: order.pricing.total,
-            refundId: refundResult.refundId,
-            processedAt: new Date()
-          };
-        } else {
-          // Record failure so admin knows a manual refund might be needed
-          order.payment.refund = {
-            status: "failed",
-            amount: order.pricing.total
+          if (refundResult.success) {
+            refundPatch = {
+              paymentStatus: "refunded",
+              refund: {
+                status: "processed",
+                amount: refundAmount,
+                refundId: refundResult.refundId,
+                processedAt: new Date(),
+              },
+            };
+          } else {
+            refundPatch = {
+              refund: {
+                status: "failed",
+                amount: refundAmount,
+              },
+            };
+          }
+        } catch (err) {
+          console.error(`Automated refund failed for Order ${order._id.toString()} (Restaurant Cancel):`, err);
+          refundPatch = {
+            refund: {
+              status: "failed",
+              amount: refundAmount,
+            },
           };
         }
-      } catch (err) {
-        console.error(`Automated refund failed for Order ${order._id.toString()} (Restaurant Cancel):`, err);
-        order.payment.refund = { status: "failed", amount: order.pricing.total };
-      }
-      // Re-save order with updated payment status
-      await order.save();
-    } else if (
-      String(orderStatus).includes("cancel") &&
-      order.payment.status === "paid" &&
-      order.payment.method === "wallet" &&
-      (!order.payment.refund || order.payment.refund.status !== "processed")
-    ) {
-      try {
-        await userWalletService.refundWalletBalance(order.userId, order.pricing.total, `Refund for order #${order.order_id || order._id} cancelled by restaurant`, { orderId: order._id });
-        order.payment.status = "refunded";
-        order.payment.refund = {
-          status: "processed",
-          amount: order.pricing.total,
-          processedAt: new Date()
+      } else if (
+        isCancelledStatus &&
+        currentPaymentStatus === "paid" &&
+        currentPaymentMethod === "wallet" &&
+        !isRefundProcessed
+      ) {
+        refundPatch = {
+          paymentStatus: "refunded",
+          refund: {
+            status: "processed",
+            amount: refundAmount,
+            processedAt: new Date(),
+          },
         };
-      } catch (err) {
-        console.error(`Wallet refund processing error for Order ${order._id.toString()}:`, err);
-        order.payment.refund = { status: "failed", amount: order.pricing.total };
       }
-      // Re-save order with updated payment status
-      await order.save();
+
+      if (refundPatch) {
+        const restaurantCancelSession = await mongoose.startSession();
+        try {
+          await restaurantCancelSession.withTransaction(async () => {
+            order.$session(restaurantCancelSession);
+
+            if (currentPaymentMethod === "wallet") {
+              await userWalletService.refundWalletBalance(
+                order.userId,
+                refundAmount,
+                `Refund for order #${order.order_id || order._id} cancelled by restaurant`,
+                { orderId: order._id },
+                { session: restaurantCancelSession },
+              );
+            }
+
+            if (refundPatch.paymentStatus) {
+              order.payment.status = refundPatch.paymentStatus;
+            }
+            order.payment.refund = refundPatch.refund;
+            await order.save({ session: restaurantCancelSession });
+
+            await foodTransactionService.updateTransactionStatus(order._id, 'cancelled_by_restaurant', {
+              status: refundPatch.paymentStatus === "refunded" ? 'refunded' : 'failed',
+              note: `Order cancelled by restaurant${note ? `: ${note}` : ""}`,
+              recordedByRole: 'RESTAURANT',
+              recordedById: restaurantId,
+              session: restaurantCancelSession,
+            });
+          });
+        } finally {
+          await restaurantCancelSession.endSession();
+        }
+      }
+
+      return normalizeOrderForClient(order);
     }
 
-    return normalizeOrderForClient(order);
 }
 
 /**

@@ -108,6 +108,12 @@ export async function getRestaurantCommissionSnapshot(orderDoc) {
 }
 
 export async function createInitialTransaction(order) {
+    const session = order?.__session || null;
+    const existingTransaction = await FoodTransaction.findOne({ orderId: order._id }).session(session);
+    if (existingTransaction) {
+        return existingTransaction;
+    }
+
     const commissionSnapshot = await getRestaurantCommissionSnapshot(order);
     const totalCustomerPaid = order.pricing?.total || 0;
     const riderShare = order.riderEarning || 0;
@@ -193,12 +199,20 @@ export async function createInitialTransaction(order) {
         }]
     });
 
-    await transaction.save();
+    try {
+        await transaction.save({ session });
+    } catch (error) {
+        if (error?.code === 11000) {
+            return await FoodTransaction.findOne({ orderId: order._id }).session(session);
+        }
+        throw error;
+    }
 
     try {
         await mongoose.model('FoodOrder').updateOne(
             { _id: order._id },
-            { $set: { transactionId: transaction._id } }
+            { $set: { transactionId: transaction._id } },
+            session ? { session } : undefined
         );
     } catch (_err) {
     }
@@ -207,8 +221,9 @@ export async function createInitialTransaction(order) {
 }
 
 export async function updateTransactionStatus(orderId, kind, details = {}) {
+    const session = details.session || null;
     const query = { orderId };
-    const transaction = await FoodTransaction.findOne(query);
+    const transaction = await FoodTransaction.findOne(query).session(session);
     if (!transaction) return null;
 
     if (details.status) {
@@ -239,7 +254,7 @@ export async function updateTransactionStatus(orderId, kind, details = {}) {
         recordedBy: { role: details.recordedByRole || 'SYSTEM', id: details.recordedById }
     });
 
-    await transaction.save();
+    await transaction.save({ session });
 
     if (details.paymentMethod || details.status) {
         try {
@@ -252,7 +267,8 @@ export async function updateTransactionStatus(orderId, kind, details = {}) {
             if (Object.keys(updateFields).length > 0) {
                 await mongoose.model('FoodOrder').updateOne(
                     { _id: orderId },
-                    { $set: updateFields }
+                    { $set: updateFields },
+                    session ? { session } : undefined
                 );
             }
         } catch (err) {
