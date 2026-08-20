@@ -73,7 +73,6 @@ import {
     updateSubscriptionPlanOrderController,
     listSubscriptionPlansPublicController,
 } from '../controllers/subscriptionPlan.controller.js';
-import { getPublicActiveAds } from '../../admin/controllers/appIntroAd.controller.js';
 
 const router = express.Router();
 
@@ -139,8 +138,6 @@ router.get('/zones/detect', detectZonePublicController);
 router.get('/zones/nearby', listZonesNearbyPublicController);
 router.get('/zones/public', cacheResponse(1800, 'landing_zones_public'), listZonesPublicController);
 router.get('/public/env', cacheResponse(1800, 'public_env'), getPublicEnvController);
-router.get('/app-intro-ads/public', cacheResponse(600, 'landing_intro_ads'), getPublicActiveAds);
-
 router.get('/hero-banners/landing/settings', getAdminLandingSettingsController);
 router.patch('/hero-banners/landing/settings', updateAdminLandingSettingsController);
 

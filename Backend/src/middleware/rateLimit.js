@@ -62,7 +62,6 @@ const publicPathMatchers = [
     /^\/v1\/food\/zones\/nearby$/,
     /^\/v1\/food\/zones\/public$/,
     /^\/v1\/food\/public\/env$/,
-    /^\/v1\/food\/app-intro-ads\/public$/,
     /^\/v1\/fcm-tokens\/check$/,
     /^\/fcm-tokens\/check$/
 ];

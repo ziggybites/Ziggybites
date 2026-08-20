@@ -253,14 +253,6 @@ export const adminSidebarMenu = [
       { type: "link", label: "Restaurant Withdraws", path: "/admin/food/restaurant-withdraws", icon: "CreditCard" },
     ],
   },
-  {
-    type: "section",
-    label: "BANNER SETTINGS",
-    items: [
-      { type: "link", label: "App Intro & Ads", path: "/admin/food/app-intro-ads", icon: "Image" },
-      { type: "link", label: "Landing Page Management", path: "/admin/food/hero-banner-management", icon: "Image" },
-    ],
-  },
   /* {
     type: "section",
     label: "DINING MANAGEMENT",
@@ -278,6 +270,7 @@ export const adminSidebarMenu = [
       { type: "link", label: "Broadcast Notification", path: "/admin/food/broadcast-notification", icon: "Bell" },
       { type: "link", label: "Toggle Management", path: "/admin/food/toggle-management", icon: "ToggleLeft" },
       { type: "link", label: "Business Setup", path: "/admin/food/business-setup", icon: "Settings" },
+      { type: "link", label: "Landing Page Management", path: "/admin/food/hero-banner-management", icon: "Image" },
       { type: "link", label: "Theme Settings", path: "/admin/food/theme-settings", icon: "Palette" },
     ],
   },
