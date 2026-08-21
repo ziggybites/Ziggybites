@@ -126,6 +126,7 @@ export default function AdminHome() {
 
   // Calculate totals from real data
   const revenueTotal = dashboardData?.revenue?.total || 0
+  const operationalOrderValueTotal = dashboardData?.operationalOrderValue?.total || 0
   const commissionTotal = dashboardData?.commission?.total || 0
   const ordersTotal = dashboardData?.orders?.total || 0
   const platformFeeTotal = dashboardData?.platformFee?.total || 0
@@ -217,9 +218,9 @@ export default function AdminHome() {
         <div className="space-y-6 px-6 py-6">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard
-              title="Gross revenue"
+              title="Collected revenue"
               value={formatCurrency(revenueTotal)}
-              helper={`${periodLabel} transaction volume`}
+              helper={`${periodLabel} subscription purchase collections`}
               icon={<ShoppingBag className="h-5 w-5 text-emerald-600" />}
               accent="bg-emerald-200/40"
               path="/admin/food/transaction-report"
@@ -231,6 +232,14 @@ export default function AdminHome() {
               icon={<ArrowUpRight className="h-5 w-5 text-indigo-600" />}
               accent="bg-indigo-200/40"
               path="/admin/food/restaurants/commission"
+            />
+            <MetricCard
+              title="Operational order value"
+              value={formatCurrency(operationalOrderValueTotal)}
+              helper={`${periodLabel} delivered subscription meal value`}
+              icon={<Receipt className="h-5 w-5 text-sky-600" />}
+              accent="bg-sky-200/40"
+              path="/admin/food/transaction-report"
             />
             <MetricCard
               title="Total orders"
@@ -351,7 +360,7 @@ export default function AdminHome() {
               <CardHeader className="flex flex-col gap-2 border-b border-neutral-200 pb-4">
                 <CardTitle className="text-lg text-neutral-900">Revenue trajectory</CardTitle>
                 <p className="text-sm text-neutral-500">
-                  Commission and gross revenue with monthly order volume
+                  Subscription collections and platform earnings with monthly order volume
                 </p>
               </CardHeader>
               <CardContent className="min-w-0 pt-4">
@@ -383,7 +392,7 @@ export default function AdminHome() {
                         stroke="#0ea5e9"
                         fillOpacity={1}
                         fill="url(#revFill)"
-                        name="Gross revenue"
+                        name="Collected revenue"
                       />
                       <Area
                         type="monotone"

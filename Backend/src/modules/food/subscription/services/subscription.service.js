@@ -4,6 +4,7 @@ import { buildPaginationOptions, buildPaginatedResult } from '../../../../utils/
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodSubscriptionPlan } from '../../landing/models/subscriptionPlan.model.js';
 import { FoodSubscription } from '../models/subscription.model.js';
+import { PaymentSubscriptionTransaction } from '../models/subscriptionTransaction.model.js';
 import { FoodSubscriptionSchedule } from '../models/subscriptionSchedule.model.js';
 import { FoodOrder } from '../../orders/models/order.model.js';
 import { FoodItem } from '../../admin/models/food.model.js';
@@ -225,6 +226,38 @@ function roundMoney(value) {
   return Math.round((Number(value) || 0) * 100) / 100;
 }
 
+function buildSubscriptionQuoteResponse(summary = {}) {
+  const foodSubtotal = roundMoney(summary.foodSubtotal || 0);
+  const gstRate = Number(summary.gstRate || 0) || 0;
+  const gstAmount = roundMoney(summary.gstAmount || 0);
+  const deliveryFeePerDay = roundMoney(summary.deliveryFeePerDay || 0);
+  const deliveryCharges = roundMoney(summary.deliveryCharges || 0);
+  const totalBeforeDiscount = roundMoney(summary.totalBeforeDiscount || 0);
+  const couponDiscount = roundMoney(summary.couponDiscount || 0);
+  const totalAmount = roundMoney(summary.totalAmount || 0);
+  const itemPrice = roundMoney(summary.itemPrice || 0);
+  const mealCount = Math.max(1, Number(summary.mealCount || 0) || 1);
+  const planDays = Math.max(1, Number(summary.planDays || 0) || 1);
+  return {
+    pricing: {
+      itemPrice,
+      mealCount,
+      planDays,
+      totalDeliveries: mealCount * planDays,
+      foodSubtotal,
+      gstRate,
+      gstAmount,
+      deliveryFeePerDay,
+      deliveryCharges,
+      totalBeforeDiscount,
+      couponCode: String(summary.couponCode || ''),
+      couponDiscount,
+      totalAmount,
+      currency: String(summary.currency || 'INR'),
+    },
+  };
+}
+
 const SUBSCRIPTION_COMMISSION_CACHE_MS = 10 * 1000;
 let subscriptionCommissionRulesCache = null;
 let subscriptionCommissionRulesLoadedAt = 0;
@@ -302,6 +335,292 @@ function normalizeSubscriptionForClient(doc) {
     creditPerOrder:
       Number(subscription.creditPerOrder) ||
       getCreditPerOrder(subscription.totalAmount, totalCredits),
+  };
+}
+
+async function createSubscriptionPurchaseTransaction(subscription, pricingSnapshot = {}) {
+  if (!subscription?._id) return null;
+
+  const paymentPayload = {
+    method: 'razorpay',
+    status: 'created',
+    amountDue: Number(pricingSnapshot.totalAmount || subscription.totalAmount || 0) || 0,
+    amountPaid: 0,
+    paidAt: null,
+    razorpay: {
+      orderId: String(subscription.razorpayOrderId || ''),
+      paymentId: '',
+      signature: '',
+    },
+  };
+
+  try {
+    return await PaymentSubscriptionTransaction.create({
+      subscriptionId: subscription._id,
+      userId: subscription.userId,
+      restaurantId: subscription.restaurantId,
+      paymentMethod: 'razorpay',
+      status: 'created',
+      pricing: {
+        foodSubtotal: Number(pricingSnapshot.foodSubtotal || 0) || 0,
+        gstRate: Number(pricingSnapshot.gstRate || 0) || 0,
+        gstAmount: Number(pricingSnapshot.gstAmount || 0) || 0,
+        deliveryFeePerDay: Number(pricingSnapshot.deliveryFeePerDay || 0) || 0,
+        deliveryCharges: Number(pricingSnapshot.deliveryCharges || 0) || 0,
+        totalBeforeDiscount: Number(pricingSnapshot.totalBeforeDiscount || 0) || 0,
+        couponCode: String(pricingSnapshot.couponCode || ''),
+        couponDiscount: Number(pricingSnapshot.couponDiscount || 0) || 0,
+        totalAmount: Number(pricingSnapshot.totalAmount || subscription.totalAmount || 0) || 0,
+        currency: String(pricingSnapshot.currency || subscription.currency || 'INR'),
+      },
+      payment: paymentPayload,
+      gateway: {
+        razorpayOrderId: String(subscription.razorpayOrderId || ''),
+        razorpayPaymentId: '',
+        razorpaySignature: '',
+      },
+      history: [
+        {
+          kind: 'created',
+          amount: paymentPayload.amountDue,
+          note: 'Subscription purchase transaction created',
+        },
+      ],
+    });
+  } catch (error) {
+    if (error?.code !== 11000) throw error;
+    return PaymentSubscriptionTransaction.findOne({
+      subscriptionId: subscription._id,
+    });
+  }
+}
+
+async function markSubscriptionPurchaseTransaction(subscription, update = {}) {
+  if (!subscription?._id) return null;
+
+  const transaction = await PaymentSubscriptionTransaction.findOne({
+    subscriptionId: subscription._id,
+  });
+  if (!transaction) return null;
+
+  if (update.status) transaction.status = String(update.status);
+  if (update.paymentStatus) transaction.payment.status = String(update.paymentStatus);
+  if (update.paymentMethod) {
+    transaction.paymentMethod = String(update.paymentMethod);
+    transaction.payment.method = String(update.paymentMethod);
+  }
+  if (update.amountPaid !== undefined) {
+    transaction.payment.amountPaid = Number(update.amountPaid || 0) || 0;
+  }
+  if (update.paidAt !== undefined) {
+    transaction.payment.paidAt = update.paidAt || null;
+  }
+  if (update.razorpayOrderId !== undefined) {
+    const orderId = String(update.razorpayOrderId || '');
+    transaction.payment.razorpay.orderId = orderId;
+    transaction.gateway.razorpayOrderId = orderId;
+  }
+  if (update.razorpayPaymentId !== undefined) {
+    const paymentId = String(update.razorpayPaymentId || '');
+    transaction.payment.razorpay.paymentId = paymentId;
+    transaction.gateway.razorpayPaymentId = paymentId;
+  }
+  if (update.razorpaySignature !== undefined) {
+    const signature = String(update.razorpaySignature || '');
+    transaction.payment.razorpay.signature = signature;
+    transaction.gateway.razorpaySignature = signature;
+  }
+
+  transaction.history.push({
+    kind: String(update.historyKind || update.status || 'updated'),
+    amount:
+      update.historyAmount !== undefined
+        ? Number(update.historyAmount || 0) || 0
+        : Number(transaction.payment.amountDue || 0) || 0,
+    note: String(update.historyNote || 'Subscription purchase transaction updated'),
+    metadata: update.historyMetadata || undefined,
+  });
+
+  await transaction.save();
+  return transaction;
+}
+
+async function resolveSubscriptionOrderPricing(userId, dto = {}) {
+  if (!mongoose.isValidObjectId(dto.restaurantId)) {
+    throw new ValidationError('Restaurant id is invalid');
+  }
+
+  const restaurant = await FoodRestaurant.findById(dto.restaurantId)
+    .select('restaurantName status isAcceptingOrders')
+    .lean();
+  if (!restaurant) throw new ValidationError('Restaurant not found');
+  if (restaurant.status !== 'approved' || restaurant.isAcceptingOrders === false) {
+    throw new ValidationError('Restaurant is not accepting orders');
+  }
+
+  let plan = null;
+  if (dto.planId && !mongoose.isValidObjectId(dto.planId)) {
+    throw new ValidationError('Plan id is invalid');
+  }
+  if (dto.planId && mongoose.isValidObjectId(dto.planId)) {
+    plan = await FoodSubscriptionPlan.findOne({
+      _id: new mongoose.Types.ObjectId(dto.planId),
+      isActive: true,
+    });
+    if (!plan) throw new ValidationError('Subscription plan not found');
+  }
+  if (!plan) {
+    throw new ValidationError('Please select an admin-created subscription plan');
+  }
+
+  const planDays = Number(plan?.durationDays || dto.planDays || 0);
+  if (!Number.isFinite(planDays) || planDays <= 0) {
+    throw new ValidationError('Plan days must be greater than 0');
+  }
+
+  const meals = normalizeMeals(dto.meals);
+  if (!meals.length) {
+    throw new ValidationError('At least one meal is required');
+  }
+
+  const mealCount = meals.length;
+  let itemPrice = Number(dto.itemPrice || 0);
+  if (!Number.isFinite(itemPrice) || itemPrice <= 0) {
+    const dish = mongoose.isValidObjectId(dto.dishId)
+      ? await FoodItem.findById(dto.dishId).select('price').lean()
+      : null;
+    itemPrice = Number(dish?.price || 0);
+  }
+  if (!Number.isFinite(itemPrice) || itemPrice <= 0) {
+    throw new ValidationError('Dish price is required for subscription');
+  }
+
+  const foodSubtotal = roundMoney(itemPrice * mealCount * planDays);
+  const gstRate = Number.isFinite(Number(dto.gstRate)) ? Number(dto.gstRate) : 5;
+  const gstAmount = roundMoney(foodSubtotal * (gstRate / 100));
+  const deliveryFeePerDay = Number.isFinite(Number(dto.deliveryFeePerDay))
+    ? Number(dto.deliveryFeePerDay)
+    : 10;
+  const deliveryCharges = roundMoney(deliveryFeePerDay * planDays);
+  const totalBeforeDiscount = roundMoney(foodSubtotal + gstAmount + deliveryCharges);
+  let couponDiscount = 0;
+  let couponCode = dto.couponCode ? String(dto.couponCode).trim().toUpperCase() : '';
+
+  if (couponCode) {
+    const now = new Date();
+    let offer = await FoodOffer.findOne({ couponCode }).lean();
+
+    if (!offer) {
+      const { default: Promocode } = await import('../../../../models/Promocode.js');
+      const promo = await Promocode.findOne({
+        code: couponCode,
+        restaurantId: dto.restaurantId,
+      }).lean();
+
+      if (promo) {
+        offer = {
+          _id: promo._id,
+          status: promo.isActive ? 'active' : 'inactive',
+          startDate: promo.startDate,
+          endDate: promo.expiryDate,
+          restaurantScope: 'selected',
+          restaurantId: promo.restaurantId,
+          minOrderValue: promo.minOrderAmount || 0,
+          usageLimit: promo.usageLimit || 0,
+          usedCount: promo.usageCount || 0,
+          discountType: promo.discountType === 'PERCENTAGE' ? 'percentage' : 'flat',
+          discountValue: promo.discountValue,
+          maxDiscount: promo.maxDiscountAmount || 0,
+          perUserLimit: 0,
+          customerScope: 'all',
+        };
+      }
+    }
+
+    if (!offer) {
+      throw new ValidationError('Invalid or expired coupon code.');
+    }
+
+    const statusOk = offer.status === 'active';
+    const startOk = !offer.startDate || now >= new Date(offer.startDate);
+    const endOk = !offer.endDate || now < new Date(offer.endDate);
+    const scopeOk =
+      offer.restaurantScope !== 'selected' ||
+      String(offer.restaurantId || '') === String(dto.restaurantId || '');
+    const minOk = foodSubtotal >= (Number(offer.minOrderValue) || 0);
+    const usageOk =
+      !(Number(offer.usageLimit) > 0 &&
+        Number(offer.usedCount || 0) >= Number(offer.usageLimit));
+
+    let perUserOk = true;
+    if (Number(offer.perUserLimit) > 0 && mongoose.isValidObjectId(userId)) {
+      const usage = await FoodOfferUsage.findOne({
+        offerId: offer._id,
+        userId: new mongoose.Types.ObjectId(userId),
+      }).lean();
+      if (usage && Number(usage.count) >= Number(offer.perUserLimit)) {
+        perUserOk = false;
+      }
+    }
+
+    let firstOrderOk = true;
+    if (
+      (offer.customerScope === 'first-time' || offer.customerScope === 'new' || offer.isFirstOrderOnly === true) &&
+      mongoose.isValidObjectId(userId)
+    ) {
+      const existingOrderCount = await FoodOrder.countDocuments({
+        userId: new mongoose.Types.ObjectId(userId),
+      });
+      firstOrderOk = existingOrderCount === 0;
+    }
+
+    if (!(statusOk && startOk && endOk && scopeOk && minOk && usageOk && perUserOk && firstOrderOk)) {
+      if (!minOk) {
+        throw new ValidationError(`Minimum order value of ${offer.minOrderValue} required for this coupon.`);
+      }
+      if (!firstOrderOk) {
+        throw new ValidationError('This coupon is only for first-time users.');
+      }
+      throw new ValidationError('This coupon is not applicable right now.');
+    }
+
+    if (offer.discountType === 'percentage') {
+      const rawDiscount = foodSubtotal * ((Number(offer.discountValue) || 0) / 100);
+      const cappedDiscount = Number(offer.maxDiscount)
+        ? Math.min(rawDiscount, Number(offer.maxDiscount))
+        : rawDiscount;
+      couponDiscount = roundMoney(Math.max(0, Math.min(foodSubtotal, cappedDiscount)));
+    } else {
+      couponDiscount = roundMoney(
+        Math.max(0, Math.min(foodSubtotal, Number(offer.discountValue) || 0)),
+      );
+    }
+  }
+
+  const totalAmount = roundMoney(Math.max(0, totalBeforeDiscount - couponDiscount));
+  const totalCredits = getTotalCredits(planDays, meals);
+  const creditPerOrder = getCreditPerOrder(totalAmount, totalCredits);
+  const currency = String(plan?.currency || dto.currency || 'INR').trim().toUpperCase();
+
+  return {
+    restaurant,
+    plan,
+    meals,
+    mealCount,
+    planDays,
+    itemPrice,
+    foodSubtotal,
+    gstRate,
+    gstAmount,
+    deliveryFeePerDay,
+    deliveryCharges,
+    totalBeforeDiscount,
+    couponCode,
+    couponDiscount,
+    totalAmount,
+    totalCredits,
+    creditPerOrder,
+    currency,
   };
 }
 
@@ -544,159 +863,10 @@ export async function createSubscriptionOrder(userId, dto) {
     throw new ValidationError('Razorpay is not configured');
   }
 
-  if (!mongoose.isValidObjectId(dto.restaurantId)) {
-    throw new ValidationError('Restaurant id is invalid');
-  }
-
-  const restaurant = await FoodRestaurant.findById(dto.restaurantId)
-    .select('restaurantName status isAcceptingOrders')
-    .lean();
-  if (!restaurant) throw new ValidationError('Restaurant not found');
-  if (restaurant.status !== 'approved' || restaurant.isAcceptingOrders === false) {
-    throw new ValidationError('Restaurant is not accepting orders');
-  }
-
-  let plan = null;
-  if (dto.planId && !mongoose.isValidObjectId(dto.planId)) {
-    throw new ValidationError('Plan id is invalid');
-  }
-  if (dto.planId && mongoose.isValidObjectId(dto.planId)) {
-    plan = await FoodSubscriptionPlan.findOne({
-      _id: new mongoose.Types.ObjectId(dto.planId),
-      isActive: true,
-    });
-    if (!plan) throw new ValidationError('Subscription plan not found');
-  }
-  if (!plan) {
-    throw new ValidationError('Please select an admin-created subscription plan');
-  }
-
-  const planDays = Number(plan?.durationDays || dto.planDays || 0);
-  if (!Number.isFinite(planDays) || planDays <= 0) {
-    throw new ValidationError('Plan days must be greater than 0');
-  }
-
-  const meals = normalizeMeals(dto.meals);
-  if (!meals.length) {
-    throw new ValidationError('At least one meal is required');
-  }
-  const mealCount = meals.length;
-  let itemPrice = Number(dto.itemPrice || 0);
-  if (!Number.isFinite(itemPrice) || itemPrice <= 0) {
-    const dish = mongoose.isValidObjectId(dto.dishId)
-      ? await FoodItem.findById(dto.dishId).select('price').lean()
-      : null;
-    itemPrice = Number(dish?.price || 0);
-  }
-  if (!Number.isFinite(itemPrice) || itemPrice <= 0) {
-    throw new ValidationError('Dish price is required for subscription');
-  }
-
-  const foodSubtotal = roundMoney(itemPrice * mealCount * planDays);
-  const gstRate = Number.isFinite(Number(dto.gstRate)) ? Number(dto.gstRate) : 5;
-  const gstAmount = roundMoney(foodSubtotal * (gstRate / 100));
-  const deliveryFeePerDay = Number.isFinite(Number(dto.deliveryFeePerDay))
-    ? Number(dto.deliveryFeePerDay)
-    : 10;
-  const deliveryCharges = roundMoney(deliveryFeePerDay * planDays);
-  const totalBeforeDiscount = roundMoney(foodSubtotal + gstAmount + deliveryCharges);
-  let couponDiscount = 0;
-  let couponCode = dto.couponCode ? String(dto.couponCode).trim().toUpperCase() : '';
-
-  if (couponCode) {
-    const now = new Date();
-    let offer = await FoodOffer.findOne({ couponCode }).lean();
-
-    if (!offer) {
-      const { default: Promocode } = await import('../../../../models/Promocode.js');
-      const promo = await Promocode.findOne({
-        code: couponCode,
-        restaurantId: dto.restaurantId,
-      }).lean();
-
-      if (promo) {
-        offer = {
-          _id: promo._id,
-          status: promo.isActive ? 'active' : 'inactive',
-          startDate: promo.startDate,
-          endDate: promo.expiryDate,
-          restaurantScope: 'selected',
-          restaurantId: promo.restaurantId,
-          minOrderValue: promo.minOrderAmount || 0,
-          usageLimit: promo.usageLimit || 0,
-          usedCount: promo.usageCount || 0,
-          discountType: promo.discountType === 'PERCENTAGE' ? 'percentage' : 'flat',
-          discountValue: promo.discountValue,
-          maxDiscount: promo.maxDiscountAmount || 0,
-          perUserLimit: 0,
-          customerScope: 'all',
-        };
-      }
-    }
-
-    if (!offer) {
-      throw new ValidationError('Invalid or expired coupon code.');
-    }
-
-    const statusOk = offer.status === 'active';
-    const startOk = !offer.startDate || now >= new Date(offer.startDate);
-    const endOk = !offer.endDate || now < new Date(offer.endDate);
-    const scopeOk =
-      offer.restaurantScope !== 'selected' ||
-      String(offer.restaurantId || '') === String(dto.restaurantId || '');
-    const minOk = foodSubtotal >= (Number(offer.minOrderValue) || 0);
-    const usageOk =
-      !(Number(offer.usageLimit) > 0 &&
-        Number(offer.usedCount || 0) >= Number(offer.usageLimit));
-
-    let perUserOk = true;
-    if (Number(offer.perUserLimit) > 0) {
-      const usage = await FoodOfferUsage.findOne({
-        offerId: offer._id,
-        userId: new mongoose.Types.ObjectId(userId),
-      }).lean();
-      if (usage && Number(usage.count) >= Number(offer.perUserLimit)) {
-        perUserOk = false;
-      }
-    }
-
-    let firstOrderOk = true;
-    if (offer.customerScope === 'first-time' || offer.customerScope === 'new' || offer.isFirstOrderOnly === true) {
-      const existingOrderCount = await FoodOrder.countDocuments({
-        userId: new mongoose.Types.ObjectId(userId),
-      });
-      firstOrderOk = existingOrderCount === 0;
-    }
-
-    if (!(statusOk && startOk && endOk && scopeOk && minOk && usageOk && perUserOk && firstOrderOk)) {
-      if (!minOk) {
-        throw new ValidationError(`Minimum order value of ${offer.minOrderValue} required for this coupon.`);
-      }
-      if (!firstOrderOk) {
-        throw new ValidationError('This coupon is only for first-time users.');
-      }
-      throw new ValidationError('This coupon is not applicable right now.');
-    }
-
-    if (offer.discountType === 'percentage') {
-      const rawDiscount = foodSubtotal * ((Number(offer.discountValue) || 0) / 100);
-      const cappedDiscount = Number(offer.maxDiscount)
-        ? Math.min(rawDiscount, Number(offer.maxDiscount))
-        : rawDiscount;
-      couponDiscount = roundMoney(Math.max(0, Math.min(foodSubtotal, cappedDiscount)));
-    } else {
-      couponDiscount = roundMoney(
-        Math.max(0, Math.min(foodSubtotal, Number(offer.discountValue) || 0)),
-      );
-    }
-  }
-
-  const payableAmount = roundMoney(Math.max(0, totalBeforeDiscount - couponDiscount));
-  const dtoTotalAmount = roundMoney(dto.totalAmount || 0);
-  if (!Number.isFinite(dtoTotalAmount) || dtoTotalAmount <= 0) {
-    throw new ValidationError('Total amount must be greater than 0');
-  }
-  if (Math.abs(dtoTotalAmount - payableAmount) > 1) {
+  const pricing = await resolveSubscriptionOrderPricing(userId, dto);
+  const payableAmount = pricing.totalAmount;
+  const dtoTotalAmount = dto.totalAmount == null ? null : roundMoney(dto.totalAmount || 0);
+  if (dtoTotalAmount !== null && Math.abs(dtoTotalAmount - payableAmount) > 1) {
     throw new ValidationError('Subscription amount mismatch. Please refresh and try again.');
   }
 
@@ -713,9 +883,9 @@ export async function createSubscriptionOrder(userId, dto) {
   if (payableAmountPaise < 100) {
     throw new ValidationError('Amount too low for online payment');
   }
-  const totalCredits = getTotalCredits(planDays, meals);
-  const creditPerOrder = getCreditPerOrder(payableAmount, totalCredits);
-  const currency = String(plan?.currency || dto.currency || 'INR').trim().toUpperCase();
+  const totalCredits = pricing.totalCredits;
+  const creditPerOrder = pricing.creditPerOrder;
+  const currency = pricing.currency;
   const razorpayOrder = await createRazorpayOrder(
     payableAmountPaise,
     currency,
@@ -728,18 +898,23 @@ export async function createSubscriptionOrder(userId, dto) {
     dishId: String(dto.dishId).trim(),
     dishName: String(dto.dishName).trim(),
     restaurantName:
-      String(dto.restaurantName || restaurant.restaurantName || '').trim(),
-    meals,
+      String(dto.restaurantName || pricing.restaurant.restaurantName || '').trim(),
+    meals: pricing.meals,
     customerName,
     customerPhone: customerPhone || deliveryAddress.phone || '',
     deliveryAddress,
-    planId: plan?._id || null,
-    planTitle: String(plan?.title || `${planDays} Days`).trim(),
-    planDays,
+    planId: pricing.plan?._id || null,
+    planTitle: String(pricing.plan?.title || `${pricing.planDays} Days`).trim(),
+    planDays: pricing.planDays,
+    foodSubtotal: pricing.foodSubtotal,
+    gstRate: pricing.gstRate,
+    gstAmount: pricing.gstAmount,
+    deliveryFeePerDay: pricing.deliveryFeePerDay,
+    deliveryCharges: pricing.deliveryCharges,
     totalAmount: payableAmount,
-    totalBeforeDiscount,
-    couponCode,
-    couponDiscount,
+    totalBeforeDiscount: pricing.totalBeforeDiscount,
+    couponCode: pricing.couponCode,
+    couponDiscount: pricing.couponDiscount,
     creditPerOrder,
     totalCredits,
     usedCredits: 0,
@@ -751,6 +926,23 @@ export async function createSubscriptionOrder(userId, dto) {
     paymentStatus: 'created',
   });
 
+  const purchaseTransaction = await createSubscriptionPurchaseTransaction(subscription, {
+    foodSubtotal: pricing.foodSubtotal,
+    gstRate: pricing.gstRate,
+    gstAmount: pricing.gstAmount,
+    deliveryFeePerDay: pricing.deliveryFeePerDay,
+    deliveryCharges: pricing.deliveryCharges,
+    totalBeforeDiscount: pricing.totalBeforeDiscount,
+    couponCode: pricing.couponCode,
+    couponDiscount: pricing.couponDiscount,
+    totalAmount: payableAmount,
+    currency,
+  });
+  if (purchaseTransaction?._id) {
+    subscription.purchaseTransactionId = purchaseTransaction._id;
+    await subscription.save();
+  }
+
   return {
     subscription: normalizeSubscriptionForClient(subscription),
     order: razorpayOrder,
@@ -761,6 +953,13 @@ export async function createSubscriptionOrder(userId, dto) {
       currency: razorpayOrder.currency || currency,
     },
   };
+}
+
+export async function quoteSubscriptionOrder(userId, dto) {
+  const appSettings = await getAppCustomizationSettings();
+  assertSubscriptionFlowAllowed(appSettings);
+  const pricing = await resolveSubscriptionOrderPricing(userId, dto);
+  return buildSubscriptionQuoteResponse(pricing);
 }
 
 export async function verifySubscriptionPayment(userId, dto) {
@@ -794,6 +993,16 @@ export async function verifySubscriptionPayment(userId, dto) {
     subscription.paymentStatus = 'failed';
     subscription.status = 'payment_failed';
     await subscription.save();
+    await markSubscriptionPurchaseTransaction(subscription, {
+      status: 'failed',
+      paymentStatus: 'failed',
+      razorpayOrderId: dto.razorpayOrderId,
+      razorpayPaymentId: dto.razorpayPaymentId,
+      razorpaySignature: dto.razorpaySignature,
+      historyKind: 'failed',
+      historyAmount: subscription.totalAmount,
+      historyNote: 'Subscription payment verification failed',
+    });
     throw new ValidationError('Payment verification failed');
   }
 
@@ -815,6 +1024,19 @@ export async function verifySubscriptionPayment(userId, dto) {
   subscription.startDate = startDate;
   subscription.endDate = endDate;
   await subscription.save();
+  await markSubscriptionPurchaseTransaction(subscription, {
+    status: 'paid',
+    paymentStatus: 'paid',
+    paymentMethod: 'razorpay',
+    amountPaid: subscription.totalAmount,
+    paidAt: new Date(),
+    razorpayOrderId: dto.razorpayOrderId,
+    razorpayPaymentId: dto.razorpayPaymentId,
+    razorpaySignature: dto.razorpaySignature,
+    historyKind: 'paid',
+    historyAmount: subscription.totalAmount,
+    historyNote: 'Subscription payment captured successfully',
+  });
 
   await createSubscriptionSchedules(subscription);
   await notifyRestaurantSubscriptionStarted(subscription);
@@ -982,28 +1204,45 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
     throw new ValidationError('Subscription delivery address is incomplete');
   }
 
-  const itemPrice = Math.max(
-    0,
-    Number(foodItem?.price || subscription.creditPerOrder || 0),
+  const totalCredits = Math.max(
+    1,
+    Number(subscription.totalCredits || getTotalCredits(subscription.planDays, subscription.meals)) || 1,
   );
-  const creditPerOrder = Math.max(0, Number(subscription.creditPerOrder || itemPrice));
+  const itemPrice = roundMoney(
+    Number(subscription.foodSubtotal || 0) > 0
+      ? Number(subscription.foodSubtotal || 0) / totalCredits
+      : Number(foodItem?.price || subscription.creditPerOrder || 0),
+  );
+  const deliveryFee = roundMoney(Number(subscription.deliveryCharges || 0) / totalCredits);
+  const tax = roundMoney(Number(subscription.gstAmount || 0) / totalCredits);
+  const allocatedDiscount = roundMoney(Number(subscription.couponDiscount || 0) / totalCredits);
+  const originalTotal = roundMoney(itemPrice + deliveryFee + tax);
+  const computedOrderTotal = Math.max(0, roundMoney(originalTotal - allocatedDiscount));
+  const creditPerOrder = Math.max(
+    0,
+    roundMoney(Number(subscription.creditPerOrder || computedOrderTotal || itemPrice)),
+  );
+  const subscriptionCreditApplied = computedOrderTotal;
+  const payableTotal = 0;
+  const subscriptionWalletCredit = 0;
   const pricing = {
-    subtotal: creditPerOrder,
-    tax: 0,
+    subtotal: itemPrice,
+    tax,
     packagingFee: 0,
-    deliveryFee: 0,
+    deliveryFee,
     platformFee: 0,
     restaurantCommission: 0,
     gstOnItem: 0,
     gstOnCommission: 0,
     paymentGatewayFee: 0,
     tcs: 0,
-    discount: 0,
-    originalTotal: creditPerOrder,
-    payableTotal: 0,
-    subscriptionCreditApplied: creditPerOrder,
-    subscriptionWalletCredit: 0,
-    total: creditPerOrder,
+    discount: allocatedDiscount,
+    originalTotal,
+    payableTotal,
+    subscriptionCreditApplied,
+    subscriptionWalletCredit,
+    couponDiscount: allocatedDiscount,
+    total: computedOrderTotal,
     currency: subscription.currency || 'INR',
   };
 
@@ -1060,21 +1299,19 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
     customerName: subscription.customerName || user?.name || deliveryAddress.fullName || '',
     customerPhone: subscription.customerPhone || user?.phone || deliveryAddress.phone || '',
     pricing,
-    payment: {
-      method: 'subscription',
-      status: 'paid',
-      amountDue: 0,
-      razorpay: {},
-      qr: {},
-    },
     subscriptionUsage: {
       subscriptionId: subscription._id,
       planId: subscription.planId || null,
       planTitle: subscription.planTitle,
+      billingMode: 'subscription_prepaid',
+      purchaseTransactionId: subscription.purchaseTransactionId || null,
+      purchaseTotalAmount: Number(subscription.totalAmount || 0) || 0,
+      directCustomerPaymentAmount: 0,
+      operationalOrderValue: computedOrderTotal,
       creditPerOrder,
-      subscriptionCreditApplied: creditPerOrder,
-      walletCreditAmount: 0,
-      payableTotal: 0,
+      subscriptionCreditApplied,
+      walletCreditAmount: subscriptionWalletCredit,
+      payableTotal,
       status: 'applied',
       appliedAt: new Date(),
     },
@@ -1100,7 +1337,16 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
   });
 
   await order.save();
-  await foodTransactionService.createInitialTransaction(order.toObject());
+  await foodTransactionService.createInitialTransaction({
+    ...order.toObject(),
+    payment: {
+      method: 'subscription',
+      status: 'paid',
+      amountDue: payableTotal,
+      razorpay: {},
+      qr: {},
+    },
+  });
 
   await consumeSubscriptionCredit({
     subscriptionId: subscription._id,

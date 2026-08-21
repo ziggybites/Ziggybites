@@ -85,6 +85,37 @@ const foodSubscriptionSchema = new mongoose.Schema(
       required: true,
       min: 1,
     },
+    purchaseTransactionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'PaymentSubscriptionTransaction',
+      default: null,
+      index: true,
+    },
+    foodSubtotal: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    gstRate: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    gstAmount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    deliveryFeePerDay: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    deliveryCharges: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     totalAmount: {
       type: Number,
       required: true,

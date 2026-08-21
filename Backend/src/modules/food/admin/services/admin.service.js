@@ -39,12 +39,14 @@ import { Payment } from '../../../../core/payments/models/payment.model.js';
 import { Transaction } from '../../../../core/payments/models/transaction.model.js';
 import { PaymentWebhookEvent } from '../../../../core/payments/models/webhookEvent.model.js';
 import { FoodSubscriptionSchedule } from '../../subscription/models/subscriptionSchedule.model.js';
+import { PaymentSubscriptionTransaction } from '../../subscription/models/subscriptionTransaction.model.js';
 import {
     backfillLegacyCategoryWorkflow,
     categoryAllowsFoodType,
     normalizeCategoryFoodTypeScope,
     serializeCategoryForResponse
 } from '../../shared/categoryWorkflow.js';
+import { buildOrderPricingSnapshot } from '../../orders/services/order.helpers.js';
 import {
     extractRawFoodVariants,
     getFoodDisplayPrice,
@@ -424,6 +426,8 @@ const getDateRangeByPeriod = (periodRaw) => {
 const formatMonthShort = (year, monthIndex) =>
     new Date(year, monthIndex, 1).toLocaleString('en-IN', { month: 'short' });
 
+const SUBSCRIPTION_REVENUE_STATUSES = ['paid'];
+
 export async function getDashboardStats(query = {}) {
     const periodRange = getDateRangeByPeriod(query.period);
     const zoneId = query.zoneId && mongoose.Types.ObjectId.isValid(query.zoneId)
@@ -457,17 +461,24 @@ export async function getDashboardStats(query = {}) {
     const financeMatch = {
         status: { $in: ['captured', 'authorized', 'settled'] }
     };
+    const subscriptionRevenueMatch = {
+        status: { $in: SUBSCRIPTION_REVENUE_STATUSES }
+    };
     if (periodRange) {
         financeMatch.createdAt = { $gte: periodRange.start, $lte: periodRange.end };
+        subscriptionRevenueMatch.createdAt = { $gte: periodRange.start, $lte: periodRange.end };
     }
     if (zoneRestaurantIds) {
         financeMatch.restaurantId = { $in: zoneRestaurantIds || [] };
+        subscriptionRevenueMatch.restaurantId = { $in: zoneRestaurantIds || [] };
     }
 
     const [
         orderTotalsAgg,
         financeTotalsAgg,
-        monthlyAgg,
+        subscriptionRevenueTotalsAgg,
+        monthlyFinanceAgg,
+        monthlySubscriptionRevenueAgg,
         restaurantsTotal,
         restaurantsPending,
         deliveryTotal,
@@ -527,12 +538,34 @@ export async function getDashboardStats(query = {}) {
             {
                 $group: {
                     _id: null,
-                    revenueTotal: { $sum: { $ifNull: ['$amounts.totalCustomerPaid', 0] } },
+                    operationalOrderValueTotal: {
+                        $sum: {
+                            $ifNull: [
+                                '$amounts.subscriptionAllocationAmount',
+                                { $ifNull: ['$pricing.total', 0] }
+                            ]
+                        }
+                    },
                     commissionTotal: { $sum: { $ifNull: ['$amounts.restaurantCommission', 0] } },
                     platformFeeTotal: { $sum: { $ifNull: ['$pricing.platformFee', 0] } },
                     deliveryFeeTotal: { $sum: { $ifNull: ['$pricing.deliveryFee', 0] } },
                     gstTotal: { $sum: { $ifNull: ['$amounts.taxAmount', { $ifNull: ['$pricing.tax', 0] }] } },
                     adminNetProfit: { $sum: { $ifNull: ['$amounts.platformNetProfit', 0] } }
+                }
+            }
+        ]),
+        PaymentSubscriptionTransaction.aggregate([
+            { $match: subscriptionRevenueMatch },
+            {
+                $group: {
+                    _id: null,
+                    revenueTotal: {
+                        $sum: {
+                            $ifNull: ['$payment.amountPaid', { $ifNull: ['$pricing.totalAmount', 0] }]
+                        }
+                    },
+                    gstTotal: { $sum: { $ifNull: ['$pricing.gstAmount', 0] } },
+                    deliveryChargesTotal: { $sum: { $ifNull: ['$pricing.deliveryCharges', 0] } },
                 }
             }
         ]),
@@ -563,8 +596,32 @@ export async function getDashboardStats(query = {}) {
                         month: { $month: '$createdAt' }
                     },
                     orders: { $sum: 1 },
-                    revenue: { $sum: { $ifNull: ['$amounts.totalCustomerPaid', 0] } },
                     commission: { $sum: { $ifNull: ['$amounts.platformNetProfit', 0] } }
+                }
+            },
+            { $sort: { '_id.year': 1, '_id.month': 1 } }
+        ]),
+        PaymentSubscriptionTransaction.aggregate([
+            {
+                $match: {
+                    ...subscriptionRevenueMatch,
+                    createdAt: {
+                        $gte: new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1),
+                        $lte: new Date()
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: {
+                        year: { $year: '$createdAt' },
+                        month: { $month: '$createdAt' }
+                    },
+                    revenue: {
+                        $sum: {
+                            $ifNull: ['$payment.amountPaid', { $ifNull: ['$pricing.totalAmount', 0] }]
+                        }
+                    }
                 }
             },
             { $sort: { '_id.year': 1, '_id.month': 1 } }
@@ -689,10 +746,17 @@ export async function getDashboardStats(query = {}) {
 
     const totals = orderTotalsAgg?.[0] || {};
     const financeTotals = financeTotalsAgg?.[0] || {};
+    const subscriptionRevenueTotals = subscriptionRevenueTotalsAgg?.[0] || {};
 
     const now = new Date();
-    const monthlyMap = new Map(
-        (monthlyAgg || []).map((row) => {
+    const monthlyFinanceMap = new Map(
+        (monthlyFinanceAgg || []).map((row) => {
+            const key = `${row._id?.year}-${row._id?.month}`;
+            return [key, row];
+        })
+    );
+    const monthlyRevenueMap = new Map(
+        (monthlySubscriptionRevenueAgg || []).map((row) => {
             const key = `${row._id?.year}-${row._id?.month}`;
             return [key, row];
         })
@@ -704,12 +768,13 @@ export async function getDashboardStats(query = {}) {
         const year = d.getFullYear();
         const month = d.getMonth() + 1;
         const key = `${year}-${month}`;
-        const row = monthlyMap.get(key);
+        const financeRow = monthlyFinanceMap.get(key);
+        const revenueRow = monthlyRevenueMap.get(key);
         monthlyData.push({
             month: formatMonthShort(year, month - 1),
-            orders: Number(row?.orders || 0),
-            revenue: Number(row?.revenue || 0),
-            commission: Number(row?.commission || 0)
+            orders: Number(financeRow?.orders || 0),
+            revenue: Number(revenueRow?.revenue || 0),
+            commission: Number(financeRow?.commission || 0)
         });
     }
 
@@ -722,12 +787,13 @@ export async function getDashboardStats(query = {}) {
                 pending: Number(totals.pending || 0)
             }
         },
-        revenue: { total: Number(financeTotals.revenueTotal || 0) },
+        revenue: { total: Number(subscriptionRevenueTotals.revenueTotal || 0) },
+        operationalOrderValue: { total: Number(financeTotals.operationalOrderValueTotal || 0) },
         commission: { total: Number(financeTotals.commissionTotal || 0) },
         platformFee: { total: Number(financeTotals.platformFeeTotal || 0) },
-        deliveryFee: { total: Number(financeTotals.deliveryFeeTotal || 0) },
-        gst: { total: Number(financeTotals.gstTotal || 0) },
-        totalAdminEarnings: Number(financeTotals.adminNetProfit || 0) + Number(financeTotals.gstTotal || 0),
+        deliveryFee: { total: Number(subscriptionRevenueTotals.deliveryChargesTotal || 0) },
+        gst: { total: Number(subscriptionRevenueTotals.gstTotal || 0) },
+        totalAdminEarnings: Number(financeTotals.adminNetProfit || 0) + Number(subscriptionRevenueTotals.gstTotal || 0),
         deliveryProfit: Number(financeTotals.adminNetProfit || 0) - Number(financeTotals.commissionTotal || 0) - Number(financeTotals.platformFeeTotal || 0),
         restaurants: {
             total: Number(restaurantsTotal || 0),
@@ -805,16 +871,25 @@ export async function getTransactionReport(query = {}) {
 
     // Include only resolved transactions for reports (or all to match orders)
     // We will query the FoodTransaction table directly as it is the ledger
-    const transactionRows = await FoodTransaction.find(match)
+    const [transactionRows, subscriptionPurchaseRows] = await Promise.all([
+        FoodTransaction.find(match)
         .populate('orderId')
         .populate('userId', 'name')
         .populate('restaurantId', 'restaurantName')
         .sort({ createdAt: -1 })
-        .lean();
+        .lean(),
+        PaymentSubscriptionTransaction.find({
+            ...(match.createdAt ? { createdAt: match.createdAt } : {}),
+            ...(match.restaurantId ? { restaurantId: match.restaurantId } : {}),
+            status: { $in: ['paid', 'refunded'] }
+        })
+            .select('status pricing payment')
+            .lean()
+    ]);
 
     const transactions = transactionRows.map((tx) => {
         const order = tx.orderId || {};
-        const pricing = order.pricing || {};
+        const pricing = buildOrderPricingSnapshot(order);
         const subtotal = Number(pricing.subtotal || 0) || 0;
         const packagingFee = Number(pricing.packagingFee || 0) || 0;
         const deliveryFee = Number(pricing.deliveryFee || 0) || 0;
@@ -851,7 +926,11 @@ export async function getTransactionReport(query = {}) {
             vatTax: tx.amounts?.taxAmount || pricing.tax || 0,
             deliveryCharge: pricing.deliveryFee || 0,
             platformFee,
-            orderAmount: tx.amounts?.totalCustomerPaid || pricing.total || 0,
+            orderAmount:
+                tx.amounts?.subscriptionAllocationAmount ||
+                tx.amounts?.totalCustomerPaid ||
+                pricing.total ||
+                0,
             status: tx.status,
             adminEarningBreakdown: {
                 deliveryProfit: deliveryFeeUser - deliveryCostAdmin - deliveryGstAdmin,
@@ -872,9 +951,19 @@ export async function getTransactionReport(query = {}) {
 
     let completedTransaction = 0;
     let refundedTransaction = 0;
+    let operationalOrderValue = 0;
     let adminEarning = 0;
     let restaurantEarning = 0;
     let deliverymanEarning = 0;
+
+    for (const purchase of subscriptionPurchaseRows) {
+        const purchaseAmount =
+            Number(purchase?.payment?.amountPaid || 0) ||
+            Number(purchase?.pricing?.totalAmount || 0) ||
+            0;
+        if (purchase?.status === 'paid') completedTransaction += purchaseAmount;
+        if (purchase?.status === 'refunded') refundedTransaction += purchaseAmount;
+    }
 
     let adminEarningBreakdown = {
         deliveryProfit: 0,
@@ -889,14 +978,19 @@ export async function getTransactionReport(query = {}) {
     for (const tx of transactionRows) {
         // Calculate Summary
         if (tx.status === 'captured' || tx.status === 'settled' || (tx.orderId && tx.orderId.orderStatus === 'delivered')) {
-            completedTransaction += tx.amounts?.totalCustomerPaid || 0;
+            operationalOrderValue +=
+                tx.amounts?.subscriptionAllocationAmount ||
+                tx.amounts?.totalCustomerPaid ||
+                tx.pricing?.total ||
+                tx.orderId?.pricing?.total ||
+                0;
             adminEarning += tx.amounts?.platformNetProfit || 0;
             restaurantEarning += tx.amounts?.restaurantShare || 0;
             deliverymanEarning += tx.amounts?.riderShare || 0;
 
             // Breakdown
             const order = tx.orderId || {};
-            const pricing = order.pricing || {};
+            const pricing = buildOrderPricingSnapshot(order);
             
             const deliveryFeeUser = Number(pricing.deliveryFee || 0);
             const deliveryCostAdmin = Number(tx.amounts?.riderShare) || Number(order.riderEarning) || 0;
@@ -910,15 +1004,12 @@ export async function getTransactionReport(query = {}) {
             adminEarningBreakdown.paymentGatewayFee += Number(pricing.paymentGatewayFee || 0);
             adminEarningBreakdown.tcs += Number(pricing.tcs || 0);
         }
-        if (tx.status === 'refunded' || (tx.orderId && (tx.orderId.orderStatus === 'cancelled_by_admin' || tx.orderId.orderStatus === 'dead'))) {
-            // Count number of refunded transactions according to old logic or sum them
-            refundedTransaction += tx.amounts?.totalCustomerPaid || 0;
-        }
     }
 
     const summary = {
         completedTransaction,
-        refundedTransaction, // Returning amount instead of count for consistency, frontend might expect count though
+        refundedTransaction,
+        operationalOrderValue,
         adminEarning,
         adminEarningBreakdown,
         restaurantEarning,
@@ -1971,6 +2062,7 @@ export async function resetAllFinanceData() {
         Transaction.deleteMany({}),
         PaymentWebhookEvent.deleteMany({}),
         FoodTransaction.deleteMany({}),
+        PaymentSubscriptionTransaction.deleteMany({}),
         FoodRestaurantWithdrawal.deleteMany({}),
         FoodDeliveryWithdrawal.deleteMany({}),
         FoodDeliveryCashDeposit.deleteMany({}),
@@ -2034,11 +2126,12 @@ export async function resetAllFinanceData() {
             ledgerTransactions: deleteResults[1]?.deletedCount || 0,
             webhookEvents: deleteResults[2]?.deletedCount || 0,
             orderFinanceTransactions: deleteResults[3]?.deletedCount || 0,
-            restaurantWithdrawals: deleteResults[4]?.deletedCount || 0,
-            deliveryWithdrawals: deleteResults[5]?.deletedCount || 0,
-            cashDeposits: deleteResults[6]?.deletedCount || 0,
-            deliveryBonusTransactions: deleteResults[7]?.deletedCount || 0,
-            legacyOrderPayments: deleteResults[8]?.deletedCount || 0
+            subscriptionPurchaseTransactions: deleteResults[4]?.deletedCount || 0,
+            restaurantWithdrawals: deleteResults[5]?.deletedCount || 0,
+            deliveryWithdrawals: deleteResults[6]?.deletedCount || 0,
+            cashDeposits: deleteResults[7]?.deletedCount || 0,
+            deliveryBonusTransactions: deleteResults[8]?.deletedCount || 0,
+            legacyOrderPayments: deleteResults[9]?.deletedCount || 0
         },
         reset: {
             userWallets: walletResetResults[0]?.modifiedCount || 0,
@@ -2433,7 +2526,14 @@ export async function getRestaurantAnalytics(restaurantId) {
     const sum = (arr, pick) => (arr || []).reduce((s, it) => s + (Number(pick(it)) || 0), 0);
 
     // 1) Total order value (gross customer paid)
-    const totalRevenue = sum(completedTx, (tx) => tx?.amounts?.totalCustomerPaid ?? tx?.pricing?.total ?? tx?.orderId?.pricing?.total);
+    const totalRevenue = sum(
+        completedTx,
+        (tx) =>
+            tx?.amounts?.subscriptionAllocationAmount ??
+            tx?.amounts?.totalCustomerPaid ??
+            tx?.pricing?.total ??
+            tx?.orderId?.pricing?.total
+    );
 
     // 2) Restaurant share (payout to restaurant)
     const restaurantEarning = sum(completedTx, (tx) => tx?.amounts?.restaurantShare);

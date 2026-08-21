@@ -46,7 +46,6 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import Footer from "@food/components/user/Footer";
-import AddToCartButton from "@food/components/user/AddToCartButton";
 import StickyCartCard from "@food/components/user/StickyCartCard";
 import OrderTrackingCard from "@food/components/user/OrderTrackingCard";
 import {
@@ -1050,40 +1049,9 @@ export default function Home() {
     (event, item) => {
       event.preventDefault();
       event.stopPropagation();
-
-      if (appCustomization.normalOrderFlowEnabled === false) {
-        openMealSelectionForHomeItem(item);
-        return;
-      }
-
-      const cartPayload = {
-        id: item.itemId || item.id,
-        itemId: item.itemId || item.id,
-        name: item.name || "Item",
-        price: Number(item.price) || 0,
-        image: item.image || "",
-        description: item.description || "",
-        isVeg:
-          String(item.foodType || "")
-            .trim()
-            .toLowerCase() === "veg",
-        restaurant: item.restaurantName || "",
-        restaurantId:
-          item.mongoRestaurantId ||
-          item.restaurantMongoId ||
-          item.restaurantId ||
-          "",
-      };
-
-      const result = addToCart(cartPayload);
-      if (result?.ok === false) {
-        toast.error(result.error || "Unable to add item to cart");
-        return;
-      }
-
-      toast.success(`${item.name || "Item"} added to cart`);
+      openMealSelectionForHomeItem(item);
     },
-    [addToCart, appCustomization.normalOrderFlowEnabled, openMealSelectionForHomeItem],
+    [openMealSelectionForHomeItem],
   );
 
   const [showToast, setShowToast] = useState(false);

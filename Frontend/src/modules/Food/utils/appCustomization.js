@@ -1,7 +1,6 @@
 import { publicGetOnce } from "@food/api"
 
 export const DEFAULT_APP_CUSTOMIZATION = {
-  normalOrderFlowEnabled: true,
   subscriptionFlowEnabled: true,
   diningFlowEnabled: true,
   directPaymentTestMode: false,

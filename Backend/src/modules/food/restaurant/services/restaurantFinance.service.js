@@ -103,7 +103,11 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
             items,
             foodNames,
             orderTotal: orderTotalExclTax,
-            totalAmount: tx.amounts?.totalCustomerPaid || 0,
+            totalAmount:
+                tx.amounts?.subscriptionAllocationAmount ||
+                tx.amounts?.totalCustomerPaid ||
+                order?.pricing?.total ||
+                0,
             payout: tx.amounts?.restaurantShare || 0,
             commission: tx.amounts?.restaurantCommission || 0,
             paymentMethod: tx.paymentMethod || order?.payment?.method,
@@ -197,7 +201,11 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
                 items,
                 foodNames,
                 orderTotal: orderTotalExclTax,
-                totalAmount: tx.amounts?.totalCustomerPaid || 0,
+                totalAmount:
+                    tx.amounts?.subscriptionAllocationAmount ||
+                    tx.amounts?.totalCustomerPaid ||
+                    order?.pricing?.total ||
+                    0,
                 payout: tx.amounts?.restaurantShare || 0,
                 commission: tx.amounts?.restaurantCommission || 0,
                 paymentMethod: tx.paymentMethod || order?.payment?.method,

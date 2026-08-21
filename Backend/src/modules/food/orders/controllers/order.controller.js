@@ -1,6 +1,5 @@
 import { sendResponse } from '../../../../utils/response.js';
 import * as orderService from '../services/order.service.js';
-import * as foodOrderPaymentService from '../services/foodOrderPayment.service.js';
 import {
     validateCalculateOrderDto,
     validateCreateOrderDto,
@@ -72,18 +71,6 @@ export async function getOrderDropOtpUserController(req, res, next) {
         const orderId = req.params.orderId;
         const result = await orderService.getDropOtpUser(orderId, userId);
         return sendResponse(res, 200, 'Drop OTP retrieved', result);
-    } catch (err) {
-        next(err);
-    }
-}
-
-/** Ledger rows from `food_order_payments` (append-only audit trail) */
-export async function getOrderPaymentsUserController(req, res, next) {
-    try {
-        const userId = req.user?.userId;
-        const orderId = req.params.orderId;
-        const result = await foodOrderPaymentService.listFoodOrderPaymentsForUser(orderId, userId);
-        return sendResponse(res, 200, 'Payment history', result);
     } catch (err) {
         next(err);
     }

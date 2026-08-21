@@ -3,10 +3,22 @@ import {
   validateChangeSubscriptionAddressDto,
   validateChangeSubscriptionDishDto,
   validateCreateSubscriptionOrderDto,
+  validateQuoteSubscriptionOrderDto,
   validateVerifyDishChangePaymentDto,
   validateVerifySubscriptionPaymentDto,
 } from '../validators/subscription.validator.js';
 import * as subscriptionService from '../services/subscription.service.js';
+
+export async function quoteSubscriptionOrderController(req, res, next) {
+  try {
+    const userId = req.user?.userId;
+    const dto = validateQuoteSubscriptionOrderDto(req.body);
+    const result = await subscriptionService.quoteSubscriptionOrder(userId, dto);
+    return sendResponse(res, 200, 'Subscription quote calculated', result);
+  } catch (err) {
+    next(err);
+  }
+}
 
 export async function createSubscriptionOrderController(req, res, next) {
   try {

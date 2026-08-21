@@ -100,6 +100,15 @@ const subscriptionUsageSchema = new mongoose.Schema(
         subscriptionId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodSubscription', default: null },
         planId: { type: mongoose.Schema.Types.ObjectId, ref: 'FoodSubscriptionPlan', default: null },
         planTitle: { type: String, default: '', trim: true },
+        billingMode: { type: String, enum: ['none', 'subscription_prepaid'], default: 'none' },
+        purchaseTransactionId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'PaymentSubscriptionTransaction',
+            default: null
+        },
+        purchaseTotalAmount: { type: Number, default: 0, min: 0 },
+        directCustomerPaymentAmount: { type: Number, default: 0, min: 0 },
+        operationalOrderValue: { type: Number, default: 0, min: 0 },
         creditPerOrder: { type: Number, default: 0, min: 0 },
         subscriptionCreditApplied: { type: Number, default: 0, min: 0 },
         walletCreditAmount: { type: Number, default: 0, min: 0 },

@@ -5,7 +5,6 @@ import { adminAPI } from "@food/api"
 import { toast } from "sonner"
 
 const DEFAULT_SETTINGS = {
-  normalOrderFlowEnabled: true,
   subscriptionFlowEnabled: true,
   diningFlowEnabled: true,
   subscriptionOrders: {

@@ -9,10 +9,6 @@ import { sendTestSubscriptionReminder } from '../subscription/services/subscript
 function validateAppCustomizationPayload(body = {}) {
   const payload = {};
 
-  if (body.normalOrderFlowEnabled !== undefined) {
-    payload.normalOrderFlowEnabled = Boolean(body.normalOrderFlowEnabled);
-  }
-
   if (body.subscriptionFlowEnabled !== undefined) {
     payload.subscriptionFlowEnabled = Boolean(body.subscriptionFlowEnabled);
   }

@@ -122,11 +122,16 @@ export async function updateDispatchSettings(dispatchMode, adminId) {
 
 // ----- Calculate (validation + return pricing from payload) -----
 export async function calculateOrder(userId, dto) {
-  return calculateOrderPricing(userId, dto);
+  void userId;
+  void dto;
+  throw new ValidationError("Normal one-time order flow has been removed. Please use subscription flow.");
 }
 
 // ----- Create order -----
 export async function createOrder(userId, dto) {
+  void userId;
+  void dto;
+  throw new ValidationError("Normal one-time order flow has been removed. Please use subscription flow.");
   const restaurant = await FoodRestaurant.findById(dto.restaurantId)
     .select("status restaurantName zoneId location isAcceptingOrders")
     .lean();
@@ -428,6 +433,9 @@ export async function createOrder(userId, dto) {
 
 // ----- Verify payment -----
 export async function verifyPayment(userId, dto) {
+  void userId;
+  void dto;
+  throw new ValidationError("Normal one-time order flow has been removed. Please use subscription flow.");
   const identity = buildOrderIdentityFilter(dto.orderId);
   if (!identity) throw new ValidationError("Order id required");
 

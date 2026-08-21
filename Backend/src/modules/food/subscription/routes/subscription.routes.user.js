@@ -5,6 +5,7 @@ import {
   createSubscriptionOrderController,
   listUpcomingSubscriptionSchedulesController,
   listMySubscriptionsController,
+  quoteSubscriptionOrderController,
   verifyDishChangePaymentController,
   verifySubscriptionPaymentController,
 } from '../controllers/subscription.controller.js';
@@ -13,6 +14,7 @@ const router = express.Router();
 
 router.get('/my', listMySubscriptionsController);
 router.get('/schedules/upcoming', listUpcomingSubscriptionSchedulesController);
+router.post('/quote', quoteSubscriptionOrderController);
 router.post('/create-order', createSubscriptionOrderController);
 router.post('/verify-payment', verifySubscriptionPaymentController);
 router.patch('/:subscriptionId/address', changeSubscriptionAddressController);

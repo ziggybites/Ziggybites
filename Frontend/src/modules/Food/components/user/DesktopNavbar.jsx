@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useEffect, useState, useRef, useMemo } from "react"
-import { ChevronDown, ShoppingCart, Wallet, Search, Mic } from "lucide-react"
+import { ChevronDown, Wallet, Search, Mic } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
 import { Switch } from "@food/components/ui/switch"
@@ -339,22 +339,6 @@ export default function DesktopNavbar({ showLogo = true }) {
                                 </Button>
                             </Link>
 
-                            {appCustomization.subscriptionFlowEnabled !== true ? (
-                                <Link to="/food/user/cart">
-                                    <Button
-                                        variant="ghost"
-                                        className="relative h-12 w-12 lg:h-14 lg:w-14 rounded-full p-0 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-                                        title="Cart"
-                                    >
-                                        <ShoppingCart className="!h-5 !w-5 lg:!h-6 lg:!w-6 text-gray-700 dark:text-gray-300" strokeWidth={2} />
-                                        {cartCount > 0 && (
-                                            <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-gray-800">
-                                                <span className="text-xs font-bold text-white">{cartCount > 99 ? "99+" : cartCount}</span>
-                                            </span>
-                                        )}
-                                    </Button>
-                                </Link>
-                            ) : null}
                         </div>
                     </div>
                 </div>

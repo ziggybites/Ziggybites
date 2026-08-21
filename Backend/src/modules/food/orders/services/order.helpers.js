@@ -128,15 +128,22 @@ export function pushStatusHistory(order, { byRole, byId, from, to, note = "" }) 
 export function buildOrderPricingSnapshot(orderDoc) {
   const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc || {};
   const legacyPricing = order?.pricing || {};
+  const rawTax = Number(order?.tax ?? legacyPricing?.tax ?? legacyPricing?.gst ?? 0);
+  const gstOnItem = Number(order?.gstOnItem ?? legacyPricing?.gstOnItem ?? 0);
+  const gstOnCommission = Number(order?.gstOnCommission ?? legacyPricing?.gstOnCommission ?? 0);
+  const effectiveTax =
+    rawTax > 0
+      ? rawTax
+      : Number((gstOnItem + gstOnCommission).toFixed(2));
   return {
     subtotal: Number(order?.subtotal ?? legacyPricing?.subtotal ?? 0),
-    tax: Number(order?.tax ?? legacyPricing?.tax ?? legacyPricing?.gst ?? 0),
+    tax: effectiveTax,
     packagingFee: Number(order?.packagingFee ?? legacyPricing?.packagingFee ?? 0),
     deliveryFee: Number(order?.deliveryFee ?? legacyPricing?.deliveryFee ?? 0),
     platformFee: Number(order?.platformFee ?? legacyPricing?.platformFee ?? 0),
     restaurantCommission: Number(order?.restaurantCommission ?? legacyPricing?.restaurantCommission ?? 0),
-    gstOnItem: Number(order?.gstOnItem ?? legacyPricing?.gstOnItem ?? 0),
-    gstOnCommission: Number(order?.gstOnCommission ?? legacyPricing?.gstOnCommission ?? 0),
+    gstOnItem,
+    gstOnCommission,
     paymentGatewayFee: Number(order?.paymentGatewayFee ?? legacyPricing?.paymentGatewayFee ?? 0),
     tcs: Number(order?.tcs ?? legacyPricing?.tcs ?? 0),
     discount: Number(order?.discount ?? legacyPricing?.discount ?? 0),

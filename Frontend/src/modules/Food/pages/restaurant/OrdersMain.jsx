@@ -1329,7 +1329,6 @@ export default function OrdersMain() {
   const [pendingBookingsCount, setPendingBookingsCount] = useState(0);
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [pendingDiningRequest, setPendingDiningRequest] = useState(null);
-  const normalOrderFlowEnabled = false;
   const subscriptionFlowEnabled =
     appCustomization.subscriptionFlowEnabled !== false;
   const diningFlowEnabled = appCustomization.diningFlowEnabled !== false;
@@ -1339,9 +1338,9 @@ export default function OrdersMain() {
       filterTabs.filter((tab) => {
         if (showSubscriptionDashboard) return false;
         if (tab.id === "table-booking") return diningFlowEnabled;
-        return normalOrderFlowEnabled;
+        return false;
       }),
-    [diningFlowEnabled, normalOrderFlowEnabled, showSubscriptionDashboard],
+    [diningFlowEnabled, showSubscriptionDashboard],
   );
 
   useEffect(() => {
@@ -1399,21 +1398,7 @@ export default function OrdersMain() {
           }
         }
 
-        if (normalOrderFlowEnabled) {
-          // 3. Fetch pending regular orders
-          const ordersRes = await restaurantAPI.getOrders({ page: 1, limit: 100 });
-          if (ordersRes.data.success) {
-            const orders = Array.isArray(ordersRes.data.data?.orders) ? ordersRes.data.data.orders : [];
-            const pending = orders.filter(o => 
-              String(o.status).toLowerCase() === 'pending' || 
-              String(o.status).toLowerCase() === 'created' ||
-              String(o.status).toLowerCase() === 'confirmed'
-            ).length;
-            setPendingOrdersCount(pending);
-          }
-        } else {
-          setPendingOrdersCount(0);
-        }
+        setPendingOrdersCount(0);
       } catch (error) {
         // Non-blocking
       }
@@ -1422,7 +1407,7 @@ export default function OrdersMain() {
     fetchCounts();
     const interval = setInterval(fetchCounts, 30000); // Check every 30 seconds
     return () => clearInterval(interval);
-  }, [normalOrderFlowEnabled]);
+  }, []);
 
   // Global search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -1833,7 +1818,7 @@ export default function OrdersMain() {
   // Check for confirmed orders that haven't been shown in popup yet, or scheduled orders whose time has come
   useEffect(() => {
     const checkOrdersToPopup = async () => {
-      if (!normalOrderFlowEnabled) return;
+      return;
 
       // Skip if popup is already showing or Socket.IO order exists
       if (showNewOrderPopupRef.current || newOrderRef.current) return;
@@ -1912,7 +1897,7 @@ export default function OrdersMain() {
     const intervalId = setInterval(checkOrdersToPopup, 60000);
 
     return () => clearInterval(intervalId);
-  }, [normalOrderFlowEnabled]);
+  }, []);
   // Keep restaurant order popups visual-only.
   useEffect(() => {
     if (showNewOrderPopup && !isMuted) {

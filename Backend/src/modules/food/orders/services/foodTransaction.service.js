@@ -118,7 +118,21 @@ export async function createInitialTransaction(order) {
 
     const pricing = buildOrderPricingSnapshot(order);
     const commissionSnapshot = await getRestaurantCommissionSnapshot(order);
-    const totalCustomerPaid = pricing.total || 0;
+    const isSubscriptionPrepaidOrder =
+        String(order?.payment?.method || '').toLowerCase() === 'subscription' ||
+        String(order?.subscriptionUsage?.billingMode || '').toLowerCase() === 'subscription_prepaid';
+    const directCustomerPaidAmount = isSubscriptionPrepaidOrder
+        ? Number(order?.subscriptionUsage?.directCustomerPaymentAmount ?? order?.payment?.amountDue ?? 0) || 0
+        : Number(pricing.total || 0) || 0;
+    const subscriptionAllocationAmount = isSubscriptionPrepaidOrder
+        ? Number(
+            order?.subscriptionUsage?.operationalOrderValue ??
+            order?.subscriptionUsage?.subscriptionCreditApplied ??
+            pricing.total ??
+            0
+        ) || 0
+        : 0;
+    const totalCustomerPaid = directCustomerPaidAmount;
     const riderShare = order.riderEarning || 0;
 
     const restaurantCommissionFromOrder = Number(pricing.restaurantCommission);
@@ -181,6 +195,8 @@ export async function createInitialTransaction(order) {
         },
         amounts: {
             totalCustomerPaid,
+            directCustomerPaidAmount,
+            subscriptionAllocationAmount,
             restaurantShare: Math.max(0, restaurantNet),
             restaurantCommission,
             gstOnItem,
@@ -197,7 +213,7 @@ export async function createInitialTransaction(order) {
         },
         history: [{
             kind: 'created',
-            amount: totalCustomerPaid,
+            amount: subscriptionAllocationAmount || totalCustomerPaid,
             note: 'Initial transaction created with order'
         }]
     });
@@ -260,7 +276,9 @@ export async function updateTransactionStatus(orderId, kind, details = {}) {
 
     transaction.history.push({
         kind,
-        amount: transaction.amounts.totalCustomerPaid,
+        amount:
+            transaction.amounts.subscriptionAllocationAmount ||
+            transaction.amounts.totalCustomerPaid,
         at: new Date(),
         note: details.note || `Transaction updated: ${kind}`,
         recordedBy: { role: details.recordedByRole || 'SYSTEM', id: details.recordedById }

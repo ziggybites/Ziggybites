@@ -3,7 +3,6 @@ import { FoodSettings } from '../orders/models/order.model.js';
 import { setLoggerEnabled } from '../../../utils/logger.js';
 
 export const DEFAULT_APP_CUSTOMIZATION_SETTINGS = {
-  normalOrderFlowEnabled: true,
   subscriptionFlowEnabled: true,
   diningFlowEnabled: true,
   loggingEnabled: true,
@@ -51,7 +50,6 @@ function normalizeAppCustomizationSettings(settings = {}) {
     ? primaryColor.toLowerCase()
     : DEFAULT_APP_CUSTOMIZATION_SETTINGS.theme.primaryColor;
   return {
-    normalOrderFlowEnabled: settings.normalOrderFlowEnabled !== false,
     subscriptionFlowEnabled: settings.subscriptionFlowEnabled !== false,
     diningFlowEnabled: settings.diningFlowEnabled !== false,
     loggingEnabled: settings.loggingEnabled !== false,
@@ -129,7 +127,6 @@ export async function updateAppCustomizationSettings(payload = {}, adminId) {
     { key: "app-customization" },
     {
       $set: {
-        normalOrderFlowEnabled: next.normalOrderFlowEnabled,
         subscriptionFlowEnabled: next.subscriptionFlowEnabled,
         diningFlowEnabled: next.diningFlowEnabled,
         loggingEnabled: next.loggingEnabled,
@@ -147,12 +144,6 @@ export async function updateAppCustomizationSettings(payload = {}, adminId) {
   const settings = normalizeAppCustomizationSettings(doc || next);
   setLoggerEnabled(settings.loggingEnabled);
   return settings;
-}
-
-export function assertNormalOrderFlowAllowed(settings) {
-  if (settings?.normalOrderFlowEnabled === false) {
-    throw new ValidationError("Normal order flow is currently disabled");
-  }
 }
 
 export function assertSubscriptionFlowAllowed(settings) {

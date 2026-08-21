@@ -13,7 +13,7 @@ import {
   TicketPercent,
 } from "lucide-react";
 import { toast } from "sonner";
-import { orderAPI, restaurantAPI, subscriptionAPI } from "@food/api";
+import { restaurantAPI, subscriptionAPI } from "@food/api";
 import { initRazorpayPayment } from "@food/utils/razorpay";
 import { getCompanyNameAsync } from "@food/utils/businessSettings";
 import { useProfile } from "@food/context/ProfileContext";
@@ -21,8 +21,6 @@ import { useLocation as useUserLocation } from "@food/hooks/useLocation";
 import { DEFAULT_APP_CUSTOMIZATION, loadAppCustomization } from "@food/utils/appCustomization";
 
 const RUPEE_SYMBOL = "\u20B9";
-const SUBSCRIPTION_GST_RATE = 5;
-const SUBSCRIPTION_DELIVERY_FEE_PER_DAY = 10;
 
 const roundMoney = (value) => Math.round((Number(value) || 0) * 100) / 100;
 const formatCurrency = (value) =>
@@ -62,7 +60,8 @@ export default function SubscriptionCheckout() {
   const [showCoupons, setShowCoupons] = useState(false);
   const [manualCouponCode, setManualCouponCode] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState(null);
-  const [userOrderCount, setUserOrderCount] = useState(0);
+  const [priceQuote, setPriceQuote] = useState(null);
+  const [isQuoteLoading, setIsQuoteLoading] = useState(false);
 
   const { dish, selectedMeals = [], subscriptionPlan, selectedDeliveryAddress } = location.state || {};
 
@@ -85,22 +84,17 @@ export default function SubscriptionCheckout() {
   const basePrice = Math.max(0, Number.parseFloat(dish?.price || 0) || 0);
   const mealCount = selectedMeals.length || 1;
   const days = subscriptionPlan?.durationDays || 30;
-  const totalFoodCost = roundMoney(basePrice * mealCount * days);
-  const gstAmount = roundMoney(totalFoodCost * (SUBSCRIPTION_GST_RATE / 100));
-  const deliveryFeePerDay = SUBSCRIPTION_DELIVERY_FEE_PER_DAY;
-  const totalDeliveryCharges = roundMoney(deliveryFeePerDay * days);
-  const totalBeforeDiscount = roundMoney(totalFoodCost + gstAmount + totalDeliveryCharges);
-  const couponDiscount = roundMoney(
-    Math.max(
-      0,
-      Math.min(
-        totalFoodCost,
-        Number(appliedCoupon?.discount ?? 0),
-      ),
-    ),
-  );
-  const totalAmount = roundMoney(Math.max(0, totalBeforeDiscount - couponDiscount));
-  const totalDeliveries = mealCount * days;
+  const estimatedFoodSubtotal = roundMoney(basePrice * mealCount * days);
+  const pricing = priceQuote?.pricing || {};
+  const totalFoodCost = roundMoney(pricing.foodSubtotal || 0);
+  const gstRate = Number(pricing.gstRate || 0);
+  const gstAmount = roundMoney(pricing.gstAmount || 0);
+  const deliveryFeePerDay = roundMoney(pricing.deliveryFeePerDay || 0);
+  const totalDeliveryCharges = roundMoney(pricing.deliveryCharges || 0);
+  const totalBeforeDiscount = roundMoney(pricing.totalBeforeDiscount || 0);
+  const couponDiscount = roundMoney(pricing.couponDiscount || 0);
+  const totalAmount = roundMoney(pricing.totalAmount || 0);
+  const totalDeliveries = Number(pricing.totalDeliveries || mealCount * days);
 
   const savedAddress = getDefaultAddress();
   const defaultAddress = useMemo(() => {
@@ -154,14 +148,14 @@ export default function SubscriptionCheckout() {
             const discountValue =
               coupon.discountType === "percentage"
                 ? Math.min(
-                    totalFoodCost,
+                    estimatedFoodSubtotal,
                     coupon.maxDiscount
-                      ? (totalFoodCost * (Number(coupon.discountPercentage || 0) / 100) > Number(coupon.maxDiscount)
+                      ? (estimatedFoodSubtotal * (Number(coupon.discountPercentage || 0) / 100) > Number(coupon.maxDiscount)
                         ? Number(coupon.maxDiscount)
-                        : totalFoodCost * (Number(coupon.discountPercentage || 0) / 100))
-                      : totalFoodCost * (Number(coupon.discountPercentage || 0) / 100),
+                        : estimatedFoodSubtotal * (Number(coupon.discountPercentage || 0) / 100))
+                      : estimatedFoodSubtotal * (Number(coupon.discountPercentage || 0) / 100),
                   )
-                : Math.min(totalFoodCost, Number(coupon.discountValue || coupon.discount || 0));
+                : Math.min(estimatedFoodSubtotal, Number(coupon.discountValue || coupon.discount || 0));
 
             return {
               code: String(coupon.couponCode).toUpperCase(),
@@ -191,21 +185,7 @@ export default function SubscriptionCheckout() {
     };
 
     fetchCoupons();
-  }, [dish?.id, dish?.itemId, dish?.restaurantId, totalFoodCost]);
-
-  useEffect(() => {
-    const fetchOrderCount = async () => {
-      try {
-        const response = await orderAPI.getOrders({ page: 1, limit: 1 });
-        const totalOrders = response?.data?.data?.pagination?.total || response?.data?.data?.meta?.total || 0;
-        setUserOrderCount(Number(totalOrders) || 0);
-      } catch {
-        setUserOrderCount(0);
-      }
-    };
-
-    fetchOrderCount();
-  }, []);
+  }, [dish?.id, dish?.itemId, dish?.restaurantId, estimatedFoodSubtotal]);
 
   const addressLabel = formatFullAddress(defaultAddress);
   const selectedMealLabel = selectedMeals
@@ -221,31 +201,101 @@ export default function SubscriptionCheckout() {
     return noteParts.join(" | ");
   }, [days, selectedMealLabel, subscriptionPlan?.title]);
 
-  const validateCouponLocally = (coupon) => {
-    if (!coupon) return "Invalid coupon";
-    if ((coupon.customerGroup === "new" || coupon.customerGroup === "first-time") && userOrderCount > 0) {
-      return "This coupon is only for first-time users";
-    }
-    if (totalFoodCost < Number(coupon.minOrder || 0)) {
-      return `Minimum order ${formatCurrency(coupon.minOrder || 0)} required`;
-    }
-    return null;
-  };
+  const buildQuotePayload = (couponCodeOverride = appliedCoupon?.code || manualCouponCode) => ({
+    dishId: dish?.itemId || dish?.id,
+    dishName: dish?.name || "Subscription meal",
+    restaurantId: dish?.restaurantId,
+    restaurantName: dish?.restaurantName || "",
+    meals: selectedMeals
+      .map((meal) => String(meal?.title || meal?.name || "").trim())
+      .filter(Boolean),
+    planId: subscriptionPlan?.id || undefined,
+    planDays: days,
+    itemPrice: basePrice,
+    couponCode: couponCodeOverride ? String(couponCodeOverride).trim().toUpperCase() : undefined,
+    currency: "INR",
+  });
+
+  useEffect(() => {
+    let active = true;
+
+    const fetchQuote = async () => {
+      if (!dish?.restaurantId || !(dish?.itemId || dish?.id) || !selectedMeals.length || !subscriptionPlan?.id) {
+        setPriceQuote(null);
+        return;
+      }
+
+      setIsQuoteLoading(true);
+      try {
+        const response = await subscriptionAPI.getQuote(buildQuotePayload());
+        if (!active) return;
+        const nextQuote = response?.data?.data || null;
+        setPriceQuote(nextQuote);
+        const nextCouponCode = String(nextQuote?.pricing?.couponCode || "").trim().toUpperCase();
+        if (nextCouponCode) {
+          const matchedCoupon = availableCoupons.find(
+            (coupon) => String(coupon.code || "").toUpperCase() === nextCouponCode,
+          );
+          setAppliedCoupon(matchedCoupon ? { ...matchedCoupon, code: nextCouponCode } : { code: nextCouponCode });
+          setManualCouponCode(nextCouponCode);
+        } else {
+          setAppliedCoupon(null);
+        }
+      } catch (error) {
+        if (!active) return;
+        setPriceQuote(null);
+        if (appliedCoupon?.code || manualCouponCode) {
+          setAppliedCoupon(null);
+          toast.error(
+            error?.response?.data?.message ||
+              "Unable to refresh pricing for this coupon.",
+          );
+        }
+      } finally {
+        if (active) setIsQuoteLoading(false);
+      }
+    };
+
+    fetchQuote();
+
+    return () => {
+      active = false;
+    };
+  }, [
+    appliedCoupon?.code,
+    basePrice,
+    days,
+    dish?.id,
+    dish?.itemId,
+    dish?.name,
+    dish?.restaurantId,
+    dish?.restaurantName,
+    selectedMeals,
+    subscriptionPlan?.id,
+  ]);
 
   const handleApplyCoupon = async (coupon) => {
-    const localError = validateCouponLocally(coupon);
-    if (localError) {
-      toast.error(localError);
+    const couponCode = String(coupon?.code || "").trim().toUpperCase();
+    if (!couponCode) {
+      toast.error("Invalid coupon");
       return;
     }
 
-    setAppliedCoupon({
-      ...coupon,
-      discount: roundMoney(coupon.discount || 0),
-    });
-    setManualCouponCode(coupon.code);
-    setShowCoupons(false);
-    toast.success("Coupon applied");
+    setIsQuoteLoading(true);
+    try {
+      const response = await subscriptionAPI.getQuote(buildQuotePayload(couponCode));
+      setPriceQuote(response?.data?.data || null);
+      setAppliedCoupon({ ...coupon, code: couponCode });
+      setManualCouponCode(couponCode);
+      setShowCoupons(false);
+      toast.success("Coupon applied");
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "Coupon is not applicable right now.",
+      );
+    } finally {
+      setIsQuoteLoading(false);
+    }
   };
 
   const handleApplyCouponCode = async () => {
@@ -255,16 +305,7 @@ export default function SubscriptionCheckout() {
       return;
     }
 
-    const matchedCoupon = availableCoupons.find(
-      (coupon) => String(coupon.code || "").toUpperCase() === inputCode,
-    );
-
-    if (!matchedCoupon) {
-      toast.error("Invalid or unavailable coupon code");
-      return;
-    }
-
-    await handleApplyCoupon(matchedCoupon);
+    await handleApplyCoupon({ code: inputCode });
   };
 
   const handleRemoveCoupon = () => {
@@ -329,18 +370,13 @@ export default function SubscriptionCheckout() {
 
     console.log("[SubscriptionCheckout] Proceed to pay clicked", {
       rawState: location.state || null,
-        dish,
-        selectedMeals,
-        subscriptionPlan,
-        defaultAddress,
-        addressLabel,
-        totalFoodCost,
-        totalDeliveryCharges,
-        gstAmount,
-        couponDiscount,
-        couponCode: appliedCoupon?.code || null,
-        totalAmount,
-      });
+      dish,
+      selectedMeals,
+      subscriptionPlan,
+      defaultAddress,
+      addressLabel,
+      pricing,
+    });
 
     if (!dish?.restaurantId) {
       console.warn("[SubscriptionCheckout] Missing restaurantId", {
@@ -371,6 +407,11 @@ export default function SubscriptionCheckout() {
       return;
     }
 
+    if (isQuoteLoading || !priceQuote?.pricing) {
+      toast.info("Please wait, updating the latest amount from server.");
+      return;
+    }
+
     if (!defaultAddress || !addressLabel) {
       toast.error("Please add a delivery address before payment.");
       navigate("/food/user/profile");
@@ -393,16 +434,8 @@ export default function SubscriptionCheckout() {
         planId: subscriptionPlan?.id || undefined,
         planDays: days,
         itemPrice: basePrice,
-        mealCount,
-        foodSubtotal: totalFoodCost,
-        gstRate: SUBSCRIPTION_GST_RATE,
-        gstAmount,
-        deliveryFeePerDay,
-        deliveryCharges: totalDeliveryCharges,
-        totalBeforeDiscount,
         totalAmount,
         couponCode: appliedCoupon?.code || undefined,
-        couponDiscount,
         currency: "INR",
         customerName,
         customerPhone,
@@ -703,11 +736,6 @@ export default function SubscriptionCheckout() {
                       <p className="mt-1 text-xs text-gray-500">
                         {availableCoupons[0].discountDisplay || availableCoupons[0].description}
                       </p>
-                      {validateCouponLocally(availableCoupons[0]) ? (
-                        <p className="mt-1 text-[11px] font-semibold text-blue-600">
-                          {validateCouponLocally(availableCoupons[0])}
-                        </p>
-                      ) : null}
                       {availableCoupons.length > 1 ? (
                         <button
                           type="button"
@@ -722,7 +750,7 @@ export default function SubscriptionCheckout() {
                     <button
                       type="button"
                       onClick={() => handleApplyCoupon(availableCoupons[0])}
-                      disabled={Boolean(validateCouponLocally(availableCoupons[0]))}
+                      disabled={isQuoteLoading}
                       className="rounded-full border border-[#e3282c] px-3 py-1.5 text-xs font-bold text-[#e3282c] disabled:opacity-50"
                     >
                       Apply
@@ -738,16 +766,11 @@ export default function SubscriptionCheckout() {
                             <p className="mt-1 text-xs text-gray-500">
                               {coupon.discountDisplay || coupon.description}
                             </p>
-                            {validateCouponLocally(coupon) ? (
-                              <p className="mt-1 text-[11px] font-semibold text-blue-600">
-                                {validateCouponLocally(coupon)}
-                              </p>
-                            ) : null}
                           </div>
                           <button
                             type="button"
                             onClick={() => handleApplyCoupon(coupon)}
-                            disabled={Boolean(validateCouponLocally(coupon))}
+                            disabled={isQuoteLoading}
                             className="rounded-full border border-[#e3282c] px-3 py-1.5 text-xs font-bold text-[#e3282c] disabled:opacity-50"
                           >
                             Apply
@@ -811,7 +834,7 @@ export default function SubscriptionCheckout() {
               <div className="min-w-0">
                 <p className="font-semibold text-gray-700">GST</p>
                 <p className="mt-0.5 text-xs font-medium text-gray-400">
-                  {SUBSCRIPTION_GST_RATE}% of food subtotal
+                  {gstRate}% of food subtotal
                 </p>
               </div>
               <span className="shrink-0 font-bold">{formatCurrency(gstAmount)}</span>
@@ -873,9 +896,14 @@ export default function SubscriptionCheckout() {
         </div>
 
         <div className="mt-8 space-y-3 pb-8">
+          {isQuoteLoading ? (
+            <p className="text-center text-xs font-medium text-gray-500">
+              Updating amount from backend...
+            </p>
+          ) : null}
           <button
             onClick={handlePlaceOrder}
-            disabled={isPlacingOrder}
+            disabled={isPlacingOrder || isQuoteLoading || !priceQuote?.pricing}
             className="w-full bg-[#e3282c] text-white rounded-[12px] py-3.5 flex justify-center items-center gap-2 font-bold text-sm transition-opacity active:opacity-80 disabled:opacity-70 shadow-sm hover:bg-[#d02023]"
           >
             {isPlacingOrder ? (

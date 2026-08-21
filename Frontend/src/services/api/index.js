@@ -2569,6 +2569,10 @@ export const subscriptionAPI = {
     apiClient.get("/food/subscriptions/schedules/upcoming", {
       contextModule: "user",
     }),
+  getQuote: (payload) =>
+    apiClient.post("/food/subscriptions/quote", payload ?? {}, {
+      contextModule: "user",
+    }),
   createOrder: (payload) =>
     apiClient.post("/food/subscriptions/create-order", payload ?? {}, {
       contextModule: "user",

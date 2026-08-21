@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react"
-import { AlertTriangle, CalendarClock, CheckCircle2, FileText, Loader2, Palette, Save, Settings2, ShoppingCart, Utensils, UtensilsCrossed } from "lucide-react"
+import { AlertTriangle, CalendarClock, CheckCircle2, FileText, Loader2, Palette, Save, Settings2, Utensils, UtensilsCrossed } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { adminAPI } from "@food/api"
 import { toast } from "sonner"
 import { applyAppTheme, normalizeThemeColor } from "@food/utils/appCustomization"
 
 const DEFAULT_SETTINGS = {
-  normalOrderFlowEnabled: true,
   subscriptionFlowEnabled: true,
   diningFlowEnabled: true,
   loggingEnabled: true,
@@ -160,7 +159,6 @@ export default function AppCustomization() {
     try {
       setSaving(true)
       const response = await adminAPI.updateAppCustomization({
-        normalOrderFlowEnabled: Boolean(settings.normalOrderFlowEnabled),
         subscriptionFlowEnabled: Boolean(settings.subscriptionFlowEnabled),
         diningFlowEnabled: Boolean(settings.diningFlowEnabled),
         loggingEnabled: Boolean(settings.loggingEnabled),
@@ -308,14 +306,6 @@ export default function AppCustomization() {
 
             {activePanel === "flows" ? (
               <>
-                <ToggleRow
-                  icon={ShoppingCart}
-                  title="Normal app flow"
-                  description="When off, regular app ordering stays disabled and users cannot place normal restaurant orders."
-                  checked={settings.normalOrderFlowEnabled}
-                  onChange={(value) => updateRoot("normalOrderFlowEnabled", value)}
-                />
-
                 <ToggleRow
                   icon={Utensils}
                   title="Subscription flow"

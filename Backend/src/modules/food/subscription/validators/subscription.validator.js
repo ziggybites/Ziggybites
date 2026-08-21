@@ -19,7 +19,7 @@ const createSubscriptionOrderSchema = z.object({
   totalBeforeDiscount: z.number().min(0).optional(),
   couponCode: z.string().optional(),
   couponDiscount: z.number().min(0).optional(),
-  totalAmount: z.number().positive('Total amount must be greater than 0'),
+  totalAmount: z.number().positive('Total amount must be greater than 0').optional(),
   currency: z.string().optional(),
   customerName: z.string().optional(),
   customerPhone: z.string().optional(),
@@ -38,6 +38,19 @@ const createSubscriptionOrderSchema = z.object({
       coordinates: z.array(z.number()).optional(),
     }).optional(),
   }).passthrough().optional(),
+});
+
+const quoteSubscriptionOrderSchema = z.object({
+  dishId: z.string().min(1, 'Dish id required'),
+  dishName: z.string().optional(),
+  restaurantId: z.string().min(1, 'Restaurant id required'),
+  restaurantName: z.string().optional(),
+  meals: z.array(z.string().min(1)).min(1, 'At least one meal is required'),
+  planId: z.string().optional(),
+  planDays: z.number().int().min(1, 'Plan days must be at least 1').optional(),
+  itemPrice: z.number().min(0).optional(),
+  couponCode: z.string().optional(),
+  currency: z.string().optional(),
 });
 
 const verifySubscriptionPaymentSchema = z.object({
@@ -91,6 +104,12 @@ function toValidationError(result) {
 
 export function validateCreateSubscriptionOrderDto(body) {
   const result = createSubscriptionOrderSchema.safeParse(body || {});
+  if (!result.success) toValidationError(result);
+  return result.data;
+}
+
+export function validateQuoteSubscriptionOrderDto(body) {
+  const result = quoteSubscriptionOrderSchema.safeParse(body || {});
   if (!result.success) toValidationError(result);
   return result.data;
 }

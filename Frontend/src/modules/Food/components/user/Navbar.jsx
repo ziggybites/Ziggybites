@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom"
 import { useState, useEffect } from "react"
-import { MapPin, ShoppingCart, Trophy } from "lucide-react"
+import { MapPin, Trophy } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { Avatar, AvatarFallback } from "@food/components/ui/avatar"
 
@@ -164,19 +164,6 @@ export default function Navbar() {
                 {userPoints > 999 ? "999+" : userPoints}
               </span>
             </Button>
-
-            {appCustomization.subscriptionFlowEnabled !== true ? (
-              <Link to="/food/user/cart">
-                <Button variant="ghost" size="icon" className="relative h-10 w-10 hover:bg-gray-100">
-                  <ShoppingCart className="h-5 w-5 text-gray-700" />
-                  {cartCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-primary text-white text-[10px] flex items-center justify-center font-bold shadow-sm">
-                      {cartCount > 99 ? "99+" : cartCount}
-                    </span>
-                  )}
-                </Button>
-              </Link>
-            ) : null}
 
             {/* Profile */}
             <Link to="/food/user/profile">

@@ -58,6 +58,8 @@ const foodTransactionSchema = new mongoose.Schema({
     // Financial Breakdown (The Split)
     amounts: {
         totalCustomerPaid: { type: Number, required: true },
+        directCustomerPaidAmount: { type: Number, default: 0 },
+        subscriptionAllocationAmount: { type: Number, default: 0 },
         restaurantShare: { type: Number, required: true },
         restaurantCommission: { type: Number, required: true },
         gstOnItem: { type: Number, default: 0 },
