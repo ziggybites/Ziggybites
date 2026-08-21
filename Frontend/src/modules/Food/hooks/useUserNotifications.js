@@ -100,6 +100,7 @@ export const useUserNotifications = () => {
       
       const title = data.title || `Order #${data.orderId || 'Update'}`;
       const message = data.message || `Your order status is now ${String(data.orderStatus || '').replace(/_/g, ' ')}`;
+      const handoverOtp = data?.handoverOtp != null ? String(data.handoverOtp) : '';
 
       // Optional: Show toast for important updates (Cancel, Ready, etc.)
       const isImportant = String(data.orderStatus).includes('cancel') || ['ready_for_pickup', 'ready', 'confirmed'].includes(data.orderStatus);
@@ -139,6 +140,19 @@ export const useUserNotifications = () => {
         }
       });
       window.dispatchEvent(event);
+
+      if (handoverOtp) {
+        window.dispatchEvent(
+          new CustomEvent('deliveryDropOtp', {
+            detail: {
+              orderMongoId: data?.orderMongoId,
+              orderId: data?.orderId,
+              otp: handoverOtp,
+              message: data?.message || 'Share this OTP with your delivery partner to hand over the order.',
+            }
+          })
+        );
+      }
     });
 
     /** Customer receives handover OTP when partner confirms "reached drop" (never shown to partner). */

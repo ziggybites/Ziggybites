@@ -2,6 +2,8 @@ import { Suspense, lazy } from "react"
 import { Routes, Route, Navigate } from "react-router-dom"
 import ProtectedRoute from "@food/components/ProtectedRoute"
 import Loader from "@food/components/Loader"
+import { RestaurantNotificationProvider } from "@food/context/RestaurantNotificationContext"
+import GlobalPickupOtpModal from "@food/components/restaurant/GlobalPickupOtpModal"
 import "./restaurantTheme.css"
 
 // Lazy Loading Components
@@ -53,9 +55,11 @@ const VerificationPending = lazy(() => import("@food/pages/restaurant/auth/Verif
 
 export default function RestaurantRouter() {
   return (
-    <div className="restaurant-theme">
-      <Suspense fallback={<Loader />}>
-        <Routes>
+    <RestaurantNotificationProvider>
+      <div className="restaurant-theme">
+        <GlobalPickupOtpModal />
+        <Suspense fallback={<Loader />}>
+          <Routes>
         {/* Auth Routes */}
         <Route path="welcome" element={<Welcome />} />
         <Route path="login" element={<Login />} />
@@ -105,8 +109,9 @@ export default function RestaurantRouter() {
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><UpdateBankDetails /></ProtectedRoute>} path="update-bank-details" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><DiningReservations /></ProtectedRoute>} path="reservations" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><ZoneSetup /></ProtectedRoute>} path="zone-setup" />
-        </Routes>
-      </Suspense>
-    </div>
+          </Routes>
+        </Suspense>
+      </div>
+    </RestaurantNotificationProvider>
   )
 }

@@ -136,12 +136,19 @@ function emitOrderUpdate(order, deliveryPartnerId, options = {}) {
     if (io) {
       const dv =
         order.deliveryVerification?.toObject?.() || order.deliveryVerification;
+      const isDropOtpPending =
+        Boolean(order.deliveryVerification?.dropOtp?.required) &&
+        !Boolean(order.deliveryVerification?.dropOtp?.verified);
+      const handoverOtp = isDropOtpPending
+        ? String(order.deliveryOtp || '').trim()
+        : '';
       const payload = {
         orderMongoId: order._id?.toString?.(),
-        orderId: order._id.toString(),
+        orderId: order.order_id || order.orderId || order._id.toString(),
         orderStatus: order.orderStatus,
         deliveryState: order.deliveryState,
         deliveryVerification: dv,
+        ...(handoverOtp ? { handoverOtp } : {}),
       };
       io.to(rooms.delivery(deliveryPartnerId)).emit(
         'order_status_update',
