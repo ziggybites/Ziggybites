@@ -116,6 +116,11 @@ const foodSubscriptionSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    platformFee: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
     totalAmount: {
       type: Number,
       required: true,

@@ -252,7 +252,7 @@ export default function AdminHome() {
             <MetricCard
               title="Platform fee"
               value={formatCurrency(platformFeeTotal)}
-              helper={`Platform service fees: ${periodLabel}`}
+              helper={`${periodLabel} one-time subscription platform fees`}
               icon={<CreditCard className="h-5 w-5 text-purple-600" />}
               accent="bg-purple-200/40"
               path="/admin/food/fee-settings"
@@ -260,7 +260,7 @@ export default function AdminHome() {
             <MetricCard
               title="Delivery fee"
               value={formatCurrency(deliveryFeeTotal)}
-              helper={`Total delivery fees: ${periodLabel}`}
+              helper={`${periodLabel} one-time subscription delivery charges`}
               icon={<Truck className="h-5 w-5 text-blue-600" />}
               accent="bg-blue-200/40"
               path="/admin/food/transaction-report"
@@ -268,13 +268,13 @@ export default function AdminHome() {
             <MetricCard
               title="GST"
               value={formatCurrency(gstTotal)}
-              helper={`Total tax collected: ${periodLabel}`}
+              helper={`${periodLabel} one-time subscription GST`}
               icon={<Receipt className="h-5 w-5 text-orange-600" />}
               accent="bg-orange-200/40"
               path="/admin/food/tax-report"
             />
             <MetricCard
-              title="Platform Total"
+              title="Platform earnings"
               value={formatCurrency(totalAdminEarnings)}
               helper={totalRevenueHelper}
               icon={<DollarSign className="h-5 w-5 text-green-600" />}

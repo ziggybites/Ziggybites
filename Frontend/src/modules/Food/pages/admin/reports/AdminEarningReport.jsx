@@ -133,6 +133,7 @@ export default function AdminEarningReport() {
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {transactions.map((tx) => {
               const breakdown = tx.adminEarningBreakdown || {}
+              const isSubscriptionPrepaid = tx.billingMode === "subscription_prepaid"
               const itemSubtotal = tx.totalItemAmount || 0
               const discount = tx.itemDiscount || 0
               const taxes = breakdown.gstCollectedFromUser || tx.vatTax || 0
@@ -176,12 +177,16 @@ export default function AdminEarningReport() {
                   </div>
 
                   <div className="px-5 py-4 space-y-4 flex-1">
-                    {/* Customer Bill */}
+                    {/* Operational Value */}
                     <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-100 shadow-sm">
-                      <h3 className="text-sm font-bold text-gray-900 mb-3 tracking-wide">Customer Bill</h3>
+                      <h3 className="text-sm font-bold text-gray-900 mb-3 tracking-wide">
+                        {isSubscriptionPrepaid ? "Operational Settlement Base" : "Customer Bill"}
+                      </h3>
                       <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
-                          <span className="text-[13px] text-gray-600 font-medium">Item subtotal</span>
+                          <span className="text-[13px] text-gray-600 font-medium">
+                            {isSubscriptionPrepaid ? "Meal base value" : "Item subtotal"}
+                          </span>
                           <span className="text-[13px] text-gray-900">{formatMoney(itemSubtotal)}</span>
                         </div>
                         {discount > 0 && (
@@ -191,27 +196,37 @@ export default function AdminEarningReport() {
                           </div>
                         )}
                         <div className="flex items-center justify-between">
-                          <span className="text-[13px] text-gray-600 font-medium">Delivery fee (user)</span>
+                          <span className="text-[13px] text-gray-600 font-medium">
+                            {isSubscriptionPrepaid ? "Daily delivery charge" : "Delivery fee (user)"}
+                          </span>
                           <span className="text-[13px] text-gray-900">{formatMoney(deliveryFeeUser)}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[13px] text-gray-600 font-medium">Platform fee</span>
+                          <span className="text-[13px] text-gray-600 font-medium">
+                            {isSubscriptionPrepaid ? "Daily platform fee" : "Platform fee"}
+                          </span>
                           <span className="text-[13px] text-gray-900">{formatMoney(platformFee)}</span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-[13px] text-gray-600 font-medium">GST (user bill)</span>
+                          <span className="text-[13px] text-gray-600 font-medium">
+                            {isSubscriptionPrepaid ? "Daily GST" : "GST (user bill)"}
+                          </span>
                           <span className="text-[13px] text-gray-900">{formatMoney(taxes)}</span>
                         </div>
                         <div className="pt-2 mt-2 border-t border-slate-200 flex items-center justify-between">
-                          <span className="text-sm font-bold text-gray-900">Total paid by user</span>
+                          <span className="text-sm font-bold text-gray-900">
+                            {isSubscriptionPrepaid ? "Operational value" : "Total paid by user"}
+                          </span>
                           <span className="text-sm font-bold text-gray-900">{formatMoney(tx.orderAmount)}</span>
                         </div>
                       </div>
                     </div>
 
-                    {/* Admin Receivable */}
+                    {/* Admin Settlement */}
                     <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm">
-                      <h3 className="text-sm font-bold text-gray-900 mb-3 tracking-wide">Admin Receivable</h3>
+                      <h3 className="text-sm font-bold text-gray-900 mb-3 tracking-wide">
+                        {isSubscriptionPrepaid ? "Admin Settlement Share" : "Admin Receivable"}
+                      </h3>
                       <div className="space-y-2.5">
                         <div className="flex items-center justify-between">
                           <span className="text-[13px] text-gray-600 font-medium">Delivery cost to admin</span>

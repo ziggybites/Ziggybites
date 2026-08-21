@@ -109,7 +109,7 @@ export async function deleteRestaurantAccount(userId) {
 
         // --- 4. Anonymize transactions ---
         try {
-            await mongoose.connection.db.collection('food_transactions').updateMany(
+            await mongoose.connection.db.collection('payment_food_transactions').updateMany(
                 { restaurantId: new mongoose.Types.ObjectId(userId) },
                 { $set: { restaurantId: null, restaurantName: 'Deleted Restaurant' } },
                 { session }

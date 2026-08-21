@@ -232,6 +232,7 @@ function buildSubscriptionQuoteResponse(summary = {}) {
   const gstAmount = roundMoney(summary.gstAmount || 0);
   const deliveryFeePerDay = roundMoney(summary.deliveryFeePerDay || 0);
   const deliveryCharges = roundMoney(summary.deliveryCharges || 0);
+  const platformFee = roundMoney(summary.platformFee || 0);
   const totalBeforeDiscount = roundMoney(summary.totalBeforeDiscount || 0);
   const couponDiscount = roundMoney(summary.couponDiscount || 0);
   const totalAmount = roundMoney(summary.totalAmount || 0);
@@ -249,6 +250,7 @@ function buildSubscriptionQuoteResponse(summary = {}) {
       gstAmount,
       deliveryFeePerDay,
       deliveryCharges,
+      platformFee,
       totalBeforeDiscount,
       couponCode: String(summary.couponCode || ''),
       couponDiscount,
@@ -334,7 +336,10 @@ function normalizeSubscriptionForClient(doc) {
     remainingCredits: Math.max(0, totalCredits - usedCredits),
     creditPerOrder:
       Number(subscription.creditPerOrder) ||
-      getCreditPerOrder(subscription.totalAmount, totalCredits),
+      getCreditPerOrder(
+        Number(subscription.foodSubtotal || 0) || Number(subscription.totalAmount || 0),
+        totalCredits,
+      ),
   };
 }
 
@@ -367,6 +372,7 @@ async function createSubscriptionPurchaseTransaction(subscription, pricingSnapsh
         gstAmount: Number(pricingSnapshot.gstAmount || 0) || 0,
         deliveryFeePerDay: Number(pricingSnapshot.deliveryFeePerDay || 0) || 0,
         deliveryCharges: Number(pricingSnapshot.deliveryCharges || 0) || 0,
+        platformFee: Number(pricingSnapshot.platformFee || 0) || 0,
         totalBeforeDiscount: Number(pricingSnapshot.totalBeforeDiscount || 0) || 0,
         couponCode: String(pricingSnapshot.couponCode || ''),
         couponDiscount: Number(pricingSnapshot.couponDiscount || 0) || 0,
@@ -498,11 +504,15 @@ async function resolveSubscriptionOrderPricing(userId, dto = {}) {
   const foodSubtotal = roundMoney(itemPrice * mealCount * planDays);
   const gstRate = Number.isFinite(Number(dto.gstRate)) ? Number(dto.gstRate) : 5;
   const gstAmount = roundMoney(foodSubtotal * (gstRate / 100));
+  const feeSettings = await FoodFeeSettings.findOne({ isActive: true })
+    .sort({ createdAt: -1 })
+    .lean();
   const deliveryFeePerDay = Number.isFinite(Number(dto.deliveryFeePerDay))
     ? Number(dto.deliveryFeePerDay)
-    : 10;
+    : Number(feeSettings?.deliveryFee || 10) || 10;
   const deliveryCharges = roundMoney(deliveryFeePerDay * planDays);
-  const totalBeforeDiscount = roundMoney(foodSubtotal + gstAmount + deliveryCharges);
+  const platformFee = roundMoney(Number(feeSettings?.platformFee || 0) || 0);
+  const totalBeforeDiscount = roundMoney(foodSubtotal + gstAmount + deliveryCharges + platformFee);
   let couponDiscount = 0;
   let couponCode = dto.couponCode ? String(dto.couponCode).trim().toUpperCase() : '';
 
@@ -599,7 +609,7 @@ async function resolveSubscriptionOrderPricing(userId, dto = {}) {
 
   const totalAmount = roundMoney(Math.max(0, totalBeforeDiscount - couponDiscount));
   const totalCredits = getTotalCredits(planDays, meals);
-  const creditPerOrder = getCreditPerOrder(totalAmount, totalCredits);
+  const creditPerOrder = getCreditPerOrder(foodSubtotal, totalCredits);
   const currency = String(plan?.currency || dto.currency || 'INR').trim().toUpperCase();
 
   return {
@@ -614,6 +624,7 @@ async function resolveSubscriptionOrderPricing(userId, dto = {}) {
     gstAmount,
     deliveryFeePerDay,
     deliveryCharges,
+    platformFee,
     totalBeforeDiscount,
     couponCode,
     couponDiscount,
@@ -911,6 +922,7 @@ export async function createSubscriptionOrder(userId, dto) {
     gstAmount: pricing.gstAmount,
     deliveryFeePerDay: pricing.deliveryFeePerDay,
     deliveryCharges: pricing.deliveryCharges,
+    platformFee: pricing.platformFee,
     totalAmount: payableAmount,
     totalBeforeDiscount: pricing.totalBeforeDiscount,
     couponCode: pricing.couponCode,
@@ -932,6 +944,7 @@ export async function createSubscriptionOrder(userId, dto) {
     gstAmount: pricing.gstAmount,
     deliveryFeePerDay: pricing.deliveryFeePerDay,
     deliveryCharges: pricing.deliveryCharges,
+    platformFee: pricing.platformFee,
     totalBeforeDiscount: pricing.totalBeforeDiscount,
     couponCode: pricing.couponCode,
     couponDiscount: pricing.couponDiscount,
@@ -1012,7 +1025,10 @@ export async function verifySubscriptionPayment(userId, dto) {
     appSettings.subscriptionOrders,
   );
   const totalCredits = getTotalCredits(subscription.planDays, subscription.meals);
-  const creditPerOrder = getCreditPerOrder(subscription.totalAmount, totalCredits);
+  const creditPerOrder = getCreditPerOrder(
+    Number(subscription.foodSubtotal || 0) || Number(subscription.totalAmount || 0),
+    totalCredits,
+  );
   subscription.razorpayOrderId = dto.razorpayOrderId;
   subscription.razorpayPaymentId = dto.razorpayPaymentId;
   subscription.razorpaySignature = dto.razorpaySignature;
@@ -1081,7 +1097,7 @@ export async function listTodaySubscriptionMealsForRestaurant(
   })
     .populate('subscriptionId', 'customerName customerPhone deliveryAddress planTitle')
     .populate('userId', 'name phone email')
-    .populate('orderId', 'order_id orderStatus dispatch pricing')
+    .populate('orderId', 'order_id orderStatus dispatch subtotal totalAmount currency subscriptionUsage')
     .sort({ serviceDate: 1, mealName: 1, createdAt: 1 })
     .lean();
 
@@ -1091,7 +1107,7 @@ export async function listTodaySubscriptionMealsForRestaurant(
       scheduleId: schedule._id?.toString?.() || String(schedule._id),
       subscription: schedule.subscriptionId || null,
       user: schedule.userId || null,
-      order: schedule.orderId || null,
+      order: schedule.orderId ? normalizeOrderForClient(schedule.orderId) : null,
     })),
   };
 }
@@ -1213,11 +1229,8 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
       ? Number(subscription.foodSubtotal || 0) / totalCredits
       : Number(foodItem?.price || subscription.creditPerOrder || 0),
   );
-  const deliveryFee = roundMoney(Number(subscription.deliveryCharges || 0) / totalCredits);
-  const tax = roundMoney(Number(subscription.gstAmount || 0) / totalCredits);
-  const allocatedDiscount = roundMoney(Number(subscription.couponDiscount || 0) / totalCredits);
-  const originalTotal = roundMoney(itemPrice + deliveryFee + tax);
-  const computedOrderTotal = Math.max(0, roundMoney(originalTotal - allocatedDiscount));
+  const originalTotal = itemPrice;
+  const computedOrderTotal = itemPrice;
   const creditPerOrder = Math.max(
     0,
     roundMoney(Number(subscription.creditPerOrder || computedOrderTotal || itemPrice)),
@@ -1227,21 +1240,21 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
   const subscriptionWalletCredit = 0;
   const pricing = {
     subtotal: itemPrice,
-    tax,
+    tax: 0,
     packagingFee: 0,
-    deliveryFee,
+    deliveryFee: 0,
     platformFee: 0,
     restaurantCommission: 0,
     gstOnItem: 0,
     gstOnCommission: 0,
     paymentGatewayFee: 0,
     tcs: 0,
-    discount: allocatedDiscount,
+    discount: 0,
     originalTotal,
     payableTotal,
     subscriptionCreditApplied,
     subscriptionWalletCredit,
-    couponDiscount: allocatedDiscount,
+    couponDiscount: 0,
     total: computedOrderTotal,
     currency: subscription.currency || 'INR',
   };
@@ -1271,13 +1284,7 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
 
   const platformProfit = Math.max(
     0,
-    (Number.isFinite(pricing.deliveryFee) ? pricing.deliveryFee : 0) +
-      (Number.isFinite(pricing.platformFee) ? pricing.platformFee : 0) +
-      pricing.restaurantCommission +
-      pricing.gstOnItem +
-      pricing.paymentGatewayFee +
-      pricing.tcs -
-      riderEarning,
+    pricing.restaurantCommission - riderEarning,
   );
 
   const order = new FoodOrder({
@@ -1310,8 +1317,6 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
       operationalOrderValue: computedOrderTotal,
       creditPerOrder,
       subscriptionCreditApplied,
-      walletCreditAmount: subscriptionWalletCredit,
-      payableTotal,
       status: 'applied',
       appliedAt: new Date(),
     },
@@ -2130,7 +2135,7 @@ export async function getSubscriptionAdmin(subscriptionId) {
   const schedules = await FoodSubscriptionSchedule.find({
     subscriptionId: new mongoose.Types.ObjectId(subscriptionId),
   })
-    .populate('orderId', 'order_id orderStatus payment pricing createdAt')
+    .populate('orderId', 'order_id orderStatus createdAt subtotal totalAmount currency subscriptionUsage')
     .sort({ serviceDate: 1, mealName: 1 })
     .lean();
 
@@ -2146,6 +2151,7 @@ export async function getSubscriptionAdmin(subscriptionId) {
     schedules: schedules.map((schedule) => ({
       ...schedule,
       scheduleId: schedule._id?.toString?.() || String(schedule._id || ''),
+      orderId: schedule.orderId ? normalizeOrderForClient(schedule.orderId) : null,
     })),
   };
 }

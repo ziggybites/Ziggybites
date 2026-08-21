@@ -88,7 +88,7 @@ export async function createCollectQr(
     throw new ValidationError('Order already paid');
   }
 
-  const amountDue = payment.amountDue ?? tx?.pricing?.total ?? order.pricing?.total ?? 0;
+  const amountDue = payment.amountDue ?? tx?.pricing?.total ?? order.totalAmount ?? 0;
   if (amountDue < 1) throw new ValidationError('No amount due');
   if (!isRazorpayConfigured()) {
     throw new ValidationError('QR payment not configured');

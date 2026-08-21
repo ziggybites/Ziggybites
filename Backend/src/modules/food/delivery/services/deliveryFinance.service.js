@@ -4,6 +4,7 @@ import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
 import { FoodDeliveryWithdrawal } from '../models/foodDeliveryWithdrawal.model.js';
 import { FoodDeliveryCashDeposit } from '../models/foodDeliveryCashDeposit.model.js';
 import { FoodDeliveryPartner } from '../models/deliveryPartner.model.js';
+import { FoodDeliveryWallet } from '../models/deliveryWallet.model.js';
 import { DeliveryBonusTransaction } from '../../admin/models/deliveryBonusTransaction.model.js';
 import { getDeliveryCashLimitSettings } from '../../admin/services/admin.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
@@ -26,13 +27,9 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     const partner = await FoodDeliveryPartner.findById(partnerId).lean();
     if (!partner) throw new ValidationError('Delivery partner not found');
 
-    const [cashLimitSettings, earningsAgg, bonusAgg, withdrawalAgg, withdrawalsList, depositList] = await Promise.all([
+    const [cashLimitSettings, walletDoc, bonusAgg, withdrawalAgg, withdrawalsList, depositList] = await Promise.all([
         getDeliveryCashLimitSettings(),
-        // 1. Total Earnings from Delivered Orders
-        FoodOrder.aggregate([
-            { $match: { 'dispatch.deliveryPartnerId': partnerId, orderStatus: 'delivered' } },
-            { $group: { _id: null, totalEarned: { $sum: { $ifNull: ['$riderEarning', 0] } } } }
-        ]),
+        FoodDeliveryWallet.findOne({ deliveryPartnerId: partnerId }).lean(),
         // 2. Admin Bonuses
         DeliveryBonusTransaction.aggregate([
             { $match: { deliveryPartnerId: partnerId } },
@@ -65,43 +62,27 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     const lastDepositDoc = depositList?.find(d => String(d.status || '').toLowerCase() === 'completed');
     const lastDepositAt = lastDepositDoc?.createdAt || null;
 
-    // Sum COD orders delivered AFTER the last deposit (or all time if no deposit)
     const cashInHandMatchStage = {
-        'dispatch.deliveryPartnerId': partnerId,
-        orderStatus: 'delivered',
+        deliveryPartnerId: partnerId,
+        paymentMethod: 'cash',
+        status: { $in: ['captured', 'authorized', 'settled'] },
         ...(lastDepositAt ? { createdAt: { $gt: new Date(lastDepositAt) } } : {})
     };
 
-    const cashCollectedAgg = await FoodOrder.aggregate([
+    const cashCollectedAgg = await FoodTransaction.aggregate([
         { $match: cashInHandMatchStage },
-        {
-            $lookup: {
-                from: 'food_transactions',
-                localField: '_id',
-                foreignField: 'orderId',
-                as: 'tx'
-            }
-        },
-        {
-            $match: {
-                $or: [
-                    { 'tx.paymentMethod': 'cash' },
-                    { 'tx': { $size: 0 }, 'payment.method': 'cash' }
-                ]
-            }
-        },
         {
             $group: {
                 _id: null,
-                cashCollected: { $sum: { $ifNull: ['$totalAmount', { $ifNull: ['$pricing.total', 0] }] } }
+                cashCollected: { $sum: { $ifNull: ['$amounts.directCustomerPaidAmount', 0] } }
             }
         }
     ]);
 
-    const totalEarned = Number(earningsAgg?.[0]?.totalEarned) || 0;
+    const totalEarned = Number(walletDoc?.totalEarnings || 0);
     // Cash in hand = COD collected since last deposit (no subtraction needed - already scoped by date)
-    const cashInHand = Math.max(0, Number(cashCollectedAgg?.[0]?.cashCollected) || 0);
-    const totalBonus = Number(bonusAgg?.[0]?.total) || 0;
+    const cashInHand = Math.max(0, Number(walletDoc?.cashInHand || cashCollectedAgg?.[0]?.cashCollected) || 0);
+    const totalBonus = Number(walletDoc?.totalBonus || bonusAgg?.[0]?.total) || 0;
     const totalWithdrawn = Number(withdrawalAgg?.[0]?.totalWithdrawn) || 0;
     const pendingWithdrawals = Number(withdrawalAgg?.[0]?.pendingWithdrawals) || 0;
 
@@ -114,9 +95,13 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
 
     // Fetch transactions for UI (Orders, Bonuses, Withdrawals)
     const [ordersTx] = await Promise.all([
-        FoodOrder.find({ 'dispatch.deliveryPartnerId': partnerId, orderStatus: 'delivered' })
+        FoodTransaction.find({
+            deliveryPartnerId: partnerId,
+            status: { $in: ['captured', 'authorized', 'settled'] }
+        })
             .sort({ createdAt: -1 })
-            .select('orderId riderEarning payment orderStatus createdAt')
+            .select('orderId amounts paymentMethod createdAt')
+            .populate('orderId', 'order_id orderId orderStatus')
             .limit(20)
             .lean(),
     ]);
@@ -125,11 +110,11 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
         ...(ordersTx || []).map(o => ({
             id: o._id,
             type: 'payment',
-            amount: o.riderEarning || 0,
+            amount: Number(o.amounts?.riderShare || 0),
             status: 'Completed',
             date: o.createdAt,
-            description: o.payment?.method === 'cash' ? 'COD delivery earning' : 'Online delivery earning',
-            orderId: o.orderId
+            description: o.paymentMethod === 'cash' ? 'COD delivery earning' : 'Delivery earning',
+            orderId: o.orderId?.order_id || o.orderId?.orderId || String(o.orderId || '')
         })),
         ...(withdrawalsList || []).map(w => ({
             id: w._id,
@@ -154,7 +139,7 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     return {
-        totalBalance: totalEarned + totalBonus, // Gross lifetime earnings
+        totalBalance: Number(walletDoc?.balance || totalEarned + totalBonus), // Gross wallet balance
         pocketBalance, // Available to withdraw
         cashInHand, // COD to be deposited/deducted
         totalWithdrawn, // Actually paid out

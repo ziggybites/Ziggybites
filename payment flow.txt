@@ -1,0 +1,100 @@
+ight now there are 19 payment/finance collections with payment_ prefix in code.
+Main ones that matter for your current subscription food flow
+1. payment_subscription_transactions
+   Stores the one-time subscription purchase payment snapshot.
+   Example: user pays ₹3,300 once for a 30-day plan.
+2. payment_food_transactions
+   Stores per delivered meal financial split.
+   Example: for Day 1 meal, how much belongs to restaurant, rider, and platform.
+3. payment_transactions
+   This is the universal wallet ledger.
+   Every actual credit/debit entry goes here for user, restaurant, delivery, admin.
+4. payment_user_wallets
+   User wallet balance summary only.
+   Not full history anymore.
+5. payment_restaurant_wallets
+   Restaurant wallet balance summary.
+6. payment_delivery_wallets
+   Delivery partner wallet balance summary.
+7. payment_admin_wallets
+   Platform/admin wallet balance summary.
+Other finance/admin support collections
+8. payment_payments
+   Generic payment records used by shared payment/refund flows.
+9. payment_refunds
+   Refund records.
+10. payment_settlements
+       Settlement records.
+11. payment_webhook_events
+       Gateway webhook audit records.
+12. payment_restaurant_withdrawals
+       Restaurant payout/withdraw requests.
+13. payment_delivery_withdrawals
+       Delivery payout/withdraw requests.
+14. payment_delivery_cash_deposits
+       Delivery COD cash deposit records.
+15. payment_delivery_bonus_transactions
+       Bonus records for delivery partners.
+16. payment_fee_settings
+       Admin fee settings like platform fee, GST config, etc.
+17. payment_restaurant_commissions
+       Restaurant commission rules.
+18. payment_delivery_commission_rules
+       Delivery earning rules.
+19. payment_delivery_cash_limits
+       Delivery COD cash limit settings.
+How one order works now
+Example:
+- User buys subscription once:
+  Food value ₹3,000
+- GST ₹150
+- Delivery charges ₹300
+- Platform fee ₹50
+- Coupon discount ₹200
+- Final paid by user once = ₹3,300
+This gets stored in:
+- food_subscriptions
+  Contract/business record
+- payment_subscription_transactions
+  Payment snapshot:
+  foodSubtotal=3000, gstAmount=150, deliveryCharges=300, platformFee=50, couponDiscount=200, totalAmount=3300
+Now suppose 30 meals total, so per meal operational value is ₹100.
+When restaurant sends Day 1 meal:
+- food_orders
+  Stores delivery execution only:
+  user, restaurant, item, address, status, subtotal=100, totalAmount=100, subscriptionUsage.operationalOrderValue=100
+- payment_food_transactions
+  Stores split for that day
+Example Day 1 split:
+- Meal operational value: ₹100
+- Restaurant commission: ₹20
+- Rider earning: ₹15
+- Restaurant share: ₹80
+- Platform profit: ₹5
+- Direct customer paid that day: ₹0
+- Subscription allocation amount: ₹100
+So payment_food_transactions row is roughly:
+- pricing.subtotal = 100
+- pricing.total = 100
+- amounts.directCustomerPaidAmount = 0
+- amounts.subscriptionAllocationAmount = 100
+- amounts.restaurantShare = 80
+- amounts.restaurantCommission = 20
+- amounts.riderShare = 15
+- amounts.platformNetProfit = 5
+When order is delivered:
+- restaurant wallet gets credited ₹80
+- rider wallet gets credited ₹15
+- admin wallet gets credited ₹5
+Those credits are written into:
+- payment_transactions ledger
+- and wallet balances update in:
+  payment_restaurant_wallets
+  payment_delivery_wallets
+  payment_admin_wallets
+So in simple words
+- User payment once: payment_subscription_transactions
+- Daily order split: payment_food_transactions
+- Actual money movement to wallets: payment_transactions
+- Current balances: wallet collections
+food_orders is now mainly an execution/delivery record, not your main payment truth.

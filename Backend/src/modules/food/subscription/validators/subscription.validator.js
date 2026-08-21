@@ -16,6 +16,7 @@ const createSubscriptionOrderSchema = z.object({
   gstAmount: z.number().min(0).optional(),
   deliveryFeePerDay: z.number().min(0).optional(),
   deliveryCharges: z.number().min(0).optional(),
+  platformFee: z.number().min(0).optional(),
   totalBeforeDiscount: z.number().min(0).optional(),
   couponCode: z.string().optional(),
   couponDiscount: z.number().min(0).optional(),

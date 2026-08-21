@@ -100,7 +100,10 @@ export async function distributeCompletedOrderFinance(orderId, details = {}) {
 
             transaction.history.push({
                 kind: DISTRIBUTION_HISTORY_KIND,
-                amount: transaction.amounts?.totalCustomerPaid || 0,
+                amount:
+                    Number(transaction.amounts?.subscriptionAllocationAmount || 0) ||
+                    Number(transaction.amounts?.totalCustomerPaid || 0) ||
+                    0,
                 at: new Date(),
                 note: `Wallet distribution completed. Restaurant=${restaurantShare}, Rider=${riderShare}, Platform=${platformProfit}`,
                 recordedBy: {

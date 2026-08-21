@@ -79,7 +79,7 @@ export async function getPartnerCashCapacity(deliveryPartnerId) {
       },
       {
         $lookup: {
-          from: 'food_transactions',
+          from: 'payment_food_transactions',
           localField: '_id',
           foreignField: 'orderId',
           as: 'tx',
@@ -195,7 +195,7 @@ function emitOrderUpdate(order, deliveryPartnerId, options = {}) {
 
       if (order.payment?.method === 'cash' || order.paymentMethod === 'cash') {
         riderTitle = 'Payment collected!';
-        const amt = order.pricing?.total || order.amounts?.totalCustomerPaid || 0;
+        const amt = order.totalAmount || order.amounts?.subscriptionAllocationAmount || order.amounts?.totalCustomerPaid || 0;
         riderBody = `You have collected Rs ${amt} cash for Order #${orderId}.`;
       }
     }
@@ -229,7 +229,7 @@ function emitOrderUpdate(order, deliveryPartnerId, options = {}) {
             orderId,
             orderMongoId: order._id?.toString?.() || '',
             paymentMethod: order.payment?.method || order.paymentMethod,
-            amountCollected: String(order.pricing?.total || order.amounts?.totalCustomerPaid || 0),
+            amountCollected: String(order.totalAmount || order.amounts?.subscriptionAllocationAmount || order.amounts?.totalCustomerPaid || 0),
           },
         },
       );
@@ -397,14 +397,14 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
   const partnerId = new mongoose.Types.ObjectId(deliveryPartnerId);
 
   const existingOrder = await FoodOrder.findOne(identity)
-    .select('pricing payment dispatch orderStatus')
+    .select('totalAmount payment dispatch orderStatus')
     .lean();
   if (!existingOrder) throw new NotFoundError('Order not found');
   const existingOrderTx = await FoodTransaction.findOne({ orderId: existingOrder._id }).select('payment.method').lean();
 
   const paymentMethod = String(existingOrderTx?.payment?.method || existingOrder?.payment?.method || 'cash').toLowerCase();
   const isCashOrder = paymentMethod === 'cash';
-  const orderAmount = Math.max(0, Number(existingOrder?.pricing?.total || 0));
+  const orderAmount = Math.max(0, Number(existingOrder?.totalAmount || 0));
   const offeredEntry = (existingOrder?.dispatch?.offeredTo || []).find(
     (entry) => String(entry?.partnerId || '') === String(deliveryPartnerId),
   );

@@ -95,7 +95,7 @@ export async function deleteDeliveryAccount(userId) {
 
         // --- 4. Anonymize transactions ---
         try {
-            await mongoose.connection.db.collection('food_transactions').updateMany(
+            await mongoose.connection.db.collection('payment_food_transactions').updateMany(
                 { deliveryPartnerId: new mongoose.Types.ObjectId(userId) },
                 { $set: { deliveryPartnerId: null, deliveryPartnerName: 'Deleted Partner' } },
                 { session }

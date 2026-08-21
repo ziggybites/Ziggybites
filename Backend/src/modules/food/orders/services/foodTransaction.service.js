@@ -51,6 +51,9 @@ export function computeRestaurantCommissionAmount(baseAmount, rule) {
 export async function getRestaurantCommissionSnapshot(orderDoc) {
   const pricing = buildOrderPricingSnapshot(orderDoc);
   const baseAmount = Number(pricing.subtotal ?? 0) || 0;
+  const isSubscriptionPrepaidOrder =
+    String(orderDoc?.payment?.method || '').toLowerCase() === 'subscription' ||
+    String(orderDoc?.subscriptionUsage?.billingMode || '').toLowerCase() === 'subscription_prepaid';
   const restaurantIdRaw =
     orderDoc?.restaurantId?._id ?? orderDoc?.restaurantId ?? null;
 
@@ -91,6 +94,14 @@ export async function getRestaurantCommissionSnapshot(orderDoc) {
       commissionValue: 0,
       baseAmount,
   };
+
+  if (isSubscriptionPrepaidOrder) {
+    result.gstOnItem = 0;
+    result.gstOnCommission = 0;
+    result.paymentGatewayFee = 0;
+    result.tcs = 0;
+    return result;
+  }
 
   const globalSettings = await FoodFeeSettings.findOne({ isActive: true }).sort({ createdAt: -1 }).lean() || {};
   const applyTaxes = globalSettings.applyGlobalTaxes !== false;

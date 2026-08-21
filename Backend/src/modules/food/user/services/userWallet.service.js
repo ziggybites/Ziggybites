@@ -15,7 +15,7 @@ const ensureWallet = async (userId, options = {}) => {
     const existing = await FoodUserWallet.findOne({ userId: oid }).session(session);
     if (existing) return existing;
     const [created] = await FoodUserWallet.create(
-        [{ userId: oid, balance: 0, transactions: [] }],
+        [{ userId: oid, balance: 0 }],
         session ? { session } : undefined
     );
     return created;

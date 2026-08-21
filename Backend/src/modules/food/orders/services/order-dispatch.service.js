@@ -178,7 +178,7 @@ export async function tryAutoAssign(orderId, options = {}) {
     const orderTx = await FoodTransaction.findOne({ orderId: order._id }).select('payment.method').lean();
     const paymentMethod = String(orderTx?.payment?.method || order.payment?.method || 'cash').toLowerCase();
     const isCashOrder = paymentMethod === 'cash';
-    const requiredAmount = isCashOrder ? Number(order?.pricing?.total || 0) : 0;
+    const requiredAmount = isCashOrder ? Number(order?.totalAmount || 0) : 0;
     
     // RADIUS EXPANSION LOGIC
     const feeSettings = await FoodFeeSettings.findOne({ isActive: true }).lean();
@@ -449,7 +449,7 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
 
   const orderTx = await FoodTransaction.findOne({ orderId: order._id }).select('payment.method').lean();
   const paymentMethod = String(orderTx?.payment?.method || order.payment?.method || 'cash').toLowerCase();
-  const requiredAmount = paymentMethod === 'cash' ? Number(order?.pricing?.total || 0) : 0;
+  const requiredAmount = paymentMethod === 'cash' ? Number(order?.totalAmount || 0) : 0;
   const preview = await listNearbyOnlineDeliveryPartners(order.restaurantId, {
     maxKm: 15,
     limit: 15,

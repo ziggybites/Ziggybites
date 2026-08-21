@@ -128,34 +128,44 @@ export function pushStatusHistory(order, { byRole, byId, from, to, note = "" }) 
 export function buildOrderPricingSnapshot(orderDoc) {
   const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc || {};
   const legacyPricing = order?.pricing || {};
-  const rawTax = Number(order?.tax ?? legacyPricing?.tax ?? legacyPricing?.gst ?? 0);
-  const gstOnItem = Number(order?.gstOnItem ?? legacyPricing?.gstOnItem ?? 0);
-  const gstOnCommission = Number(order?.gstOnCommission ?? legacyPricing?.gstOnCommission ?? 0);
-  const effectiveTax =
-    rawTax > 0
-      ? rawTax
-      : Number((gstOnItem + gstOnCommission).toFixed(2));
+  const fallbackSubtotalFromItems = Array.isArray(order?.items)
+    ? order.items.reduce((sum, item) => {
+        const price = Number(item?.price || item?.variantPrice || 0) || 0;
+        const quantity = Math.max(1, Number(item?.quantity || 1) || 1);
+        return sum + (price * quantity);
+      }, 0)
+    : 0;
+  const fallbackOperationalValue =
+    Number(order?.subscriptionUsage?.operationalOrderValue || 0) ||
+    Number(order?.totalAmount || 0) ||
+    Number(legacyPricing?.total || 0) ||
+    fallbackSubtotalFromItems;
+  const subtotal =
+    Number(order?.subtotal || 0) ||
+    Number(legacyPricing?.subtotal || 0) ||
+    fallbackSubtotalFromItems ||
+    fallbackOperationalValue;
   return {
-    subtotal: Number(order?.subtotal ?? legacyPricing?.subtotal ?? 0),
-    tax: effectiveTax,
-    packagingFee: Number(order?.packagingFee ?? legacyPricing?.packagingFee ?? 0),
-    deliveryFee: Number(order?.deliveryFee ?? legacyPricing?.deliveryFee ?? 0),
-    platformFee: Number(order?.platformFee ?? legacyPricing?.platformFee ?? 0),
-    restaurantCommission: Number(order?.restaurantCommission ?? legacyPricing?.restaurantCommission ?? 0),
-    gstOnItem,
-    gstOnCommission,
-    paymentGatewayFee: Number(order?.paymentGatewayFee ?? legacyPricing?.paymentGatewayFee ?? 0),
-    tcs: Number(order?.tcs ?? legacyPricing?.tcs ?? 0),
-    discount: Number(order?.discount ?? legacyPricing?.discount ?? 0),
-    originalTotal: Number(order?.originalTotal ?? legacyPricing?.originalTotal ?? 0),
-    payableTotal: Number(order?.payableTotal ?? legacyPricing?.payableTotal ?? 0),
-    subscriptionCreditApplied: Number(order?.subscriptionCreditApplied ?? legacyPricing?.subscriptionCreditApplied ?? 0),
-    subscriptionWalletCredit: Number(order?.subscriptionWalletCredit ?? legacyPricing?.subscriptionWalletCredit ?? 0),
-    itemDiscount: Number(order?.itemDiscount ?? legacyPricing?.itemDiscount ?? 0),
-    couponDiscount: Number(order?.couponDiscount ?? legacyPricing?.couponDiscount ?? 0),
-    total: Number(order?.totalAmount ?? order?.total ?? legacyPricing?.total ?? 0),
+    subtotal,
+    tax: 0,
+    packagingFee: 0,
+    deliveryFee: 0,
+    platformFee: 0,
+    restaurantCommission: 0,
+    gstOnItem: 0,
+    gstOnCommission: 0,
+    paymentGatewayFee: 0,
+    tcs: 0,
+    discount: 0,
+    originalTotal: subtotal,
+    payableTotal: 0,
+    subscriptionCreditApplied: Number(order?.subscriptionUsage?.subscriptionCreditApplied || 0),
+    subscriptionWalletCredit: 0,
+    itemDiscount: 0,
+    couponDiscount: 0,
+    total: fallbackOperationalValue,
     currency: String(order?.currency ?? legacyPricing?.currency ?? 'INR'),
-    couponCode: String(order?.couponCode ?? legacyPricing?.couponCode ?? ''),
+    couponCode: '',
   };
 }
 

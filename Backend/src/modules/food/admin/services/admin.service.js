@@ -158,7 +158,7 @@ export async function getRestaurantComplaints(query = {}) {
         FoodSupportTicket.find(filter)
             .populate('userId', 'name phone profileImage')
             .populate('restaurantId', 'restaurantName profileImage area city')
-            .populate('orderId', 'orderId orderStatus pricing createdAt')
+            .populate('orderId', 'orderId orderStatus subtotal totalAmount currency createdAt')
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
@@ -566,6 +566,8 @@ export async function getDashboardStats(query = {}) {
                     },
                     gstTotal: { $sum: { $ifNull: ['$pricing.gstAmount', 0] } },
                     deliveryChargesTotal: { $sum: { $ifNull: ['$pricing.deliveryCharges', 0] } },
+                    platformFeeTotal: { $sum: { $ifNull: ['$pricing.platformFee', 0] } },
+                    couponDiscountTotal: { $sum: { $ifNull: ['$pricing.couponDiscount', 0] } },
                 }
             }
         ]),
@@ -790,11 +792,15 @@ export async function getDashboardStats(query = {}) {
         revenue: { total: Number(subscriptionRevenueTotals.revenueTotal || 0) },
         operationalOrderValue: { total: Number(financeTotals.operationalOrderValueTotal || 0) },
         commission: { total: Number(financeTotals.commissionTotal || 0) },
-        platformFee: { total: Number(financeTotals.platformFeeTotal || 0) },
+        platformFee: { total: Number(subscriptionRevenueTotals.platformFeeTotal || 0) },
         deliveryFee: { total: Number(subscriptionRevenueTotals.deliveryChargesTotal || 0) },
         gst: { total: Number(subscriptionRevenueTotals.gstTotal || 0) },
-        totalAdminEarnings: Number(financeTotals.adminNetProfit || 0) + Number(subscriptionRevenueTotals.gstTotal || 0),
-        deliveryProfit: Number(financeTotals.adminNetProfit || 0) - Number(financeTotals.commissionTotal || 0) - Number(financeTotals.platformFeeTotal || 0),
+        discount: { total: Number(subscriptionRevenueTotals.couponDiscountTotal || 0) },
+        totalAdminEarnings:
+            Number(financeTotals.adminNetProfit || 0) +
+            Number(subscriptionRevenueTotals.gstTotal || 0) +
+            Number(subscriptionRevenueTotals.platformFeeTotal || 0),
+        deliveryProfit: Number(financeTotals.adminNetProfit || 0) - Number(financeTotals.commissionTotal || 0),
         restaurants: {
             total: Number(restaurantsTotal || 0),
             pendingRequests: Number(restaurantsPending || 0)
@@ -890,6 +896,9 @@ export async function getTransactionReport(query = {}) {
     const transactions = transactionRows.map((tx) => {
         const order = tx.orderId || {};
         const pricing = buildOrderPricingSnapshot(order);
+        const isSubscriptionPrepaidOrder =
+            String(order?.subscriptionUsage?.billingMode || '').toLowerCase() === 'subscription_prepaid' ||
+            String(tx?.paymentMethod || tx?.payment?.method || '').toLowerCase() === 'subscription';
         const subtotal = Number(pricing.subtotal || 0) || 0;
         const packagingFee = Number(pricing.packagingFee || 0) || 0;
         const deliveryFee = Number(pricing.deliveryFee || 0) || 0;
@@ -905,13 +914,15 @@ export async function getTransactionReport(query = {}) {
             total - subtotal - packagingFee - deliveryFee - tax + discount
         );
         const platformFee =
-            pricing.platformFee !== undefined && pricing.platformFee !== null
+            isSubscriptionPrepaidOrder
+                ? 0
+                : pricing.platformFee !== undefined && pricing.platformFee !== null
                 ? Number(pricing.platformFee || 0) || 0
                 : platformFeeDerived;
 
-        const deliveryFeeUser = Number(pricing.deliveryFee || 0);
+        const deliveryFeeUser = isSubscriptionPrepaidOrder ? 0 : Number(pricing.deliveryFee || 0);
         const deliveryCostAdmin = Number(tx.amounts?.riderShare) || Number(order.riderEarning) || 0;
-        const deliveryGstAdmin = deliveryCostAdmin * 0.18;
+        const deliveryGstAdmin = 0;
 
         return {
             id: tx._id,
@@ -919,12 +930,12 @@ export async function getTransactionReport(query = {}) {
             restaurant: tx.restaurantId?.restaurantName || 'N/A',
             customerName: tx.userId?.name || 'Guest',
             totalItemAmount: subtotal,
-            itemDiscount: pricing.discount || 0,
-            couponDiscount: 0, // Placeholder if you add coupon logic
+            itemDiscount: isSubscriptionPrepaidOrder ? 0 : pricing.discount || 0,
+            couponDiscount: 0,
             referralDiscount: 0, // Placeholder
-            discountedAmount: Math.max(0, (pricing.subtotal || 0) - (pricing.discount || 0)),
-            vatTax: tx.amounts?.taxAmount || pricing.tax || 0,
-            deliveryCharge: pricing.deliveryFee || 0,
+            discountedAmount: Math.max(0, (pricing.subtotal || 0) - (isSubscriptionPrepaidOrder ? 0 : (pricing.discount || 0))),
+            vatTax: isSubscriptionPrepaidOrder ? 0 : (tx.amounts?.taxAmount || pricing.tax || 0),
+            deliveryCharge: isSubscriptionPrepaidOrder ? 0 : (pricing.deliveryFee || 0),
             platformFee,
             orderAmount:
                 tx.amounts?.subscriptionAllocationAmount ||
@@ -932,19 +943,20 @@ export async function getTransactionReport(query = {}) {
                 pricing.total ||
                 0,
             status: tx.status,
+            billingMode: isSubscriptionPrepaidOrder ? 'subscription_prepaid' : 'direct_order',
             adminEarningBreakdown: {
                 deliveryProfit: deliveryFeeUser - deliveryCostAdmin - deliveryGstAdmin,
                 platformFee: platformFee,
                 packagingFee: packagingFee,
                 restaurantCommission: Number(pricing.restaurantCommission || 0),
-                gstOnItem: Number(pricing.gstOnItem || 0),
-                gstOnCommission: Number(pricing.gstOnCommission || 0),
-                paymentGatewayFee: Number(pricing.paymentGatewayFee || 0),
-                tcs: Number(pricing.tcs || 0),
+                gstOnItem: isSubscriptionPrepaidOrder ? 0 : Number(pricing.gstOnItem || 0),
+                gstOnCommission: isSubscriptionPrepaidOrder ? 0 : Number(pricing.gstOnCommission || 0),
+                paymentGatewayFee: isSubscriptionPrepaidOrder ? 0 : Number(pricing.paymentGatewayFee || 0),
+                tcs: isSubscriptionPrepaidOrder ? 0 : Number(pricing.tcs || 0),
                 totalAdminReceivable: Number(pricing.totalAdminReceivable || 0),
                 deliveryCostToAdmin: deliveryCostAdmin,
                 deliveryGstToAdmin: deliveryGstAdmin,
-                gstCollectedFromUser: Number(pricing.tax || 0)
+                gstCollectedFromUser: isSubscriptionPrepaidOrder ? 0 : Number(pricing.tax || 0)
             }
         };
     });
@@ -982,7 +994,7 @@ export async function getTransactionReport(query = {}) {
                 tx.amounts?.subscriptionAllocationAmount ||
                 tx.amounts?.totalCustomerPaid ||
                 tx.pricing?.total ||
-                tx.orderId?.pricing?.total ||
+                tx.orderId?.totalAmount ||
                 0;
             adminEarning += tx.amounts?.platformNetProfit || 0;
             restaurantEarning += tx.amounts?.restaurantShare || 0;
@@ -1317,7 +1329,7 @@ export async function getTaxReportDetail(restaurantId, query = {}) {
     }
 
     const orders = await FoodOrder.find(match)
-        .select('orderId pricing createdAt orderStatus')
+        .select('orderId subtotal totalAmount createdAt orderStatus')
         .sort({ createdAt: -1 })
         .lean();
 
@@ -1328,8 +1340,8 @@ export async function getTaxReportDetail(restaurantId, query = {}) {
         orders: orders.map(o => ({
             id: o._id,
             orderId: o.orderId,
-            totalAmount: `\u20B9${(o.pricing?.total || 0).toFixed(2)}`,
-            taxAmount: `\u20B9${(o.pricing?.tax || 0).toFixed(2)}`,
+            totalAmount: `\u20B9${(Number(o.totalAmount || 0)).toFixed(2)}`,
+            taxAmount: `\u20B9${(0).toFixed(2)}`,
             date: o.createdAt
         }))
     };
@@ -2076,8 +2088,7 @@ export async function resetAllFinanceData() {
             {
                 $set: {
                     balance: 0,
-                    referralEarnings: 0,
-                    transactions: []
+                    referralEarnings: 0
                 }
             }
         ),
@@ -2502,7 +2513,7 @@ export async function getRestaurantAnalytics(restaurantId) {
         FoodRestaurantCommission.findOne({ restaurantId: rId, status: { $ne: false } }).lean(),
         FoodOrder.find({ restaurantId: rId }).lean(),
         FoodTransaction.find({ restaurantId: rId })
-            .populate('orderId', 'orderStatus createdAt pricing')
+            .populate('orderId', 'orderStatus createdAt subtotal totalAmount currency')
             .sort({ createdAt: -1 })
             .lean(),
     ]);
@@ -2532,7 +2543,7 @@ export async function getRestaurantAnalytics(restaurantId) {
             tx?.amounts?.subscriptionAllocationAmount ??
             tx?.amounts?.totalCustomerPaid ??
             tx?.pricing?.total ??
-            tx?.orderId?.pricing?.total
+            tx?.orderId?.totalAmount
     );
 
     // 2) Restaurant share (payout to restaurant)
@@ -2578,7 +2589,7 @@ export async function getRestaurantAnalytics(restaurantId) {
     // 5) Restaurant commission percent
     const commissionType = commissionDoc?.defaultCommission?.type || 'percentage';
     const commissionValue = Number(commissionDoc?.defaultCommission?.value || 0) || 0;
-    const completedSubtotal = sum(completedTx, (tx) => tx?.pricing?.subtotal ?? tx?.orderId?.pricing?.subtotal);
+    const completedSubtotal = sum(completedTx, (tx) => tx?.pricing?.subtotal ?? tx?.orderId?.subtotal);
     const computedCommissionPercent =
         commissionType === 'percentage'
             ? commissionValue
@@ -2612,12 +2623,12 @@ export async function getRestaurantAnalytics(restaurantId) {
 
     const paymentSummary = {
         // Pricing (what customer paid components)
-        subtotal: sum(completedTx, (tx) => tx?.pricing?.subtotal ?? tx?.orderId?.pricing?.subtotal),
-        tax: sum(completedTx, (tx) => tx?.pricing?.tax ?? tx?.amounts?.taxAmount ?? tx?.orderId?.pricing?.tax),
-        packagingFee: sum(completedTx, (tx) => tx?.pricing?.packagingFee ?? tx?.orderId?.pricing?.packagingFee),
-        deliveryFee: sum(completedTx, (tx) => tx?.pricing?.deliveryFee ?? tx?.orderId?.pricing?.deliveryFee),
-        platformFee: sum(completedTx, (tx) => tx?.pricing?.platformFee ?? tx?.orderId?.pricing?.platformFee),
-        discount: sum(completedTx, (tx) => tx?.pricing?.discount ?? tx?.orderId?.pricing?.discount),
+        subtotal: sum(completedTx, (tx) => tx?.pricing?.subtotal ?? tx?.orderId?.subtotal),
+        tax: sum(completedTx, (tx) => tx?.pricing?.tax ?? tx?.amounts?.taxAmount ?? 0),
+        packagingFee: sum(completedTx, (tx) => tx?.pricing?.packagingFee ?? 0),
+        deliveryFee: sum(completedTx, (tx) => tx?.pricing?.deliveryFee ?? 0),
+        platformFee: sum(completedTx, (tx) => tx?.pricing?.platformFee ?? 0),
+        discount: sum(completedTx, (tx) => tx?.pricing?.discount ?? 0),
         total: totalRevenue,
         currency: 'INR',
 
@@ -4411,7 +4422,7 @@ export async function getDeliveryEarnings(query = {}) {
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit)
-            .select('orderId orderStatus createdAt pricing riderEarning deliveryPartnerSettlement dispatch.deliveryPartnerId restaurantId')
+            .select('orderId orderStatus createdAt totalAmount riderEarning deliveryPartnerSettlement dispatch.deliveryPartnerId restaurantId')
             .populate({ path: 'dispatch.deliveryPartnerId', select: 'name phone' })
             .populate({ path: 'restaurantId', select: 'restaurantName name' })
             .lean(),
@@ -4446,7 +4457,7 @@ export async function getDeliveryEarnings(query = {}) {
         const amount = Number(
             order?.riderEarning ??
             order?.deliveryPartnerSettlement ??
-            order?.pricing?.deliveryFee ??
+            0 ??
             0
         ) || 0;
 
@@ -4458,8 +4469,8 @@ export async function getDeliveryEarnings(query = {}) {
             deliveryPartnerPhone: partner?.phone || 'N/A',
             restaurantName: order?.restaurantId?.restaurantName || order?.restaurantId?.name || 'N/A',
             amount,
-            orderTotal: Number(order?.pricing?.total || 0) || 0,
-            deliveryFee: Number(order?.pricing?.deliveryFee || 0) || 0,
+            orderTotal: Number(order?.totalAmount || 0) || 0,
+            deliveryFee: 0,
             orderStatus: order?.orderStatus || 'N/A',
             createdAt: order?.createdAt || null
         };

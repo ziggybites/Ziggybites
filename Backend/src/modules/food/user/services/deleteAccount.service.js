@@ -86,7 +86,7 @@ export async function deleteUserAccount(userId) {
 
         // --- 4. Anonymize transactions ---
         try {
-            await mongoose.connection.db.collection('food_transactions').updateMany(
+            await mongoose.connection.db.collection('payment_food_transactions').updateMany(
                 { userId: new mongoose.Types.ObjectId(userId) },
                 { $set: { userId: null, userName: 'Deleted User' } },
                 { session }

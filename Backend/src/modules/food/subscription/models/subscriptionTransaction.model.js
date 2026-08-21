@@ -67,6 +67,7 @@ const subscriptionPurchaseTransactionSchema = new mongoose.Schema(
       gstAmount: { type: Number, default: 0, min: 0 },
       deliveryFeePerDay: { type: Number, default: 0, min: 0 },
       deliveryCharges: { type: Number, default: 0, min: 0 },
+      platformFee: { type: Number, default: 0, min: 0 },
       totalBeforeDiscount: { type: Number, default: 0, min: 0 },
       couponCode: { type: String, trim: true, uppercase: true, default: '' },
       couponDiscount: { type: Number, default: 0, min: 0 },

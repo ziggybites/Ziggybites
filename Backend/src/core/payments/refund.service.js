@@ -48,9 +48,6 @@ export async function initiateRefund({ paymentId, orderId, userId, amount, reaso
             refund.processedAt = new Date();
             await refund.save();
 
-            // Also credit back to the existing FoodUserWallet for backward compat
-            await addRefundToLegacyWallet(userId || payment.userId, refund.amount, orderId);
-
             // Mark payment as refunded
             payment.status = 'refunded';
             await payment.save();
@@ -139,27 +136,4 @@ export async function listRefunds({ status, page = 1, limit = 20 } = {}) {
     ]);
 
     return { refunds: docs, total, page, limit, totalPages: Math.ceil(total / limit) };
-}
-
-/**
- * Backward compatibility: add a refund transaction to the legacy FoodUserWallet embedded array.
- */
-async function addRefundToLegacyWallet(userId, amount, orderId) {
-    try {
-        const { FoodUserWallet } = await import('../../modules/food/user/models/userWallet.model.js');
-        const wallet = await FoodUserWallet.findOne({ userId: new mongoose.Types.ObjectId(userId) });
-        if (wallet) {
-            wallet.transactions.unshift({
-                type: 'refund',
-                amount,
-                status: 'Completed',
-                description: 'Order refund',
-                metadata: { source: 'order_refund', orderId: String(orderId) }
-            });
-            wallet.balance = (Number(wallet.balance) || 0) + amount;
-            await wallet.save();
-        }
-    } catch (err) {
-        logger.warn(`addRefundToLegacyWallet failed: ${err.message}`);
-    }
 }

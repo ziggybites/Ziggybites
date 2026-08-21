@@ -1,6 +1,7 @@
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodDeliveryPartner } from '../../delivery/models/deliveryPartner.model.js';
 import { FoodOrder } from '../../orders/models/order.model.js';
+import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
 
 export async function getLiveMonitorStatus(req, res, next) {
     try {
@@ -27,30 +28,46 @@ export async function getLiveMonitorStatus(req, res, next) {
         });
 
         // Get orders for restaurants today
-        const rOrders = await FoodOrder.aggregate([
-            { $match: { createdAt: { $gte: today } } },
-            { $group: {
-                _id: '$restaurantId',
-                totalOrders: { $sum: 1 },
-                deliveredOrders: {
-                    $sum: { $cond: [{ $eq: ['$orderStatus', 'delivered'] }, 1, 0] }
+        const [rOrders, restaurantRevenueRows] = await Promise.all([
+            FoodOrder.aggregate([
+                { $match: { createdAt: { $gte: today } } },
+                { $group: {
+                    _id: '$restaurantId',
+                    totalOrders: { $sum: 1 },
+                    deliveredOrders: {
+                        $sum: { $cond: [{ $eq: ['$orderStatus', 'delivered'] }, 1, 0] }
+                    },
+                    activeOrders: {
+                        $sum: { $cond: [{ $in: ['$orderStatus', ['created', 'confirmed', 'preparing', 'ready_for_pickup', 'reached_pickup', 'picked_up', 'reached_drop']] }, 1, 0] }
+                    },
+                    cancelledOrders: {
+                        $sum: { $cond: [{ $in: ['$orderStatus', ['cancelled_by_restaurant', 'cancelled_by_admin', 'cancelled_by_user', 'dead']] }, 1, 0] }
+                    }
+                }}
+            ]),
+            FoodTransaction.aggregate([
+                { $match: { createdAt: { $gte: today } } },
+                {
+                    $lookup: {
+                        from: 'food_orders',
+                        localField: 'orderId',
+                        foreignField: '_id',
+                        as: 'order'
+                    }
                 },
-                activeOrders: {
-                    $sum: { $cond: [{ $in: ['$orderStatus', ['created', 'confirmed', 'preparing', 'ready_for_pickup', 'reached_pickup', 'picked_up', 'reached_drop']] }, 1, 0] }
-                },
-                cancelledOrders: {
-                    $sum: { $cond: [{ $in: ['$orderStatus', ['cancelled_by_restaurant', 'cancelled_by_admin', 'cancelled_by_user', 'dead']] }, 1, 0] }
-                },
-                revenue: {
-                    $sum: {
-                        $cond: [
-                            { $eq: ['$orderStatus', 'delivered'] },
-                            { $ifNull: ['$totalAmount', { $ifNull: ['$pricing.total', 0] }] },
-                            0
-                        ]
+                { $unwind: { path: '$order', preserveNullAndEmptyArrays: false } },
+                { $match: { 'order.orderStatus': 'delivered' } },
+                {
+                    $group: {
+                        _id: '$restaurantId',
+                        revenue: {
+                            $sum: {
+                                $ifNull: ['$amounts.subscriptionAllocationAmount', { $ifNull: ['$pricing.total', 0] }]
+                            }
+                        }
                     }
                 }
-            }}
+            ])
         ]);
 
         const rOrdersMap = {};
@@ -60,8 +77,16 @@ export async function getLiveMonitorStatus(req, res, next) {
                 deliveredOrders: o.deliveredOrders,
                 activeOrders: o.activeOrders,
                 cancelledOrders: o.cancelledOrders,
-                revenue: o.revenue
+                revenue: 0
             };
+        });
+        restaurantRevenueRows.forEach((row) => {
+            const key = row?._id?.toString?.();
+            if (!key) return;
+            if (!rOrdersMap[key]) {
+                rOrdersMap[key] = { totalOrders: 0, deliveredOrders: 0, activeOrders: 0, cancelledOrders: 0, revenue: 0 };
+            }
+            rOrdersMap[key].revenue = Number(row?.revenue || 0);
         });
 
         const formattedRestaurants = restaurants.map(r => ({
@@ -93,7 +118,7 @@ export async function getLiveMonitorStatus(req, res, next) {
             createdAt: { $gte: today },
             'dispatch.deliveryPartnerId': { $in: dpIds }
         })
-        .select('_id orderId order_id orderStatus customerName createdAt pricing dispatch')
+        .select('_id orderId order_id orderStatus customerName createdAt totalAmount dispatch')
         .populate('restaurantId', 'restaurantName')
         .populate('userId', 'fullName name')
         .lean();
@@ -112,7 +137,7 @@ export async function getLiveMonitorStatus(req, res, next) {
                     restaurantName: o.restaurantId?.restaurantName || 'Unknown',
                     userName: o.customerName || o.userId?.fullName || o.userId?.name || 'Unknown',
                     time: o.createdAt,
-                    amount: o.pricing?.total || 0
+                    amount: Number(o.totalAmount || 0) || 0
                 });
 
                 if (o.orderStatus === 'delivered') {
