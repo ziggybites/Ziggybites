@@ -1,6 +1,8 @@
 import mongoose from 'mongoose';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import { FoodUserWallet } from '../models/userWallet.model.js';
+import { Transaction } from '../../../../core/payments/models/transaction.model.js';
+import { creditWallet, debitWallet, getUserWalletForFrontend } from '../../../../core/payments/wallet.service.js';
 import { createRazorpayOrder, getRazorpayKeyId, isRazorpayConfigured, verifyPaymentSignature } from '../../orders/helpers/razorpay.helper.js';
 
 const ensureWallet = async (userId, options = {}) => {
@@ -24,47 +26,24 @@ export const creditReferralReward = async (userId, amountInr, metadata = {}) => 
     if (!Number.isFinite(amount) || amount <= 0) {
         return { wallet: await getUserWallet(userId) };
     }
+
     const wallet = await ensureWallet(userId);
-    wallet.transactions.unshift({
-        type: 'addition',
+    await creditWallet({
+        entityType: 'user',
+        entityId: String(userId),
         amount,
-        status: 'Completed',
         description: 'Referral reward',
+        category: 'referral_reward',
         metadata: { source: 'referral_reward', ...(metadata || {}) }
     });
-    wallet.balance = Number(wallet.balance || 0) + amount;
     wallet.referralEarnings = Number(wallet.referralEarnings || 0) + amount;
     await wallet.save();
+
     return { wallet: await getUserWallet(userId) };
 };
 
 export const getUserWallet = async (userId) => {
-    const id = String(userId || '');
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-        throw new ValidationError('User not found');
-    }
-    const oid = new mongoose.Types.ObjectId(id);
-    const wallet = await FoodUserWallet.findOne({ userId: oid });
-    if (!wallet) {
-        return { balance: 0, referralEarnings: 0, transactions: [] };
-    }
-    // Return newest first (UI expects recent transactions on top)
-    const tx = Array.isArray(wallet.transactions) ? [...wallet.transactions].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)) : [];
-    return {
-        balance: Number(wallet.balance) || 0,
-        referralEarnings: Number(wallet.referralEarnings) || 0,
-        transactions: tx.map((t) => ({
-            id: String(t._id),
-            _id: t._id,
-            type: t.type,
-            amount: Number(t.amount) || 0,
-            status: t.status || 'Completed',
-            description: t.description || '',
-            date: t.createdAt,
-            createdAt: t.createdAt,
-            metadata: t.metadata || {}
-        }))
-    };
+    return getUserWalletForFrontend(userId);
 };
 
 export const createWalletTopupOrder = async (userId, amountInr) => {
@@ -115,8 +94,14 @@ export const verifyWalletTopupPayment = async (userId, payload) => {
     if (!signature) throw new ValidationError('razorpaySignature is required');
     if (!Number.isFinite(amount) || amount <= 0) throw new ValidationError('amount is required');
 
-    const wallet = await ensureWallet(userId);
-    const existing = wallet.transactions.find((t) => String(t.razorpayOrderId || '') === orderId);
+    await ensureWallet(userId);
+    const existing = await Transaction.findOne({
+        entityType: 'user',
+        entityId: new mongoose.Types.ObjectId(String(userId)),
+        category: 'wallet_topup',
+        'metadata.razorpayOrderId': orderId,
+        status: 'completed'
+    }).lean();
     if (existing && String(existing.status).toLowerCase() === 'completed') {
         return { wallet: await getUserWallet(userId) };
     }
@@ -129,20 +114,20 @@ export const verifyWalletTopupPayment = async (userId, payload) => {
         throw new ValidationError('Payment verification failed');
     }
 
-    // Store ONLY after payment is verified.
-    wallet.transactions.unshift({
-        type: 'addition',
+    await creditWallet({
+        entityType: 'user',
+        entityId: String(userId),
         amount,
-        status: 'Completed',
         description: isRazorpayConfigured() ? 'Wallet top-up' : 'Wallet top-up (dev)',
-        metadata: { source: 'wallet_topup', mode: isRazorpayConfigured() ? 'razorpay' : 'dev' },
-        razorpayOrderId: orderId,
-        razorpayPaymentId: paymentId,
-        razorpaySignature: signature
+        category: 'wallet_topup',
+        metadata: {
+            source: 'wallet_topup',
+            mode: isRazorpayConfigured() ? 'razorpay' : 'dev',
+            razorpayOrderId: orderId,
+            razorpayPaymentId: paymentId,
+            razorpaySignature: signature
+        }
     });
-
-    wallet.balance = Number(wallet.balance || 0) + amount;
-    await wallet.save();
 
     return { wallet: await getUserWallet(userId) };
 };
@@ -155,20 +140,19 @@ export const deductWalletBalance = async (userId, amountInr, description = 'Orde
 
     const session = options.session || null;
     const wallet = await ensureWallet(userId, { session });
-    if (wallet.balance < amount) {
+    if (Number(wallet.balance || 0) < amount) {
         throw new ValidationError('Insufficient wallet balance');
     }
 
-    wallet.transactions.unshift({
-        type: 'deduction',
+    await debitWallet({
+        entityType: 'user',
+        entityId: String(userId),
         amount,
-        status: 'Completed',
         description,
-        metadata: { source: 'order_payment', ...(metadata || {}) }
+        category: 'wallet_debit',
+        metadata: { source: 'order_payment', ...(metadata || {}) },
+        session
     });
-
-    wallet.balance = Number(wallet.balance) - amount;
-    await wallet.save(session ? { session } : undefined);
 
     return { wallet: await getUserWallet(userId) };
 };
@@ -180,17 +164,16 @@ export const refundWalletBalance = async (userId, amountInr, description = 'Orde
     }
 
     const session = options.session || null;
-    const wallet = await ensureWallet(userId, { session });
-    wallet.transactions.unshift({
-        type: 'refund',
+    await ensureWallet(userId, { session });
+    await creditWallet({
+        entityType: 'user',
+        entityId: String(userId),
         amount,
-        status: 'Completed',
         description,
-        metadata: { source: 'order_refund', ...(metadata || {}) }
+        category: 'order_refund',
+        metadata: { source: 'order_refund', ...(metadata || {}) },
+        session
     });
-
-    wallet.balance = Number(wallet.balance) + amount;
-    await wallet.save(session ? { session } : undefined);
 
     return { wallet: await getUserWallet(userId) };
 };
@@ -201,17 +184,15 @@ export const topupUserWalletByAdmin = async (userId, amountInr, adminId, descrip
         throw new ValidationError('Invalid top-up amount');
     }
 
-    const wallet = await ensureWallet(userId);
-    wallet.transactions.unshift({
-        type: 'addition',
+    await ensureWallet(userId);
+    await creditWallet({
+        entityType: 'user',
+        entityId: String(userId),
         amount,
-        status: 'Completed',
         description,
+        category: 'adjustment',
         metadata: { source: 'admin_topup', adminId: String(adminId) }
     });
-
-    wallet.balance = Number(wallet.balance || 0) + amount;
-    await wallet.save();
 
     return { wallet: await getUserWallet(userId) };
 };

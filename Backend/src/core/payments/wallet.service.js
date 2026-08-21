@@ -264,8 +264,8 @@ export async function unlockWalletAmount(entityType, entityId, amount) {
 }
 
 /**
- * USER WALLET: Get wallet with transactions in the format the existing frontend expects.
- * This maintains backward compatibility with the existing FoodUserWallet embedded transactions.
+ * USER WALLET: Get wallet with transactions in the format the frontend expects.
+ * The shared transaction ledger is the single source of truth for history.
  */
 export async function getUserWalletForFrontend(userId) {
     const id = String(userId || '');
@@ -273,20 +273,13 @@ export async function getUserWalletForFrontend(userId) {
         return { balance: 0, referralEarnings: 0, transactions: [] };
     }
 
-    // Read from the existing FoodUserWallet for backward compat
     const oid = new mongoose.Types.ObjectId(id);
-    const wallet = await FoodUserWallet.findOne({ userId: oid });
+    const [wallet, ledgerTxns] = await Promise.all([
+        FoodUserWallet.findOne({ userId: oid }).lean(),
+        getTransactionsByEntity('user', id, { page: 1, limit: 50 })
+    ]);
 
-    // Also read from new Transaction collection
-    const newTxns = await getTransactionsByEntity('user', id, { page: 1, limit: 50 });
-
-    // Merge: prefer new Transaction data, fallback to embedded
-    const embeddedTx = wallet?.transactions
-        ? [...wallet.transactions].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        : [];
-
-    // Convert new transactions to frontend format
-    const convertedNewTxns = (newTxns.transactions || []).map(t => ({
+    const transactions = (ledgerTxns.transactions || []).map((t) => ({
         id: String(t._id),
         _id: t._id,
         type: t.type === 'credit' ? 'addition' : 'deduction',
@@ -300,27 +293,9 @@ export async function getUserWalletForFrontend(userId) {
         balanceAfter: t.balanceAfter
     }));
 
-    // Convert embedded txns
-    const convertedEmbedded = embeddedTx.map(t => ({
-        id: String(t._id),
-        _id: t._id,
-        type: t.type,
-        amount: Number(t.amount) || 0,
-        status: t.status || 'Completed',
-        description: t.description || '',
-        date: t.createdAt,
-        createdAt: t.createdAt,
-        metadata: t.metadata || {}
-    }));
-
-    // Deduplicate by checking if an embedded txn has a matching new txn (same amount + order within 5s)
-    const allTxns = [...convertedNewTxns, ...convertedEmbedded];
-    // Sort newest first
-    allTxns.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
     return {
         balance: Number(wallet?.balance) || 0,
         referralEarnings: Number(wallet?.referralEarnings) || 0,
-        transactions: allTxns
+        transactions
     };
 }
