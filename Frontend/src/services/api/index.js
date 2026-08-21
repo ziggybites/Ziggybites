@@ -899,6 +899,12 @@ export const adminAPI = {
     apiClient.put("/food/admin/fee-settings", body ?? {}, {
       contextModule: "admin",
     }),
+  resetAllFinanceData: (confirmation) =>
+    apiClient.post(
+      "/food/admin/fee-settings/reset-finance",
+      { confirmation: String(confirmation || "") },
+      { contextModule: "admin" },
+    ),
 
   /** Referral Settings (admin) */
   getReferralSettings: () =>

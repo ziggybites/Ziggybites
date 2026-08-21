@@ -1066,6 +1066,27 @@ export async function createOrUpdateFeeSettings(req, res, next) {
     }
 }
 
+export async function resetAllFinanceData(req, res, next) {
+    try {
+        const confirmation = String(req.body?.confirmation || '').trim().toUpperCase();
+        if (confirmation !== 'RESET FINANCE') {
+            return res.status(400).json({
+                success: false,
+                message: 'Confirmation text must be exactly RESET FINANCE'
+            });
+        }
+
+        const data = await adminService.resetAllFinanceData();
+        res.status(200).json({
+            success: true,
+            message: 'All payment and finance data cleared successfully',
+            data
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // ----- Referral Settings (admin) -----
 export async function getReferralSettings(req, res, next) {
     try {

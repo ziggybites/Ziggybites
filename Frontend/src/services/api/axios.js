@@ -183,6 +183,25 @@ function getModuleFromUrl(url = '') {
   return 'user';
 }
 
+function clearStaleSessionForModule(moduleName) {
+  try {
+    clearModuleAuth(moduleName);
+  } catch {
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('authRefreshFailed', { detail: { module: moduleName } }));
+    window.dispatchEvent(new CustomEvent('userAuthChanged', { detail: { module: moduleName, authenticated: false } }));
+  }
+}
+
+function isUserAuthCriticalRequest(config = {}) {
+  const method = String(config?.method || 'get').trim().toLowerCase();
+  const url = String(config?.url || '').trim().toLowerCase();
+  if (method !== 'get') return false;
+  return url.startsWith('/food/orders');
+}
+
 apiClient.interceptors.request.use(
   (config) => {
     if (config.data instanceof FormData && config.headers?.['Content-Type']) {
@@ -205,6 +224,32 @@ apiClient.interceptors.request.use(
     return config;
   },
   (err) => Promise.reject(err),
+);
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (err) => {
+    const status = err?.response?.status;
+    const requestConfig = err?.config || {};
+    const moduleName = requestConfig.contextModule || getModuleFromUrl(requestConfig.url);
+    const token = getAccessToken(moduleName);
+    const hasSession = hasStoredSession(moduleName);
+
+    if ((status === 401 || status === 403) && hasSession && !token) {
+      clearStaleSessionForModule(moduleName);
+    } else if (
+      status === 403 &&
+      moduleName === 'user' &&
+      hasSession &&
+      isUserAuthCriticalRequest(requestConfig)
+    ) {
+      clearStaleSessionForModule(moduleName);
+    } else if (status === 403 && typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('accessDenied', { detail: { module: moduleName } }));
+    }
+
+    return Promise.reject(err);
+  },
 );
 
 export default apiClient;

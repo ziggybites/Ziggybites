@@ -644,6 +644,7 @@ export default function FeeSettings() {
           )}
         </div>
       </div>
+
     </div>
   )
 }

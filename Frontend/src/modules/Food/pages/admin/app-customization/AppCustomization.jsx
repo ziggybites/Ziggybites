@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { CalendarClock, CheckCircle2, FileText, Loader2, Palette, Save, Settings2, ShoppingCart, Utensils, UtensilsCrossed } from "lucide-react"
+import { AlertTriangle, CalendarClock, CheckCircle2, FileText, Loader2, Palette, Save, Settings2, ShoppingCart, Utensils, UtensilsCrossed } from "lucide-react"
 import { Button } from "@food/components/ui/button"
 import { adminAPI } from "@food/api"
 import { toast } from "sonner"
@@ -96,6 +96,7 @@ export default function AppCustomization() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [resettingFinance, setResettingFinance] = useState(false)
   const [activePanel, setActivePanel] = useState("flows")
   const themeColorValid = /^#[0-9a-f]{6}$/i.test(settings.theme.primaryColor)
 
@@ -185,6 +186,39 @@ export default function AppCustomization() {
     }
   }
 
+  const handleResetFinanceData = async () => {
+    const confirmation = window.prompt(
+      "Type RESET FINANCE to clear all payment records, wallet balances, withdrawals, bonus entries, and finance ledgers from the database."
+    )
+
+    if (confirmation === null) return
+
+    if (String(confirmation).trim().toUpperCase() !== "RESET FINANCE") {
+      toast.error("Reset cancelled. You must type RESET FINANCE exactly.")
+      return
+    }
+
+    try {
+      setResettingFinance(true)
+      const response = await adminAPI.resetAllFinanceData("RESET FINANCE")
+
+      try {
+        localStorage.removeItem("restaurant_wallet_state")
+        window.dispatchEvent(new CustomEvent("walletStateUpdated"))
+      } catch {}
+
+      if (response?.data?.success) {
+        toast.success("All payment and finance data cleared successfully")
+      } else {
+        toast.error(response?.data?.message || "Failed to clear finance data")
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to clear finance data")
+    } finally {
+      setResettingFinance(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 p-4 lg:p-6">
       <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -215,7 +249,7 @@ export default function AppCustomization() {
         ) : (
           <div className="space-y-6">
             <div className="flex flex-wrap gap-2 rounded-lg bg-slate-100 p-1">
-              {[
+              {[  
                 { id: "flows", label: "Flows", icon: Settings2 },
                 { id: "theme", label: "Theme", icon: Palette },
               ].map((panel) => {
@@ -241,8 +275,8 @@ export default function AppCustomization() {
               <>
                 <ToggleRow
                   icon={ShoppingCart}
-                  title="Normal order flow"
-                  description="When off, cart access is hidden and users cannot place regular restaurant orders."
+                  title="Normal app flow"
+                  description="When off, regular app ordering stays disabled and users cannot place normal restaurant orders."
                   checked={settings.normalOrderFlowEnabled}
                   onChange={(value) => updateRoot("normalOrderFlowEnabled", value)}
                 />
@@ -328,7 +362,7 @@ export default function AppCustomization() {
                   </p>
                 </div>
               </>
-            ) : (
+            ) : activePanel === "theme" ? (
               <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
                 <div className="rounded-lg border border-slate-200 p-4">
                   <div className="mb-5 flex items-start gap-3">
@@ -403,9 +437,55 @@ export default function AppCustomization() {
                   </div>
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         )}
+      </div>
+
+      <div className="mt-6 overflow-hidden rounded-xl border border-red-200 bg-white shadow-sm">
+        <div className="border-b border-red-100 bg-gradient-to-r from-red-50 to-orange-50 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-100 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Finance Reset</h2>
+              <p className="text-sm text-slate-600">
+                Clear payment and wallet data so you can test the full finance flow again from the start.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="px-6 py-5">
+          <div className="rounded-xl border border-red-200 bg-red-50/70 p-4">
+            <p className="text-sm font-semibold text-red-700">This removes finance data only.</p>
+            <p className="mt-2 text-sm text-slate-700">
+              It clears payments, wallet ledgers, order finance transactions, webhook logs, withdrawals, cash deposits, delivery bonus transactions, and resets all wallet balances to zero.
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Orders, users, restaurants, and delivery partners remain in the database.
+            </p>
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={handleResetFinanceData}
+                disabled={resettingFinance}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                {resettingFinance ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Clearing Finance...
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="mr-2 h-4 w-4" />
+                    Clear All Finance Data
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

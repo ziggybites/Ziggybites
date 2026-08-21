@@ -32,6 +32,12 @@ import { FoodRestaurantWithdrawal } from '../../restaurant/models/foodRestaurant
 import { FoodDeliveryWithdrawal } from '../../delivery/models/foodDeliveryWithdrawal.model.js';
 import { FoodDeliveryWallet } from '../../delivery/models/deliveryWallet.model.js';
 import { FoodDeliveryCashDeposit } from '../../delivery/models/foodDeliveryCashDeposit.model.js';
+import { FoodUserWallet } from '../../user/models/userWallet.model.js';
+import { FoodRestaurantWallet } from '../../restaurant/models/restaurantWallet.model.js';
+import { FoodAdminWallet } from '../models/adminWallet.model.js';
+import { Payment } from '../../../../core/payments/models/payment.model.js';
+import { Transaction } from '../../../../core/payments/models/transaction.model.js';
+import { PaymentWebhookEvent } from '../../../../core/payments/models/webhookEvent.model.js';
 import {
     backfillLegacyCategoryWorkflow,
     categoryAllowsFoodType,
@@ -1941,6 +1947,91 @@ export async function upsertFeeSettings(body) {
 
     const created = await FoodFeeSettings.create(payload);
     return created.toObject();
+}
+
+export async function resetAllFinanceData() {
+    const deleteResults = await Promise.all([
+        Payment.deleteMany({}),
+        Transaction.deleteMany({}),
+        PaymentWebhookEvent.deleteMany({}),
+        FoodTransaction.deleteMany({}),
+        FoodRestaurantWithdrawal.deleteMany({}),
+        FoodDeliveryWithdrawal.deleteMany({}),
+        FoodDeliveryCashDeposit.deleteMany({}),
+        DeliveryBonusTransaction.deleteMany({}),
+        mongoose.connection.db.collection('food_order_payments').deleteMany({})
+    ]);
+
+    const walletResetResults = await Promise.all([
+        FoodUserWallet.updateMany(
+            {},
+            {
+                $set: {
+                    balance: 0,
+                    referralEarnings: 0,
+                    transactions: []
+                }
+            }
+        ),
+        FoodRestaurantWallet.updateMany(
+            {},
+            {
+                $set: {
+                    balance: 0,
+                    lockedAmount: 0,
+                    totalEarnings: 0,
+                    totalSettled: 0
+                }
+            }
+        ),
+        FoodDeliveryWallet.updateMany(
+            {},
+            {
+                $set: {
+                    balance: 0,
+                    lockedAmount: 0,
+                    cashInHand: 0,
+                    totalEarnings: 0,
+                    totalBonus: 0,
+                    totalSettled: 0,
+                    totalDeliveries: 0
+                }
+            }
+        ),
+        FoodAdminWallet.updateMany(
+            {},
+            {
+                $set: {
+                    balance: 0,
+                    totalRevenue: 0,
+                    totalPayouts: 0,
+                    totalRefunds: 0
+                }
+            }
+        ),
+        FoodOrder.updateMany({}, { $unset: { transactionId: 1 } })
+    ]);
+
+    return {
+        deleted: {
+            payments: deleteResults[0]?.deletedCount || 0,
+            ledgerTransactions: deleteResults[1]?.deletedCount || 0,
+            webhookEvents: deleteResults[2]?.deletedCount || 0,
+            orderFinanceTransactions: deleteResults[3]?.deletedCount || 0,
+            restaurantWithdrawals: deleteResults[4]?.deletedCount || 0,
+            deliveryWithdrawals: deleteResults[5]?.deletedCount || 0,
+            cashDeposits: deleteResults[6]?.deletedCount || 0,
+            deliveryBonusTransactions: deleteResults[7]?.deletedCount || 0,
+            legacyOrderPayments: deleteResults[8]?.deletedCount || 0
+        },
+        reset: {
+            userWallets: walletResetResults[0]?.modifiedCount || 0,
+            restaurantWallets: walletResetResults[1]?.modifiedCount || 0,
+            deliveryWallets: walletResetResults[2]?.modifiedCount || 0,
+            adminWallets: walletResetResults[3]?.modifiedCount || 0,
+            ordersUnlinkedFromFinance: walletResetResults[4]?.modifiedCount || 0
+        }
+    };
 }
 
 // ----- Referral Settings (admin) -----

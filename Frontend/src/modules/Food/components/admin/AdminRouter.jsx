@@ -176,8 +176,9 @@ export default function AdminRouter() {
             <Route path="orders/payment-failed" element={<OrdersPage statusKey="payment-failed" />} />
             <Route path="orders/refunded" element={<OrdersPage statusKey="refunded" />} />
             <Route path="orders/offline-payments" element={<OrdersPage statusKey="offline-payments" />} />
-            <Route path="app-customization" element={<AppCustomization />} />
+            <Route path="app-customization" element={<Navigate to="/admin/food/dev-settings/app-settings" replace />} />
             <Route path="app-customization/time-management" element={<TimeManagement />} />
+            <Route path="dev-settings/app-settings" element={<AppCustomization />} />
             <Route path="order-detect-delivery" element={<OrderDetectDelivery />} />
             <Route path="order-refunds/new" element={<NewRefundRequests />} />
 

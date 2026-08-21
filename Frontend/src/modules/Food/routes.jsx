@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from "react-router-dom"
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom"
 import { useEffect, Suspense, lazy } from "react"
 import ProtectedRoute from "@food/components/ProtectedRoute"
 import AuthRedirect from "@food/components/AuthRedirect"
@@ -77,6 +77,50 @@ function RestaurantGlobalNotificationListener() {
   return <RestaurantGlobalNotificationListenerInner />
 }
 
+function UserAuthRecovery() {
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const isUserAuthRoute = (pathname) => {
+      const path = String(pathname || "")
+      return (
+        path === "/food/user/auth/login" ||
+        path === "/food/user/auth/otp" ||
+        path === "/food/user/auth/callback" ||
+        path === "/user/auth/login" ||
+        path === "/user/auth/otp" ||
+        path === "/user/auth/callback"
+      )
+    }
+
+    const handleUserSessionExpired = (event) => {
+      const moduleName = event?.detail?.module
+      if (moduleName && moduleName !== "user") return
+      if (event?.type === "userAuthChanged" && event?.detail?.authenticated !== false) return
+
+      const currentPath = String(window.location?.pathname || location.pathname || "")
+      if (!currentPath.startsWith("/food/user") && !currentPath.startsWith("/user")) return
+      if (isUserAuthRoute(currentPath)) return
+
+      navigate("/food/user/auth/login", {
+        replace: true,
+        state: { reason: "session_expired", from: currentPath },
+      })
+    }
+
+    window.addEventListener("authRefreshFailed", handleUserSessionExpired)
+    window.addEventListener("userAuthChanged", handleUserSessionExpired)
+
+    return () => {
+      window.removeEventListener("authRefreshFailed", handleUserSessionExpired)
+      window.removeEventListener("userAuthChanged", handleUserSessionExpired)
+    }
+  }, [location.pathname, navigate])
+
+  return null
+}
+
 export default function App() {
   const location = useLocation()
 
@@ -88,6 +132,7 @@ export default function App() {
     <AuthInitializer>
       <>
         <ScrollToTop />
+        <UserAuthRecovery />
         <RestaurantGlobalNotificationListener />
         <PushSoundEnableButton />
         <Suspense fallback={<Loader />}>

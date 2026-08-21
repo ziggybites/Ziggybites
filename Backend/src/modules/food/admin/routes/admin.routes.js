@@ -167,6 +167,7 @@ router.delete('/feedback-experiences/:id', feedbackExperienceController.deleteFe
 // ----- Fee Settings -----
 router.get('/fee-settings', adminController.getFeeSettings);
 router.put('/fee-settings', adminController.createOrUpdateFeeSettings);
+router.post('/fee-settings/reset-finance', adminController.resetAllFinanceData);
 
 // ----- Referral Settings -----
 router.get('/referral-settings', adminController.getReferralSettings);
