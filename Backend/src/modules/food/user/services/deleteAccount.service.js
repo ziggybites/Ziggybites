@@ -32,13 +32,13 @@ export async function deleteUserAccount(userId) {
             {
                 $group: {
                     _id: null,
-                    totalAmount: { $sum: { $ifNull: ['$pricing.total', 0] } },
+                    totalAmount: { $sum: { $ifNull: ['$totalAmount', { $ifNull: ['$pricing.total', 0] }] } },
                     count: { $sum: 1 },
                     pendingRefunds: {
                         $sum: {
                             $cond: [
                                 { $eq: ['$refundStatus', 'pending'] },
-                                { $ifNull: ['$pricing.total', 0] },
+                                { $ifNull: ['$totalAmount', { $ifNull: ['$pricing.total', 0] }] },
                                 0
                             ]
                         }

@@ -1,0 +1,51 @@
+[
+  {
+    "_id": "6a26614f37782036c03134ab",
+    "name": "shubham",
+    "phone": "+91 6261387233",
+    "phoneVerified": true,
+    "role": "user",
+    "signupMethod": "phone",
+    "preferences": {
+      "notifications": {
+        "orders": true,
+        "offers": true,
+        "updates": true
+      },
+      "vegMode": false,
+      "foodPreference": "healthy",
+      "language": "en"
+    },
+    "wallet": {
+      "balance": 0,
+      "currency": "INR"
+    },
+    "fcmTokens": [
+      "fg8kLFUBkX0dqMADUsMsEt:APA91bGKDzuofPi5aRvZrCHrMac8asyxXFtXi-f2tBzK9B12YLAO7LAocstuma-Yze08LDLWYr5Euiq63YwqtmzC4TR_k6gogP23n5_2o3uzNb7x-OapcRM"
+    ],
+    "fcmTokenMobile": [],
+    "fcmTokenWeb": "fg8kLFUBkX0dqMADUsMsEt:APA91bGKDzuofPi5aRvZrCHrMac8asyxXFtXi-f2tBzK9B12YLAO7LAocstuma-Yze08LDLWYr5Euiq63YwqtmzC4TR_k6gogP23n5_2o3uzNb7x-OapcRM",
+    "fcmTokenIos": null,
+    "fcmTokenAndroid": null,
+    "goldMembership": {
+      "isActive": false
+    },
+    "currentLocation": {
+      "location": {
+        "type": "Point",
+        "coordinates": [
+          0,
+          0
+        ]
+      },
+      "lastUpdated": "2026-06-08T06:29:35.183Z"
+    },
+    "isActive": true,
+    "addresses": [],
+    "paymentMethods": [],
+    "favorites": [],
+    "createdAt": "2026-06-08T06:29:35.191Z",
+    "updatedAt": "2026-06-08T06:29:41.342Z",
+    "__v": 1
+  }
+]

@@ -96,7 +96,9 @@ export async function getPartnerCashCapacity(deliveryPartnerId) {
       {
         $group: {
           _id: null,
-          grossCashCollected: { $sum: { $ifNull: ['$pricing.total', 0] } },
+          grossCashCollected: {
+            $sum: { $ifNull: ['$totalAmount', { $ifNull: ['$pricing.total', 0] }] },
+          },
         },
       },
     ]),
@@ -398,8 +400,9 @@ export async function acceptOrderDelivery(orderId, deliveryPartnerId) {
     .select('pricing payment dispatch orderStatus')
     .lean();
   if (!existingOrder) throw new NotFoundError('Order not found');
+  const existingOrderTx = await FoodTransaction.findOne({ orderId: existingOrder._id }).select('payment.method').lean();
 
-  const paymentMethod = String(existingOrder?.payment?.method || 'cash').toLowerCase();
+  const paymentMethod = String(existingOrderTx?.payment?.method || existingOrder?.payment?.method || 'cash').toLowerCase();
   const isCashOrder = paymentMethod === 'cash';
   const orderAmount = Math.max(0, Number(existingOrder?.pricing?.total || 0));
   const offeredEntry = (existingOrder?.dispatch?.offeredTo || []).find(

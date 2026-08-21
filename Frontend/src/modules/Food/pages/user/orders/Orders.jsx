@@ -4,6 +4,7 @@ import { ArrowLeft, Search, MoreVertical, ChevronRight, Star, RotateCcw, AlertCi
 import { orderAPI } from "@food/api"
 import { useCart } from "@food/context/CartContext"
 import { useOrders } from "@food/context/OrdersContext"
+import { getOrderAmountBreakdown } from "@food/utils/orderAmounts"
 import { toast } from "sonner"
 import { getCompanyNameAsync } from "@food/utils/businessSettings"
 const debugLog = (...args) => {}
@@ -570,6 +571,7 @@ Order again from this restaurant in the ${companyName} app.`
           </div>
         ) : (
           filteredOrders.map((order) => {
+            const amountBreakdown = getOrderAmountBreakdown(order)
             // Check payment method - COD/wallet orders have 'pending' status which is normal
             const isCodOrWallet = order.payment?.method === 'cash' ||
               order.payment?.method === 'cod' ||
@@ -730,28 +732,28 @@ Order again from this restaurant in the ${companyName} app.`
                 {/* Order Summary Section */}
                 <div className="px-3 sm:px-4 py-2 sm:py-3 bg-gray-50 dark:bg-[#1a1a1a] rounded-lg mx-3 sm:mx-4 mb-2">
                   <div className="space-y-1">
-                    {order.subtotal > 0 && (
+                    {amountBreakdown.subtotal > 0 && (
                       <div className="hidden sm:flex justify-between text-xs">
                         <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
-                        <span className="text-gray-800 dark:text-gray-200 font-medium">{"\u20B9"}{order.subtotal.toFixed(2)}</span>
+                        <span className="text-gray-800 dark:text-gray-200 font-medium">{"\u20B9"}{amountBreakdown.subtotal.toFixed(2)}</span>
                       </div>
                     )}
-                    {order.deliveryFee > 0 && (
+                    {amountBreakdown.deliveryFee > 0 && (
                       <div className="hidden sm:flex justify-between text-xs">
                         <span className="text-gray-600 dark:text-gray-400">Delivery Fee</span>
-                        <span className="text-gray-800 dark:text-gray-200 font-medium">{"\u20B9"}{order.deliveryFee.toFixed(2)}</span>
+                        <span className="text-gray-800 dark:text-gray-200 font-medium">{"\u20B9"}{amountBreakdown.deliveryFee.toFixed(2)}</span>
                       </div>
                     )}
-                    {order.tax > 0 && (
+                    {amountBreakdown.tax > 0 && (
                       <div className="hidden sm:flex justify-between text-xs">
                         <span className="text-gray-600 dark:text-gray-400">Tax</span>
-                        <span className="text-gray-800 dark:text-gray-200 font-medium">{"\u20B9"}{order.tax.toFixed(2)}</span>
+                        <span className="text-gray-800 dark:text-gray-200 font-medium">{"\u20B9"}{amountBreakdown.tax.toFixed(2)}</span>
                       </div>
                     )}
-                    {order.pricing?.discount > 0 && (
+                    {amountBreakdown.discount > 0 && (
                       <div className="flex justify-between text-[11px] sm:text-xs">
                         <span className="text-green-600">Discount Applied</span>
-                        <span className="text-green-600 font-medium">-{"\u20B9"}{order.pricing.discount.toFixed(2)}</span>
+                        <span className="text-green-600 font-medium">-{"\u20B9"}{amountBreakdown.discount.toFixed(2)}</span>
                       </div>
                     )}
                     {order.pricing?.couponCode && (
@@ -763,7 +765,7 @@ Order again from this restaurant in the ${companyName} app.`
                     <div className="sm:border-t border-gray-200 dark:border-gray-700 sm:pt-1.5 sm:mt-1.5">
                       <div className="flex justify-between items-center">
                         <span className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200">Total Bill</span>
-                        <span className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100">{"\u20B9"}{order.total.toFixed(2)}</span>
+                        <span className="text-base sm:text-lg font-bold text-gray-900 dark:text-gray-100">{"\u20B9"}{amountBreakdown.total.toFixed(2)}</span>
                       </div>
                     </div>
                   </div>

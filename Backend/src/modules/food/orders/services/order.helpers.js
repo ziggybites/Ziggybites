@@ -125,12 +125,42 @@ export function pushStatusHistory(order, { byRole, byId, from, to, note = "" }) 
   });
 }
 
+export function buildOrderPricingSnapshot(orderDoc) {
+  const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc || {};
+  const legacyPricing = order?.pricing || {};
+  return {
+    subtotal: Number(order?.subtotal ?? legacyPricing?.subtotal ?? 0),
+    tax: Number(order?.tax ?? legacyPricing?.tax ?? legacyPricing?.gst ?? 0),
+    packagingFee: Number(order?.packagingFee ?? legacyPricing?.packagingFee ?? 0),
+    deliveryFee: Number(order?.deliveryFee ?? legacyPricing?.deliveryFee ?? 0),
+    platformFee: Number(order?.platformFee ?? legacyPricing?.platformFee ?? 0),
+    restaurantCommission: Number(order?.restaurantCommission ?? legacyPricing?.restaurantCommission ?? 0),
+    gstOnItem: Number(order?.gstOnItem ?? legacyPricing?.gstOnItem ?? 0),
+    gstOnCommission: Number(order?.gstOnCommission ?? legacyPricing?.gstOnCommission ?? 0),
+    paymentGatewayFee: Number(order?.paymentGatewayFee ?? legacyPricing?.paymentGatewayFee ?? 0),
+    tcs: Number(order?.tcs ?? legacyPricing?.tcs ?? 0),
+    discount: Number(order?.discount ?? legacyPricing?.discount ?? 0),
+    originalTotal: Number(order?.originalTotal ?? legacyPricing?.originalTotal ?? 0),
+    payableTotal: Number(order?.payableTotal ?? legacyPricing?.payableTotal ?? 0),
+    subscriptionCreditApplied: Number(order?.subscriptionCreditApplied ?? legacyPricing?.subscriptionCreditApplied ?? 0),
+    subscriptionWalletCredit: Number(order?.subscriptionWalletCredit ?? legacyPricing?.subscriptionWalletCredit ?? 0),
+    itemDiscount: Number(order?.itemDiscount ?? legacyPricing?.itemDiscount ?? 0),
+    couponDiscount: Number(order?.couponDiscount ?? legacyPricing?.couponDiscount ?? 0),
+    total: Number(order?.totalAmount ?? order?.total ?? legacyPricing?.total ?? 0),
+    currency: String(order?.currency ?? legacyPricing?.currency ?? 'INR'),
+    couponCode: String(order?.couponCode ?? legacyPricing?.couponCode ?? ''),
+  };
+}
+
 export function normalizeOrderForClient(orderDoc) {
   const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc || {};
   const mongoId = (order._id || orderDoc?._id || "").toString();
   const displayId = order.order_id || mongoId;
+  const pricing = buildOrderPricingSnapshot(order);
   return {
     ...order,
+    pricing,
+    total: pricing.total,
     orderMongoId: mongoId,
     orderId: displayId,
     status: order?.orderStatus || order?.status || "",
@@ -172,6 +202,7 @@ export async function applyAggregateRating(model, entityId, newRating) {
 
 export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
   const order = orderDoc?.toObject ? orderDoc.toObject() : orderDoc || {};
+  const pricing = buildOrderPricingSnapshot(order);
   const restaurant = restaurantDoc || order?.restaurantId || null;
   const restaurantLocation = restaurant?.location || {};
   const deliveryAddress = order?.deliveryAddress || {};
@@ -191,8 +222,8 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
     orderId: order?.order_id || order?._id?.toString?.(),
     status: orderDoc?.orderStatus || order?.orderStatus,
     items: order?.items || [],
-    pricing: order?.pricing,
-    total: order?.pricing?.total,
+    pricing,
+    total: pricing.total,
     payment: order?.payment,
     paymentMethod: order?.payment?.method,
     restaurantId:
@@ -227,8 +258,8 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
     note: order?.note || "",
     riderEarning: order?.riderEarning || 0,
     deliveryBonusAmount: order?.deliveryBonusAmount || 0,
-    earnings: order?.riderEarning || order?.pricing?.deliveryFee || 0,
-    deliveryFee: order?.pricing?.deliveryFee || 0,
+    earnings: order?.riderEarning || pricing.deliveryFee || 0,
+    deliveryFee: pricing.deliveryFee || 0,
     deliveryFleet: order?.deliveryFleet,
     dispatch: order?.dispatch,
     createdAt: order?.createdAt,

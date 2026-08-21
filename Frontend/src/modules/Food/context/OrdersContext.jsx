@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react"
 import { orderAPI } from "@food/api"
 import { isModuleAuthenticated } from "@food/utils/auth"
+import { getOrderAmountBreakdown } from "@food/utils/orderAmounts"
 import { writeArrayStorage } from "../../../core/storage/localStorage.js"
 
 const OrdersContext = createContext(null)
@@ -52,6 +53,7 @@ const hasFreshOrdersCache = () =>
 
 const transformOrders = (ordersData = []) => {
   const transformedOrders = ordersData.map((order) => {
+    const amountBreakdown = getOrderAmountBreakdown(order)
     const createdAt = order.createdAt ? new Date(order.createdAt) : new Date()
     const backendStatus = order.orderStatus || order.status
     const isCancelled =
@@ -99,10 +101,15 @@ const transformOrders = (ordersData = []) => {
         _id: item._id || item.id,
         id: item.id || item._id,
       })),
-      total: order.pricing?.total || order.total || 0,
-      subtotal: order.pricing?.subtotal || 0,
-      deliveryFee: order.pricing?.deliveryFee || 0,
-      tax: order.pricing?.tax || 0,
+      total: amountBreakdown.total,
+      totalAmount: amountBreakdown.total,
+      subtotal: amountBreakdown.subtotal,
+      deliveryFee: amountBreakdown.deliveryFee,
+      packagingFee: amountBreakdown.packagingFee,
+      platformFee: amountBreakdown.platformFee,
+      tax: amountBreakdown.tax,
+      gst: amountBreakdown.gst,
+      discount: amountBreakdown.discount,
       pricing: order.pricing || {},
       payment: order.payment || {},
       paymentMethod: order.payment?.method || order.paymentMethod,

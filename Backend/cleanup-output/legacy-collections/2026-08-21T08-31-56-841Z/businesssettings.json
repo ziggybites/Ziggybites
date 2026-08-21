@@ -1,0 +1,34 @@
+[
+  {
+    "_id": "6a25155fa69e7a8a66829f2f",
+    "companyName": "ZiggyBites",
+    "email": "info@ziggybites.com",
+    "region": "India",
+    "phone": {
+      "countryCode": "+91",
+      "number": ""
+    },
+    "address": "",
+    "state": "",
+    "pincode": "",
+    "logo": {
+      "url": "",
+      "publicId": ""
+    },
+    "favicon": {
+      "url": "",
+      "publicId": ""
+    },
+    "maintenanceMode": {
+      "isEnabled": false,
+      "startDate": null,
+      "endDate": null
+    },
+    "deliveryCashLimit": 750,
+    "deliveryWithdrawalLimit": 100,
+    "updatedBy": null,
+    "createdAt": "2026-06-07T06:53:19.873Z",
+    "updatedAt": "2026-06-07T06:53:19.873Z",
+    "__v": 0
+  }
+]

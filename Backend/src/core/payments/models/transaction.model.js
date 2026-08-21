@@ -86,7 +86,7 @@ const transactionSchema = new mongoose.Schema(
 
         metadata: { type: mongoose.Schema.Types.Mixed, default: undefined }
     },
-    { collection: 'transactions', timestamps: true }
+    { collection: 'payment_transactions', timestamps: true }
 );
 
 transactionSchema.index({ entityType: 1, entityId: 1, createdAt: -1 });

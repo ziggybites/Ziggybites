@@ -20,6 +20,7 @@ import { toast } from "sonner"
 import { jsPDF } from "jspdf"
 import autoTable from "jspdf-autotable"
 import { getCompanyNameAsync, loadBusinessSettings } from "@food/utils/businessSettings"
+import { getOrderAmountBreakdown } from "@food/utils/orderAmounts"
 import { downloadFile } from "@/shared/utils/downloadUtils"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
@@ -173,7 +174,8 @@ export default function UserOrderDetails() {
   })()
 
   const items = Array.isArray(order.items) ? order.items : []
-  const pricing = order.pricing || {}
+  const amountBreakdown = getOrderAmountBreakdown(order)
+  const pricing = { ...(order.pricing || {}), ...amountBreakdown }
   const sendsCutlery = order.sendCutlery !== false
 
   const userName = order.userName || ""
@@ -205,10 +207,7 @@ export default function UserOrderDetails() {
       .filter(Boolean)
       .join(", ")
 
-  const savings =
-    (pricing.discount || 0) +
-    (pricing.originalItemTotal || 0) -
-    (pricing.subtotal || 0)
+  const savings = amountBreakdown.discount
 
   // Restaurant phone (multiple fallbacks) - use fetched restaurant data first
   const restaurantPhone =
@@ -370,13 +369,7 @@ export default function UserOrderDetails() {
       doc.setFont("helvetica", "normal");
       doc.setTextColor(...secondaryColor);
       
-      const subtotal = Number(pricing.subtotal || pricing.total || 0);
-      const tax = Number(pricing.tax || 0);
-      const deliveryFee = Number(pricing.deliveryFee || 0);
-      const platformFee = Number(pricing.platformFee || 0);
-      const subscriptionFee = Number(pricing.subscriptionFee || 0);
-      const discount = (Number(pricing.discount) || 0) + (Number(pricing.originalItemTotal) || 0) - (Number(pricing.subtotal) || 0);
-      const total = Number(pricing.total || 0);
+      const { subtotal, tax, deliveryFee, platformFee, subscriptionFee, discount, total } = amountBreakdown;
 
       doc.text("Item Total:", 140, yPos);
       doc.text(`Rs. ${subtotal.toFixed(2)}`, totalWidth, yPos, { align: "right" });

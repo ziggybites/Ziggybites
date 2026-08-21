@@ -39,29 +39,7 @@ const deliveryAddressSchema = new mongoose.Schema(
     { _id: false }
 );
 
-const pricingSchema = new mongoose.Schema(
-    {
-        subtotal: { type: Number, required: true, min: 0 },
-        tax: { type: Number, default: 0, min: 0 },
-        packagingFee: { type: Number, default: 0, min: 0 },
-        deliveryFee: { type: Number, default: 0, min: 0 },
-        platformFee: { type: Number, default: 0, min: 0 },
-        restaurantCommission: { type: Number, default: 0, min: 0 },
-        gstOnItem: { type: Number, default: 0, min: 0 },
-        gstOnCommission: { type: Number, default: 0, min: 0 },
-        paymentGatewayFee: { type: Number, default: 0, min: 0 },
-        tcs: { type: Number, default: 0, min: 0 },
-        discount: { type: Number, default: 0, min: 0 },
-        originalTotal: { type: Number, default: 0, min: 0 },
-        payableTotal: { type: Number, default: 0, min: 0 },
-        subscriptionCreditApplied: { type: Number, default: 0, min: 0 },
-        subscriptionWalletCredit: { type: Number, default: 0, min: 0 },
-        total: { type: Number, required: true, min: 0 },
-        currency: { type: String, default: 'INR' }
-    },
-    { _id: false }
-);
-
+/* Legacy unused payment schema retained only as a commented block during cleanup.
 const paymentSchema = new mongoose.Schema(
     {
         method: {
@@ -115,6 +93,7 @@ const paymentSchema = new mongoose.Schema(
     },
     { _id: false }
 );
+*/
 
 const subscriptionUsageSchema = new mongoose.Schema(
     {
@@ -155,6 +134,34 @@ const dispatchSchema = new mongoose.Schema(
     },
     { _id: false }
 );
+
+function applyLegacyPricingToTopLevel(target = {}) {
+    const pricing = target?.pricing || {};
+    if (!pricing || typeof pricing !== 'object') return target;
+
+    if (target.subtotal == null) target.subtotal = Number(pricing.subtotal || 0);
+    if (target.tax == null) target.tax = Number(pricing.tax || 0);
+    if (target.packagingFee == null) target.packagingFee = Number(pricing.packagingFee || 0);
+    if (target.deliveryFee == null) target.deliveryFee = Number(pricing.deliveryFee || 0);
+    if (target.platformFee == null) target.platformFee = Number(pricing.platformFee || 0);
+    if (target.restaurantCommission == null) target.restaurantCommission = Number(pricing.restaurantCommission || 0);
+    if (target.gstOnItem == null) target.gstOnItem = Number(pricing.gstOnItem || 0);
+    if (target.gstOnCommission == null) target.gstOnCommission = Number(pricing.gstOnCommission || 0);
+    if (target.paymentGatewayFee == null) target.paymentGatewayFee = Number(pricing.paymentGatewayFee || 0);
+    if (target.tcs == null) target.tcs = Number(pricing.tcs || 0);
+    if (target.discount == null) target.discount = Number(pricing.discount || 0);
+    if (target.originalTotal == null) target.originalTotal = Number(pricing.originalTotal || 0);
+    if (target.payableTotal == null) target.payableTotal = Number(pricing.payableTotal || 0);
+    if (target.subscriptionCreditApplied == null) target.subscriptionCreditApplied = Number(pricing.subscriptionCreditApplied || 0);
+    if (target.subscriptionWalletCredit == null) target.subscriptionWalletCredit = Number(pricing.subscriptionWalletCredit || 0);
+    if (target.itemDiscount == null) target.itemDiscount = Number(pricing.itemDiscount || 0);
+    if (target.couponDiscount == null) target.couponDiscount = Number(pricing.couponDiscount || 0);
+    if (target.totalAmount == null) target.totalAmount = Number(pricing.total || 0);
+    if (!target.currency) target.currency = String(pricing.currency || 'INR');
+    if (!target.couponCode) target.couponCode = String(pricing.couponCode || '');
+
+    return target;
+}
 
 const deliveryStateSchema = new mongoose.Schema(
     {
@@ -269,18 +276,26 @@ const orderSchema = new mongoose.Schema(
         },
         customerName: { type: String, default: '', trim: true },
         customerPhone: { type: String, default: '', trim: true },
-        pricing: {
-            type: pricingSchema,
-            required: false
-        },
-        /**
-         * Denormalized payment snapshot for fast reads & legacy clients.
-         * Authoritative audit trail: collection `food_order_payments` (FoodOrderPayment model).
-         */
-        payment: {
-            type: paymentSchema,
-            required: false
-        },
+        subtotal: { type: Number, default: 0, min: 0 },
+        tax: { type: Number, default: 0, min: 0 },
+        packagingFee: { type: Number, default: 0, min: 0 },
+        deliveryFee: { type: Number, default: 0, min: 0 },
+        platformFee: { type: Number, default: 0, min: 0 },
+        restaurantCommission: { type: Number, default: 0, min: 0 },
+        gstOnItem: { type: Number, default: 0, min: 0 },
+        gstOnCommission: { type: Number, default: 0, min: 0 },
+        paymentGatewayFee: { type: Number, default: 0, min: 0 },
+        tcs: { type: Number, default: 0, min: 0 },
+        discount: { type: Number, default: 0, min: 0 },
+        originalTotal: { type: Number, default: 0, min: 0 },
+        payableTotal: { type: Number, default: 0, min: 0 },
+        subscriptionCreditApplied: { type: Number, default: 0, min: 0 },
+        subscriptionWalletCredit: { type: Number, default: 0, min: 0 },
+        itemDiscount: { type: Number, default: 0, min: 0 },
+        couponDiscount: { type: Number, default: 0, min: 0 },
+        totalAmount: { type: Number, default: 0, min: 0 },
+        currency: { type: String, default: 'INR', trim: true },
+        couponCode: { type: String, default: '', trim: true },
         subscriptionUsage: {
             type: subscriptionUsageSchema,
             required: false
@@ -343,9 +358,60 @@ const orderSchema = new mongoose.Schema(
     },
     {
         collection: 'food_orders',
-        timestamps: true
+        timestamps: true,
+        toJSON: { virtuals: false },
+        toObject: { virtuals: false }
     }
 );
+
+orderSchema.virtual('pricing')
+    .get(function () {
+        return {
+            subtotal: Number(this.subtotal || 0),
+            tax: Number(this.tax || 0),
+            packagingFee: Number(this.packagingFee || 0),
+            deliveryFee: Number(this.deliveryFee || 0),
+            platformFee: Number(this.platformFee || 0),
+            restaurantCommission: Number(this.restaurantCommission || 0),
+            gstOnItem: Number(this.gstOnItem || 0),
+            gstOnCommission: Number(this.gstOnCommission || 0),
+            paymentGatewayFee: Number(this.paymentGatewayFee || 0),
+            tcs: Number(this.tcs || 0),
+            discount: Number(this.discount || 0),
+            originalTotal: Number(this.originalTotal || 0),
+            payableTotal: Number(this.payableTotal || 0),
+            subscriptionCreditApplied: Number(this.subscriptionCreditApplied || 0),
+            subscriptionWalletCredit: Number(this.subscriptionWalletCredit || 0),
+            itemDiscount: Number(this.itemDiscount || 0),
+            couponDiscount: Number(this.couponDiscount || 0),
+            total: Number(this.totalAmount || 0),
+            currency: String(this.currency || 'INR'),
+            couponCode: this.couponCode || '',
+        };
+    })
+    .set(function (value) {
+        const pricing = value || {};
+        this.subtotal = Number(pricing.subtotal || 0);
+        this.tax = Number(pricing.tax || 0);
+        this.packagingFee = Number(pricing.packagingFee || 0);
+        this.deliveryFee = Number(pricing.deliveryFee || 0);
+        this.platformFee = Number(pricing.platformFee || 0);
+        this.restaurantCommission = Number(pricing.restaurantCommission || 0);
+        this.gstOnItem = Number(pricing.gstOnItem || 0);
+        this.gstOnCommission = Number(pricing.gstOnCommission || 0);
+        this.paymentGatewayFee = Number(pricing.paymentGatewayFee || 0);
+        this.tcs = Number(pricing.tcs || 0);
+        this.discount = Number(pricing.discount || 0);
+        this.originalTotal = Number(pricing.originalTotal || 0);
+        this.payableTotal = Number(pricing.payableTotal || 0);
+        this.subscriptionCreditApplied = Number(pricing.subscriptionCreditApplied || 0);
+        this.subscriptionWalletCredit = Number(pricing.subscriptionWalletCredit || 0);
+        this.itemDiscount = Number(pricing.itemDiscount || 0);
+        this.couponDiscount = Number(pricing.couponDiscount || 0);
+        this.totalAmount = Number(pricing.total || 0);
+        this.currency = String(pricing.currency || 'INR');
+        this.couponCode = String(pricing.couponCode || '');
+    });
 
 orderSchema.index({ 'deliveryAddress.location': '2dsphere' });
 orderSchema.index({ lastRiderLocation: '2dsphere' });
@@ -355,8 +421,10 @@ orderSchema.index({ 'dispatch.deliveryPartnerId': 1, orderStatus: 1 });
 orderSchema.index({ 'dispatch.status': 1, orderStatus: 1 });
 orderSchema.index({ 'dispatch.status': 1, orderStatus: 1, updatedAt: -1 });
 orderSchema.index({ 'dispatch.deliveryPartnerId': 1, 'dispatch.status': 1, updatedAt: -1 });
-orderSchema.index({ 'payment.status': 1, createdAt: -1 });
-orderSchema.index({ 'payment.method': 1, createdAt: -1 });
+
+orderSchema.pre('init', function (data) {
+    applyLegacyPricingToTopLevel(data);
+});
 
 orderSchema.pre('save', async function (next) {
     if (!this.order_id) {

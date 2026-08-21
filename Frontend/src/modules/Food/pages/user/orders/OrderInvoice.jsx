@@ -7,6 +7,7 @@ import { Button } from "@food/components/ui/button"
 import { useOrders } from "@food/context/OrdersContext"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import { orderAPI } from "@food/api"
+import { applyOrderAmountBreakdown, getOrderAmountBreakdown } from "@food/utils/orderAmounts"
 import { jsPDF } from "jspdf"
 import html2canvas from "html2canvas"
 import { downloadFile } from "@/shared/utils/downloadUtils"
@@ -32,7 +33,10 @@ export default function OrderInvoice() {
   const companyName = useCompanyName()
   const { orderId } = useParams()
   const { getOrderById } = useOrders()
-  const [order, setOrder] = useState(() => getOrderById(orderId))
+  const [order, setOrder] = useState(() => {
+    const cachedOrder = getOrderById(orderId)
+    return cachedOrder ? applyOrderAmountBreakdown(cachedOrder) : cachedOrder
+  })
   const [loading, setLoading] = useState(!order)
   const [error, setError] = useState(null)
   const invoiceRef = useRef(null)
@@ -45,7 +49,7 @@ export default function OrderInvoice() {
         setLoading(true)
         const response = await orderAPI.getOrderDetails(orderId)
         if (response.data?.success && response.data.data?.order) {
-          setOrder(response.data.data.order)
+          setOrder(applyOrderAmountBreakdown(response.data.data.order))
         } else {
           setError("Order not found")
         }
@@ -153,7 +157,8 @@ export default function OrderInvoice() {
 
   const rest = order.restaurant || {};
   const custAddress = order.address || {};
-  const totalRounded = Math.round(order.total || 0);
+  const amountBreakdown = getOrderAmountBreakdown(order)
+  const totalRounded = Math.round(amountBreakdown.total || 0);
 
   return (
     <AnimatedPage className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] p-4">

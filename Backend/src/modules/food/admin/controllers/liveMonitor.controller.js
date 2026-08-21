@@ -42,7 +42,13 @@ export async function getLiveMonitorStatus(req, res, next) {
                     $sum: { $cond: [{ $in: ['$orderStatus', ['cancelled_by_restaurant', 'cancelled_by_admin', 'cancelled_by_user', 'dead']] }, 1, 0] }
                 },
                 revenue: {
-                    $sum: { $cond: [{ $eq: ['$orderStatus', 'delivered'] }, { $ifNull: ['$pricing.total', 0] }, 0] }
+                    $sum: {
+                        $cond: [
+                            { $eq: ['$orderStatus', 'delivered'] },
+                            { $ifNull: ['$totalAmount', { $ifNull: ['$pricing.total', 0] }] },
+                            0
+                        ]
+                    }
                 }
             }}
         ]);

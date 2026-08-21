@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { FoodOrder, FoodSettings } from '../models/order.model.js';
+import { FoodTransaction } from '../models/foodTransaction.model.js';
 import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
 import { FoodDeliveryPartner } from '../../delivery/models/deliveryPartner.model.js';
 import { FoodDeliveryCashDeposit } from '../../delivery/models/foodDeliveryCashDeposit.model.js';
@@ -174,7 +175,8 @@ export async function tryAutoAssign(orderId, options = {}) {
 
   try {
     const offeredIds = (order.dispatch?.offeredTo || []).map(o => o.partnerId.toString());
-    const paymentMethod = String(order.payment?.method || 'cash').toLowerCase();
+    const orderTx = await FoodTransaction.findOne({ orderId: order._id }).select('payment.method').lean();
+    const paymentMethod = String(orderTx?.payment?.method || order.payment?.method || 'cash').toLowerCase();
     const isCashOrder = paymentMethod === 'cash';
     const requiredAmount = isCashOrder ? Number(order?.pricing?.total || 0) : 0;
     
@@ -445,7 +447,8 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     await order.save();
   }
 
-  const paymentMethod = String(order.payment?.method || 'cash').toLowerCase();
+  const orderTx = await FoodTransaction.findOne({ orderId: order._id }).select('payment.method').lean();
+  const paymentMethod = String(orderTx?.payment?.method || order.payment?.method || 'cash').toLowerCase();
   const requiredAmount = paymentMethod === 'cash' ? Number(order?.pricing?.total || 0) : 0;
   const preview = await listNearbyOnlineDeliveryPartners(order.restaurantId, {
     maxKm: 15,

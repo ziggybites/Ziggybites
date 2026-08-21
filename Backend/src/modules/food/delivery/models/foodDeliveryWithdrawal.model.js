@@ -35,7 +35,7 @@ const foodDeliveryWithdrawalSchema = new mongoose.Schema({
     transactionId: String, // Final bank transaction reference from admin
     processedAt: Date
 }, { 
-    collection: 'food_delivery_withdrawals', 
+    collection: 'payment_delivery_withdrawals', 
     timestamps: true 
 });
 

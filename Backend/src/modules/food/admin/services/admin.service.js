@@ -38,6 +38,7 @@ import { FoodAdminWallet } from '../models/adminWallet.model.js';
 import { Payment } from '../../../../core/payments/models/payment.model.js';
 import { Transaction } from '../../../../core/payments/models/transaction.model.js';
 import { PaymentWebhookEvent } from '../../../../core/payments/models/webhookEvent.model.js';
+import { FoodSubscriptionSchedule } from '../../subscription/models/subscriptionSchedule.model.js';
 import {
     backfillLegacyCategoryWorkflow,
     categoryAllowsFoodType,
@@ -324,6 +325,13 @@ const PENDING_ORDER_STATUSES = ['created', 'confirmed', 'preparing', 'ready_for_
 const DASHBOARD_PENDING_ORDER_STATUSES = ['created', 'confirmed'];
 const DASHBOARD_PROCESSING_ORDER_STATUSES = ['preparing', 'ready_for_pickup'];
 const DELIVERED_ORDER_STATUS_EXPR = { $eq: ['$orderStatus', 'delivered'] };
+const ORDER_SUBTOTAL_EXPR = { $ifNull: ['$subtotal', { $ifNull: ['$pricing.subtotal', 0] }] };
+const ORDER_PACKAGING_FEE_EXPR = { $ifNull: ['$packagingFee', { $ifNull: ['$pricing.packagingFee', 0] }] };
+const ORDER_DELIVERY_FEE_EXPR = { $ifNull: ['$deliveryFee', { $ifNull: ['$pricing.deliveryFee', 0] }] };
+const ORDER_PLATFORM_FEE_EXPR = { $ifNull: ['$platformFee', { $ifNull: ['$pricing.platformFee', 0] }] };
+const ORDER_TAX_EXPR = { $ifNull: ['$tax', { $ifNull: ['$pricing.tax', 0] }] };
+const ORDER_DISCOUNT_EXPR = { $ifNull: ['$discount', { $ifNull: ['$pricing.discount', 0] }] };
+const ORDER_TOTAL_EXPR = { $ifNull: ['$totalAmount', { $ifNull: ['$pricing.total', 0] }] };
 const DASHBOARD_DERIVED_PLATFORM_FEE_EXPR = {
     $max: [
         0,
@@ -335,20 +343,20 @@ const DASHBOARD_DERIVED_PLATFORM_FEE_EXPR = {
                             $subtract: [
                                 {
                                     $subtract: [
-                                        { $ifNull: ['$pricing.total', 0] },
-                                        { $ifNull: ['$pricing.subtotal', 0] }
+                                        ORDER_TOTAL_EXPR,
+                                        ORDER_SUBTOTAL_EXPR
                                     ]
                                 },
-                                { $ifNull: ['$pricing.packagingFee', 0] }
+                                ORDER_PACKAGING_FEE_EXPR
                             ]
                         },
-                        { $ifNull: ['$pricing.deliveryFee', 0] }
+                        ORDER_DELIVERY_FEE_EXPR
                     ]
                 },
                 {
                     $subtract: [
-                        { $ifNull: ['$pricing.tax', 0] },
-                        { $ifNull: ['$pricing.discount', 0] }
+                        ORDER_TAX_EXPR,
+                        ORDER_DISCOUNT_EXPR
                     ]
                 }
             ]
@@ -356,15 +364,20 @@ const DASHBOARD_DERIVED_PLATFORM_FEE_EXPR = {
     ]
 };
 const DASHBOARD_PLATFORM_FEE_EXPR = {
-    $ifNull: ['$pricing.platformFee', DASHBOARD_DERIVED_PLATFORM_FEE_EXPR]
+    $ifNull: ['$platformFee', { $ifNull: ['$pricing.platformFee', DASHBOARD_DERIVED_PLATFORM_FEE_EXPR] }]
 };
 const DASHBOARD_DELIVERY_FEE_EXPR = {
     $ifNull: [
-        '$pricing.deliveryFee',
+        '$deliveryFee',
         {
             $ifNull: [
-                '$deliveryPartnerSettlement',
-                { $ifNull: ['$riderEarning', 0] }
+                '$pricing.deliveryFee',
+                {
+                    $ifNull: [
+                        '$deliveryPartnerSettlement',
+                        { $ifNull: ['$riderEarning', 0] }
+                    ]
+                }
             ]
         }
     ]
@@ -441,9 +454,19 @@ export async function getDashboardStats(query = {}) {
     const zoneScopedRestaurantMatch = zoneId
         ? { restaurantId: { $in: zoneRestaurantIds || [] } }
         : {};
+    const financeMatch = {
+        status: { $in: ['captured', 'authorized', 'settled'] }
+    };
+    if (periodRange) {
+        financeMatch.createdAt = { $gte: periodRange.start, $lte: periodRange.end };
+    }
+    if (zoneRestaurantIds) {
+        financeMatch.restaurantId = { $in: zoneRestaurantIds || [] };
+    }
 
     const [
         orderTotalsAgg,
+        financeTotalsAgg,
         monthlyAgg,
         restaurantsTotal,
         restaurantsPending,
@@ -485,44 +508,38 @@ export async function getDashboardStats(query = {}) {
                         $sum: {
                             $cond: [{ $in: ['$orderStatus', DASHBOARD_PROCESSING_ORDER_STATUSES] }, 1, 0]
                         }
-                    },
-                    revenueTotal: { 
-                        $sum: { 
-                            $cond: [DELIVERED_ORDER_STATUS_EXPR, { $ifNull: ['$pricing.total', 0] }, 0] 
-                        } 
-                    },
-                    commissionTotal: { 
-                        $sum: { 
-                            $cond: [DELIVERED_ORDER_STATUS_EXPR, { $ifNull: ['$pricing.restaurantCommission', 0] }, 0] 
-                        } 
-                    },
-                    platformFeeTotal: { 
-                        $sum: { 
-                            $cond: [DELIVERED_ORDER_STATUS_EXPR, DASHBOARD_PLATFORM_FEE_EXPR, 0] 
-                        } 
-                    },
-                    deliveryFeeTotal: { 
-                        $sum: { 
-                            $cond: [DELIVERED_ORDER_STATUS_EXPR, DASHBOARD_DELIVERY_FEE_EXPR, 0] 
-                        } 
-                    },
-                    gstTotal: { 
-                        $sum: { 
-                            $cond: [DELIVERED_ORDER_STATUS_EXPR, { $ifNull: ['$pricing.tax', 0] }, 0] 
-                        } 
-                    },
-                    adminNetProfit: { 
-                        $sum: { 
-                            $cond: [DELIVERED_ORDER_STATUS_EXPR, { $ifNull: ['$platformProfit', 0] }, 0] 
-                        } 
                     }
                 }
             }
         ]),
-        FoodOrder.aggregate([
+        FoodTransaction.aggregate([
+            { $match: financeMatch },
+            {
+                $lookup: {
+                    from: 'food_orders',
+                    localField: 'orderId',
+                    foreignField: '_id',
+                    as: 'order'
+                }
+            },
+            { $unwind: { path: '$order', preserveNullAndEmptyArrays: true } },
+            { $match: { 'order.orderStatus': 'delivered' } },
+            {
+                $group: {
+                    _id: null,
+                    revenueTotal: { $sum: { $ifNull: ['$amounts.totalCustomerPaid', 0] } },
+                    commissionTotal: { $sum: { $ifNull: ['$amounts.restaurantCommission', 0] } },
+                    platformFeeTotal: { $sum: { $ifNull: ['$pricing.platformFee', 0] } },
+                    deliveryFeeTotal: { $sum: { $ifNull: ['$pricing.deliveryFee', 0] } },
+                    gstTotal: { $sum: { $ifNull: ['$amounts.taxAmount', { $ifNull: ['$pricing.tax', 0] }] } },
+                    adminNetProfit: { $sum: { $ifNull: ['$amounts.platformNetProfit', 0] } }
+                }
+            }
+        ]),
+        FoodTransaction.aggregate([
             {
                 $match: {
-                    ...orderMatch,
+                    ...financeMatch,
                     createdAt: {
                         $gte: new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1),
                         $lte: new Date()
@@ -530,26 +547,24 @@ export async function getDashboardStats(query = {}) {
                 }
             },
             {
+                $lookup: {
+                    from: 'food_orders',
+                    localField: 'orderId',
+                    foreignField: '_id',
+                    as: 'order'
+                }
+            },
+            { $unwind: { path: '$order', preserveNullAndEmptyArrays: true } },
+            { $match: { 'order.orderStatus': 'delivered' } },
+            {
                 $group: {
                     _id: {
                         year: { $year: '$createdAt' },
                         month: { $month: '$createdAt' }
                     },
                     orders: { $sum: 1 },
-                    revenue: { 
-                        $sum: { 
-                            $cond: [{ $eq: ['$orderStatus', 'delivered'] }, { $ifNull: ['$pricing.total', 0] }, 0] 
-                        } 
-                    },
-                    commission: {
-                        $sum: {
-                            $cond: [
-                                { $eq: ['$orderStatus', 'delivered'] },
-                                { $ifNull: ['$platformProfit', { $ifNull: ['$pricing.platformFee', 0] }] },
-                                0
-                            ]
-                        }
-                    }
+                    revenue: { $sum: { $ifNull: ['$amounts.totalCustomerPaid', 0] } },
+                    commission: { $sum: { $ifNull: ['$amounts.platformNetProfit', 0] } }
                 }
             },
             { $sort: { '_id.year': 1, '_id.month': 1 } }
@@ -673,6 +688,7 @@ export async function getDashboardStats(query = {}) {
     const finalLiveSignals = liveSignals.slice(0, 15);
 
     const totals = orderTotalsAgg?.[0] || {};
+    const financeTotals = financeTotalsAgg?.[0] || {};
 
     const now = new Date();
     const monthlyMap = new Map(
@@ -706,13 +722,13 @@ export async function getDashboardStats(query = {}) {
                 pending: Number(totals.pending || 0)
             }
         },
-        revenue: { total: Number(totals.revenueTotal || 0) },
-        commission: { total: Number(totals.commissionTotal || 0) },
-        platformFee: { total: Number(totals.platformFeeTotal || 0) },
-        deliveryFee: { total: Number(totals.deliveryFeeTotal || 0) },
-        gst: { total: Number(totals.gstTotal || 0) },
-        totalAdminEarnings: Number(totals.adminNetProfit || 0) + Number(totals.gstTotal || 0),
-        deliveryProfit: Number(totals.adminNetProfit || 0) - Number(totals.commissionTotal || 0) - Number(totals.platformFeeTotal || 0),
+        revenue: { total: Number(financeTotals.revenueTotal || 0) },
+        commission: { total: Number(financeTotals.commissionTotal || 0) },
+        platformFee: { total: Number(financeTotals.platformFeeTotal || 0) },
+        deliveryFee: { total: Number(financeTotals.deliveryFeeTotal || 0) },
+        gst: { total: Number(financeTotals.gstTotal || 0) },
+        totalAdminEarnings: Number(financeTotals.adminNetProfit || 0) + Number(financeTotals.gstTotal || 0),
+        deliveryProfit: Number(financeTotals.adminNetProfit || 0) - Number(financeTotals.commissionTotal || 0) - Number(financeTotals.platformFeeTotal || 0),
         restaurants: {
             total: Number(restaurantsTotal || 0),
             pendingRequests: Number(restaurantsPending || 0)
@@ -819,7 +835,7 @@ export async function getTransactionReport(query = {}) {
                 : platformFeeDerived;
 
         const deliveryFeeUser = Number(pricing.deliveryFee || 0);
-        const deliveryCostAdmin = Number(tx.amounts?.riderShare) || Number(order.riderEarning) || 30;
+        const deliveryCostAdmin = Number(tx.amounts?.riderShare) || Number(order.riderEarning) || 0;
         const deliveryGstAdmin = deliveryCostAdmin * 0.18;
 
         return {
@@ -883,7 +899,7 @@ export async function getTransactionReport(query = {}) {
             const pricing = order.pricing || {};
             
             const deliveryFeeUser = Number(pricing.deliveryFee || 0);
-            const deliveryCostAdmin = Number(tx.amounts?.riderShare) || Number(order.riderEarning) || 30;
+            const deliveryCostAdmin = Number(tx.amounts?.riderShare) || Number(order.riderEarning) || 0;
             const deliveryGstAdmin = deliveryCostAdmin * 0.18;
             
             adminEarningBreakdown.deliveryProfit += (deliveryFeeUser - deliveryCostAdmin - deliveryGstAdmin);
@@ -1062,11 +1078,11 @@ export async function getRestaurantReport(query = {}) {
                 $group: {
                     _id: '$restaurantId',
                     totalOrder: { $sum: 1 },
-                    totalOrderAmount: { $sum: { $ifNull: ['$pricing.total', 0] } },
-                    totalDiscountGiven: { $sum: { $ifNull: ['$pricing.discount', 0] } },
-                    totalVATTAX: { $sum: { $ifNull: ['$pricing.tax', 0] } },
+                    totalOrderAmount: { $sum: ORDER_TOTAL_EXPR },
+                    totalDiscountGiven: { $sum: ORDER_DISCOUNT_EXPR },
+                    totalVATTAX: { $sum: ORDER_TAX_EXPR },
                     totalAdminCommissionFromPlatformProfit: { $sum: { $ifNull: ['$platformProfit', 0] } },
-                    totalAdminCommissionFromPlatformFee: { $sum: { $ifNull: ['$pricing.platformFee', 0] } }
+                    totalAdminCommissionFromPlatformFee: { $sum: ORDER_PLATFORM_FEE_EXPR }
                 }
             }
         ])
@@ -1142,8 +1158,8 @@ export async function getTaxReport(query = {}) {
         {
             $group: {
                 _id: '$restaurantId',
-                totalIncome: { $sum: { $ifNull: ['$pricing.total', 0] } },
-                totalTax: { $sum: { $ifNull: ['$pricing.tax', 0] } },
+                totalIncome: { $sum: ORDER_TOTAL_EXPR },
+                totalTax: { $sum: ORDER_TAX_EXPR },
                 orderCount: { $sum: 1 }
             }
         },
@@ -1292,7 +1308,7 @@ export async function getCustomers(query = {}) {
                 $group: {
                     _id: '$userId',
                     totalOrder: { $sum: 1 },
-                    totalOrderAmount: { $sum: { $ifNull: ['$pricing.total', 0] } }
+                    totalOrderAmount: { $sum: ORDER_TOTAL_EXPR }
                 }
             }
         ])
@@ -1348,7 +1364,7 @@ export async function getCustomerById(id) {
             $group: {
                 _id: '$userId',
                 totalOrders: { $sum: 1 },
-                totalOrderAmount: { $sum: { $ifNull: ['$pricing.total', 0] } }
+                totalOrderAmount: { $sum: ORDER_TOTAL_EXPR }
             }
         }
     ]);
@@ -2030,6 +2046,33 @@ export async function resetAllFinanceData() {
             deliveryWallets: walletResetResults[2]?.modifiedCount || 0,
             adminWallets: walletResetResults[3]?.modifiedCount || 0,
             ordersUnlinkedFromFinance: walletResetResults[4]?.modifiedCount || 0
+        }
+    };
+}
+
+export async function resetAllOrdersData() {
+    const orderIds = await FoodOrder.find({}).distinct('_id');
+
+    const [scheduleDeleteResult, deleteResults] = await Promise.all([
+        FoodSubscriptionSchedule.deleteMany({}),
+        Promise.all([
+            FoodTransaction.deleteMany({ orderId: { $in: orderIds } }),
+            mongoose.connection.db.collection('food_order_payments').deleteMany({
+                $or: [
+                    { orderId: { $in: orderIds } },
+                    { orderMongoId: { $in: orderIds.map((id) => String(id)) } }
+                ]
+            }),
+            FoodOrder.deleteMany({})
+        ])
+    ]);
+
+    return {
+        deleted: {
+            orders: deleteResults[2]?.deletedCount || 0,
+            orderFinanceTransactions: deleteResults[0]?.deletedCount || 0,
+            legacyOrderPayments: deleteResults[1]?.deletedCount || 0,
+            subscriptionSchedules: scheduleDeleteResult?.deletedCount || 0
         }
     };
 }
@@ -5191,7 +5234,7 @@ export async function getDeliveryWallets(query = {}) {
                         'payment.method': 'cash'
                     }
                 },
-                { $group: { _id: null, cashCollected: { $sum: { $ifNull: ['$pricing.total', 0] } } } }
+                { $group: { _id: null, cashCollected: { $sum: ORDER_TOTAL_EXPR } } }
             ]),
             FoodDeliveryCashDeposit.aggregate([
                 {

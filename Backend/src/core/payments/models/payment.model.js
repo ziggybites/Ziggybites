@@ -50,7 +50,7 @@ const paymentSchema = new mongoose.Schema(
 
         metadata: { type: mongoose.Schema.Types.Mixed, default: undefined }
     },
-    { collection: 'payments', timestamps: true }
+    { collection: 'payment_payments', timestamps: true }
 );
 
 paymentSchema.index({ orderId: 1, createdAt: -1 });

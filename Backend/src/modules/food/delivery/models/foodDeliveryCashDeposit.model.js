@@ -34,7 +34,7 @@ const foodDeliveryCashDepositSchema = new mongoose.Schema({
     },
     adminNote: String
 }, { 
-    collection: 'food_delivery_cash_deposits', 
+    collection: 'payment_delivery_cash_deposits', 
     timestamps: true 
 });
 

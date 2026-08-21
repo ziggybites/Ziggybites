@@ -16,6 +16,7 @@ import { useOrdersManagement } from "@food/components/admin/orders/useOrdersMana
 import { Loader2 } from "lucide-react"
 import { OrdersDashboardSkeleton } from "@food/components/ui/loading-skeletons"
 import { useDelayedLoading } from "@food/hooks/useDelayedLoading"
+import { getOrderAmountBreakdown } from "@food/utils/orderAmounts"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -246,16 +247,13 @@ export default function OrdersPage({ statusKey = "all" }) {
           }).toUpperCase()
         : ""
 
-      const pricing = order.pricing || {}
-      const subtotal = Number(pricing.subtotal || 0)
-      const deliveryFee = Number(pricing.deliveryFee || 0)
-      const platformFee = Number(pricing.platformFee || 0)
-      const taxAmount = Number(pricing.tax || 0)
-      const discountAmount = Number(pricing.discount || 0)
-      const computedTotal = subtotal + deliveryFee + platformFee + taxAmount - discountAmount
-      const totalAmount = Number(
-        pricing.total != null ? pricing.total : computedTotal
-      )
+      const amountBreakdown = getOrderAmountBreakdown(order)
+      const subtotal = amountBreakdown.subtotal
+      const deliveryFee = amountBreakdown.deliveryFee
+      const platformFee = amountBreakdown.platformFee
+      const taxAmount = amountBreakdown.tax
+      const discountAmount = amountBreakdown.discount
+      const totalAmount = amountBreakdown.total
 
       const paymentMethod = order.payment?.method || order.paymentMethod || order.payment?.paymentMethod || ""
       let paymentType = order.paymentType

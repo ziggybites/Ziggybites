@@ -90,7 +90,12 @@ export const getDeliveryPartnerWalletEnhanced = async (deliveryPartnerId) => {
                 ]
             }
         },
-        { $group: { _id: null, cashCollected: { $sum: { $ifNull: ['$pricing.total', 0] } } } }
+        {
+            $group: {
+                _id: null,
+                cashCollected: { $sum: { $ifNull: ['$totalAmount', { $ifNull: ['$pricing.total', 0] }] } }
+            }
+        }
     ]);
 
     const totalEarned = Number(earningsAgg?.[0]?.totalEarned) || 0;

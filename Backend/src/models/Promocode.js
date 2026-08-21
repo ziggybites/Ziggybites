@@ -53,7 +53,10 @@ const promocodeSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   }
-}, { timestamps: true });
+}, {
+  collection: 'promocodes',
+  timestamps: true
+});
 
 promocodeSchema.index({ restaurantId: 1, code: 1 }, { unique: true });
 

@@ -97,6 +97,7 @@ export default function AppCustomization() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [resettingFinance, setResettingFinance] = useState(false)
+  const [resettingOrders, setResettingOrders] = useState(false)
   const [activePanel, setActivePanel] = useState("flows")
   const themeColorValid = /^#[0-9a-f]{6}$/i.test(settings.theme.primaryColor)
 
@@ -216,6 +217,40 @@ export default function AppCustomization() {
       toast.error(error?.response?.data?.message || "Failed to clear finance data")
     } finally {
       setResettingFinance(false)
+    }
+  }
+
+  const handleResetOrdersData = async () => {
+    const confirmation = window.prompt(
+      "Type RESET ORDERS to delete all food orders and clear order-linked records from the database."
+    )
+
+    if (confirmation === null) return
+
+    if (String(confirmation).trim().toUpperCase() !== "RESET ORDERS") {
+      toast.error("Reset cancelled. You must type RESET ORDERS exactly.")
+      return
+    }
+
+    try {
+      setResettingOrders(true)
+      const response = await adminAPI.resetAllOrdersData("RESET ORDERS")
+
+      try {
+        localStorage.removeItem("userOrders")
+        localStorage.removeItem("userOrdersLastSyncedAt")
+        window.dispatchEvent(new CustomEvent("userAuthChanged"))
+      } catch {}
+
+      if (response?.data?.success) {
+        toast.success("All food orders cleared successfully")
+      } else {
+        toast.error(response?.data?.message || "Failed to clear food orders")
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to clear food orders")
+    } finally {
+      setResettingOrders(false)
     }
   }
 
@@ -480,6 +515,52 @@ export default function AppCustomization() {
                   <>
                     <AlertTriangle className="mr-2 h-4 w-4" />
                     Clear All Finance Data
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 overflow-hidden rounded-xl border border-amber-200 bg-white shadow-sm">
+        <div className="border-b border-amber-100 bg-gradient-to-r from-amber-50 to-yellow-50 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">Order Reset</h2>
+              <p className="text-sm text-slate-600">
+                Delete all food orders so you can test order flow again from a clean state.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="px-6 py-5">
+          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+            <p className="text-sm font-semibold text-amber-800">This removes order data.</p>
+            <p className="mt-2 text-sm text-slate-700">
+              It deletes all food orders, removes linked order finance transaction rows, clears legacy order payment rows, and deletes linked subscription schedule rows too.
+            </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Users, restaurants, delivery partners, subscriptions, and wallets remain in the database.
+            </p>
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={handleResetOrdersData}
+                disabled={resettingOrders}
+                className="bg-amber-600 text-white hover:bg-amber-700"
+              >
+                {resettingOrders ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Clearing Orders...
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="mr-2 h-4 w-4" />
+                    Clear All Orders
                   </>
                 )}
               </Button>

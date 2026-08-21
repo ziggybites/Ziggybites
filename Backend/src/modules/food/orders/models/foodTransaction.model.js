@@ -99,7 +99,7 @@ const foodTransactionSchema = new mongoose.Schema({
         }
     }]
 }, {
-    collection: 'food_transactions',
+    collection: 'payment_food_transactions',
     timestamps: true
 });
 

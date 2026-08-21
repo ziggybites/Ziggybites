@@ -27,7 +27,7 @@ const deliveryWalletSchema = new mongoose.Schema(
         /** Total number of completed deliveries */
         totalDeliveries: { type: Number, default: 0, min: 0 }
     },
-    { collection: 'food_delivery_wallets', timestamps: true }
+    { collection: 'payment_delivery_wallets', timestamps: true }
 );
 
 export const FoodDeliveryWallet = mongoose.model('FoodDeliveryWallet', deliveryWalletSchema);

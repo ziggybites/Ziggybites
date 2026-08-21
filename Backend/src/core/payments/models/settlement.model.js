@@ -45,7 +45,7 @@ const settlementSchema = new mongoose.Schema(
         notes: { type: String, default: '', trim: true },
         metadata: { type: mongoose.Schema.Types.Mixed, default: undefined }
     },
-    { collection: 'settlements', timestamps: true }
+    { collection: 'payment_settlements', timestamps: true }
 );
 
 settlementSchema.index({ entityType: 1, entityId: 1, status: 1, createdAt: -1 });

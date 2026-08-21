@@ -5,6 +5,7 @@ import { toast } from "sonner"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@food/components/ui/dialog"
 import { exportReportsToCSV, exportReportsToExcel, exportReportsToPDF, exportReportsToJSON } from "@food/components/admin/reports/reportsExportUtils"
+import { getOrderAmountBreakdown } from "@food/utils/orderAmounts"
 import searchIcon from "@food/assets/Dashboard-icons/image8.png"
 import exportIcon from "@food/assets/Dashboard-icons/image9.png"
 import scheduledIcon from "@food/assets/Dashboard-icons/scheduled.svg"
@@ -138,8 +139,8 @@ export default function RegularOrderReport() {
           // Transform backend orders (FoodOrder docs) to report format
           const rawOrders = response.data.data.orders || []
           const transformedOrders = rawOrders.map((order) => {
-            const pricing = order.pricing || {}
             const items = Array.isArray(order.items) ? order.items : []
+            const amountBreakdown = getOrderAmountBreakdown(order)
 
             const itemsSubtotal = items.reduce((sum, item) => {
               const qty = Number(item.quantity || 1)
@@ -150,19 +151,13 @@ export default function RegularOrderReport() {
             const subtotal =
               itemsSubtotal > 0
                 ? itemsSubtotal
-                : Number(pricing.subtotal || 0)
+                : amountBreakdown.subtotal
 
-            const deliveryCharge = Number(pricing.deliveryFee || 0)
-            const platformFee = Number(pricing.platformFee || 0)
-            const vatTax = Number(pricing.tax || 0)
-            const couponDiscount = Number(pricing.discount || 0)
-            const computedTotal =
-              subtotal + deliveryCharge + platformFee + vatTax - couponDiscount
-
-            const totalAmount =
-              pricing.total != null
-                ? Number(pricing.total)
-                : computedTotal
+            const deliveryCharge = amountBreakdown.deliveryFee
+            const platformFee = amountBreakdown.platformFee
+            const vatTax = amountBreakdown.tax
+            const couponDiscount = amountBreakdown.discount
+            const totalAmount = amountBreakdown.total
 
             const restaurantName =
               order.restaurantId?.restaurantName ||

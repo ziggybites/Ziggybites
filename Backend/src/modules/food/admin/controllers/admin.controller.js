@@ -1087,6 +1087,27 @@ export async function resetAllFinanceData(req, res, next) {
     }
 }
 
+export async function resetAllOrdersData(req, res, next) {
+    try {
+        const confirmation = String(req.body?.confirmation || '').trim().toUpperCase();
+        if (confirmation !== 'RESET ORDERS') {
+            return res.status(400).json({
+                success: false,
+                message: 'Confirmation text must be exactly RESET ORDERS'
+            });
+        }
+
+        const data = await adminService.resetAllOrdersData();
+        res.status(200).json({
+            success: true,
+            message: 'All food orders cleared successfully',
+            data
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // ----- Referral Settings (admin) -----
 export async function getReferralSettings(req, res, next) {
     try {

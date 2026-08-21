@@ -40,6 +40,7 @@ import { orderAPI, restaurantAPI } from "@food/api"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import { useUserNotifications } from "@food/hooks/useUserNotifications"
 import { RESTAURANT_PIN_SVG, CUSTOMER_PIN_SVG, RIDER_BIKE_SVG } from "@food/constants/mapIcons"
+import { getOrderAmountBreakdown } from "@food/utils/orderAmounts"
 
 // Fallback definitions in case imports fail at runtime or are shadowed
 const DEFAULT_CUSTOMER_PIN = `<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="#10B981"><path d="M12 2C8.13 2 5 5.13 5 9c0 4.17 4.42 9.92 6.24 12.11.4.48 1.08.48 1.52 0C14.58 18.92 19 13.17 19 9c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5 14.5 7.62 14.5 9 13.38 11.5 12 11.5z"/><circle cx="12" cy="9" r="3" fill="#FFFFFF"/></svg>`;
@@ -318,6 +319,7 @@ const getCustomerCoordsFromApiOrder = (apiOrder, previousOrder = null) => {
 }
 
 const transformOrderForTracking = (apiOrder, previousOrder = null, explicitRestaurantCoords = null, explicitRestaurantAddress = null) => {
+  const amountBreakdown = getOrderAmountBreakdown(apiOrder)
   const restaurantCoords = explicitRestaurantCoords || getRestaurantCoordsFromOrder(apiOrder, previousOrder?.restaurantLocation?.coordinates)
   const restaurantAddress = getRestaurantAddressFromOrder(apiOrder, previousOrder, explicitRestaurantAddress)
   // API returns `deliveryAddress`; some paths use `address`
@@ -363,7 +365,7 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
       quantity: item.quantity,
       price: item.price
     })) || previousOrder?.items || [],
-    total: apiOrder?.pricing?.total || previousOrder?.total || 0,
+    total: amountBreakdown.total || previousOrder?.total || 0,
     // Backend canonical field is orderStatus; keep legacy `status` for UI compatibility.
     status: apiOrder?.orderStatus || apiOrder?.status || previousOrder?.status || 'pending',
     deliveryPartner: apiOrder?.deliveryPartnerId ? {
@@ -378,13 +380,14 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     deliveryState: apiOrder?.deliveryState || previousOrder?.deliveryState || null,
     scheduledAt: apiOrder?.scheduledAt || previousOrder?.scheduledAt || null,
     createdAt: apiOrder?.createdAt || previousOrder?.createdAt || null,
-    totalAmount: apiOrder?.pricing?.total || apiOrder?.totalAmount || previousOrder?.totalAmount || 0,
-    deliveryFee: apiOrder?.pricing?.deliveryFee || apiOrder?.deliveryFee || previousOrder?.deliveryFee || 0,
-    gst: apiOrder?.pricing?.tax || apiOrder?.pricing?.gst || apiOrder?.gst || apiOrder?.tax || previousOrder?.gst || 0,
-    packagingFee: apiOrder?.pricing?.packagingFee || apiOrder?.packagingFee || 0,
-    platformFee: apiOrder?.pricing?.platformFee || apiOrder?.platformFee || 0,
-    discount: apiOrder?.pricing?.discount || apiOrder?.discount || 0,
-    subtotal: apiOrder?.pricing?.subtotal || apiOrder?.subtotal || 0,
+    totalAmount: amountBreakdown.total || previousOrder?.totalAmount || 0,
+    deliveryFee: amountBreakdown.deliveryFee || previousOrder?.deliveryFee || 0,
+    gst: amountBreakdown.gst || previousOrder?.gst || 0,
+    tax: amountBreakdown.tax || previousOrder?.tax || 0,
+    packagingFee: amountBreakdown.packagingFee || previousOrder?.packagingFee || 0,
+    platformFee: amountBreakdown.platformFee || previousOrder?.platformFee || 0,
+    discount: amountBreakdown.discount || previousOrder?.discount || 0,
+    subtotal: amountBreakdown.subtotal || previousOrder?.subtotal || 0,
     paymentMethod: apiOrder?.paymentMethod || apiOrder?.payment?.method || previousOrder?.paymentMethod || null,
     payment: apiOrder?.payment || previousOrder?.payment || null,
     // Preserve delivery OTP code received via socket event.

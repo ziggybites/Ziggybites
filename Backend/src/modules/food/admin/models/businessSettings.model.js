@@ -36,7 +36,10 @@ const businessSettingsSchema = new mongoose.Schema(
         restaurantRegistration: { type: Boolean, default: true },
         deliveryRegistration: { type: Boolean, default: true }
     },
-    { timestamps: true }
+    {
+        collection: 'foodbusinesssettings',
+        timestamps: true
+    }
 );
 
 export const FoodBusinessSettings = mongoose.model('FoodBusinessSettings', businessSettingsSchema);

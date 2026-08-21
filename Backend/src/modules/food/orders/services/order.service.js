@@ -46,6 +46,7 @@ import {
   normalizeOrderForClient,
   applyAggregateRating,
   buildDeliverySocketPayload,
+  buildOrderPricingSnapshot,
   notifyRestaurantNewOrder,
   isStatusAdvance,
 } from './order.helpers.js';
@@ -268,7 +269,6 @@ export async function createOrder(userId, dto) {
     customerName: dto.customerName || deliveryAddress.fullName || "",
     customerPhone: dto.customerPhone || deliveryAddress.phone || "",
     pricing: normalizedPricing,
-    payment,
     orderStatus: "created",
     dispatch: { modeAtCreation: dispatchMode, status: "unassigned" },
     statusHistory: [
@@ -319,9 +319,10 @@ export async function createOrder(userId, dto) {
       await order.save({ session });
 
       if (isWallet) {
+        const pricingSnapshot = buildOrderPricingSnapshot(order);
         await userWalletService.deductWalletBalance(
           userId,
-          order.pricing.total,
+          pricingSnapshot.total,
           `Payment for order #${order.order_id || order._id}`,
           { orderId: order._id },
           { session },
@@ -410,8 +411,8 @@ export async function createOrder(userId, dto) {
   if (
     dispatchMode === "auto" &&
     (isCash ||
-      order.payment.status === "paid" ||
-      order.payment.status === "cod_pending") &&
+      payment.status === "paid" ||
+      payment.status === "cod_pending") &&
     dispatchableStatuses.includes(order.orderStatus)
   ) {
     try {
@@ -435,8 +436,18 @@ export async function verifyPayment(userId, dto) {
     userId: new mongoose.Types.ObjectId(userId),
   });
   if (!order) throw new NotFoundError("Order not found");
-  if (order.payment.status === "paid")
-    return { order: normalizeOrderForClient(order), payment: order.payment };
+  const cancelTx = await FoodTransaction.findOne({ orderId: order._id }).lean();
+  order.payment = cancelTx?.payment || {
+    method: "cash",
+    status: "cod_pending",
+    amountDue: buildOrderPricingSnapshot(order).total,
+    refund: { status: "none", destination: "source", amount: 0, refundId: "" },
+    razorpay: {},
+    qr: {},
+  };
+  const existingTx = await FoodTransaction.findOne({ orderId: order._id }).lean();
+  if (existingTx?.payment?.status === "paid")
+    return { order: normalizeOrderForClient(order), payment: existingTx.payment };
 
   const valid = verifyPaymentSignature(
     dto.razorpayOrderId,
@@ -449,9 +460,6 @@ export async function verifyPayment(userId, dto) {
   try {
     await session.withTransaction(async () => {
       order.$session(session);
-      order.payment.status = "paid";
-      order.payment.razorpay.paymentId = dto.razorpayPaymentId;
-      order.payment.razorpay.signature = dto.razorpaySignature;
       pushStatusHistory(order, {
         byRole: "USER",
         byId: userId,
@@ -503,7 +511,8 @@ export async function verifyPayment(userId, dto) {
     } catch {}
   }
 
-  return { order: normalizeOrderForClient(order), payment: order.payment };
+  const verifiedTx = await FoodTransaction.findOne({ orderId: order._id }).lean();
+  return { order: normalizeOrderForClient(order), payment: verifiedTx?.payment || {} };
 }
 
 // ----- Auto-assign -----
@@ -866,7 +875,7 @@ export async function cancelOrder(orderId, userId, reason, refundDestination = "
       : "source";
   const hasRefundProcessed =
     String(order.payment?.refund?.status || "none").toLowerCase() === "processed";
-  const refundAmount = Number(order.pricing?.total || 0);
+  const refundAmount = Number(buildOrderPricingSnapshot(order).total || 0);
   let resolvedRefundDestination = normalizedRefundDestination;
   let refundUpdate = null;
   {
@@ -1004,6 +1013,9 @@ export async function cancelOrder(orderId, userId, reason, refundDestination = "
           (nextPaymentStatus === "paid" || nextPaymentStatus === "refunded");
         await foodTransactionService.updateTransactionStatus(order._id, 'cancelled_by_user', {
           status: isOnlineCaptured ? 'refunded' : 'failed',
+          paymentMethod,
+          amountDue: order.payment?.amountDue ?? refundAmount,
+          refund: refundUpdate?.refund,
           note: `Order cancelled by user: ${reason || "No reason"}`,
           recordedByRole: 'USER',
           recordedById: userId,
@@ -1026,6 +1038,10 @@ export async function cancelOrder(orderId, userId, reason, refundDestination = "
     const isOnlinePaidSafe =
       finalPaymentMethodSafe === "razorpay" &&
       (finalPaymentStatusSafe === "paid" || finalPaymentStatusSafe === "refunded");
+    order.pricing = {
+      ...(order.pricing || {}),
+      total: buildOrderPricingSnapshot(order).total,
+    };
     const settledRefundDestinationSafe =
       String(order.payment?.refund?.destination || resolvedRefundDestination || "source").toLowerCase() === "wallet"
         ? "wallet"
@@ -1182,10 +1198,6 @@ export async function listOrdersRestaurant(restaurantId, query) {
   const { page, limit, skip } = buildPaginationOptions(query);
   const filter = {
     restaurantId: new mongoose.Types.ObjectId(restaurantId),
-    $or: [
-      { "payment.method": { $in: ["cash", "wallet"] } },
-      { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
-    ],
   };
   const [docs, total] = await Promise.all([
     FoodOrder.find(filter)
@@ -1216,6 +1228,15 @@ export async function updateOrderStatusRestaurant(
     restaurantId: new mongoose.Types.ObjectId(restaurantId),
   });
   if (!order) throw new NotFoundError("Order not found");
+  const restaurantOrderTx = await FoodTransaction.findOne({ orderId: order._id }).lean();
+  order.payment = restaurantOrderTx?.payment || {
+    method: "cash",
+    status: "cod_pending",
+    amountDue: buildOrderPricingSnapshot(order).total,
+    refund: { status: "none", destination: "source", amount: 0, refundId: "" },
+    razorpay: {},
+    qr: {},
+  };
   const from = order.orderStatus;
   if (!isStatusAdvance(from, orderStatus)) {
       throw new ValidationError(`Current order status '${from}' is further ahead than '${orderStatus}'. Order cannot be moved backwards.`);
@@ -1245,6 +1266,10 @@ export async function updateOrderStatusRestaurant(
     body = "Your order is ready and waiting to be picked up.";
   } else if (String(orderStatus).includes("cancel")) {
     const isOnlinePaid = order.payment.method === "razorpay" && (order.payment.status === "paid" || order.payment.status === "refunded");
+    order.pricing = {
+      ...(order.pricing || {}),
+      total: buildOrderPricingSnapshot(order).total,
+    };
     const refundDetail = isOnlinePaid ? ` Your refund of ₹${order.pricing.total} is being processed and will be credited to your original payment method within 5-7 working days.` : "";
     
     title = "Order Cancelled ❌";
@@ -1314,6 +1339,8 @@ export async function updateOrderStatusRestaurant(
         const isOnlinePaid = order.payment.method === "razorpay" && (order.payment.status === "paid" || order.payment.status === "refunded");
         await foodTransactionService.updateTransactionStatus(order._id, 'cancelled_by_restaurant', {
             status: isOnlinePaid ? 'refunded' : 'failed',
+            paymentMethod: order.payment?.method,
+            amountDue: order.payment?.amountDue ?? buildOrderPricingSnapshot(order).total,
             note: `Order cancelled by restaurant/admin`,
             recordedByRole: 'RESTAURANT',
             recordedById: restaurantId
@@ -1418,7 +1445,7 @@ export async function updateOrderStatusRestaurant(
       const isRefundProcessed = String(order.payment?.refund?.status || "none").toLowerCase() === "processed";
       const currentPaymentMethod = String(order.payment?.method || "").toLowerCase();
       const currentPaymentStatus = String(order.payment?.status || "").toLowerCase();
-      const refundAmount = Number(order.pricing?.total || 0);
+      const refundAmount = Number(buildOrderPricingSnapshot(order).total || 0);
       let refundPatch = null;
 
       if (
@@ -1501,6 +1528,9 @@ export async function updateOrderStatusRestaurant(
 
             await foodTransactionService.updateTransactionStatus(order._id, 'cancelled_by_restaurant', {
               status: refundPatch.paymentStatus === "refunded" ? 'refunded' : 'failed',
+              paymentMethod: currentPaymentMethod,
+              amountDue: order.payment?.amountDue ?? refundAmount,
+              refund: refundPatch.refund,
               note: `Order cancelled by restaurant${note ? `: ${note}` : ""}`,
               recordedByRole: 'RESTAURANT',
               recordedById: restaurantId,
@@ -1783,7 +1813,7 @@ export async function assignDeliveryPartnerAdmin(
   if (paymentMethod === 'cash') {
       const { getPartnerCashCapacity } = await import('./order-delivery.service.js');
       const partnerCapacity = await getPartnerCashCapacity(deliveryPartnerId);
-      const orderAmount = Math.max(0, Number(order.pricing?.total || 0));
+      const orderAmount = Math.max(0, Number(buildOrderPricingSnapshot(order).total || 0));
       if (!partnerCapacity.hasCapacity || Number(partnerCapacity.availableCashLimit || 0) < orderAmount) {
           throw new ValidationError('Delivery partner cash limit exceeded for this COD order.');
       }

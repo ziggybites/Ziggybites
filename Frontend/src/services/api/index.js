@@ -905,6 +905,12 @@ export const adminAPI = {
       { confirmation: String(confirmation || "") },
       { contextModule: "admin" },
     ),
+  resetAllOrdersData: (confirmation) =>
+    apiClient.post(
+      "/food/admin/fee-settings/reset-orders",
+      { confirmation: String(confirmation || "") },
+      { contextModule: "admin" },
+    ),
 
   /** Referral Settings (admin) */
   getReferralSettings: () =>

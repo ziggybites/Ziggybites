@@ -18,6 +18,8 @@
     "migrate:order-payments": "node scripts/migrate-orders-to-transactions.js",
     "migrate:legacy-core": "node scripts/migrate-legacy-core-data.js",
     "migrate:legacy-core:apply": "node scripts/migrate-legacy-core-data.js --apply",
+    "migrate:payment-prefix": "node scripts/migrate-payment-collection-prefix.js",
+    "migrate:payment-prefix:apply": "node scripts/migrate-payment-collection-prefix.js --apply",
     "cleanup:legacy-collections": "node scripts/cleanup-legacy-collections.js",
     "reconcile:wallet-ledger": "node scripts/reconcile-wallet-ledger.js",
     "reconcile:order-finance": "node scripts/reconcile-order-finance.js",

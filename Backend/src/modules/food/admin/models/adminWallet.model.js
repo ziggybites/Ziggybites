@@ -17,7 +17,7 @@ const adminWalletSchema = new mongoose.Schema(
         /** Total refunds issued */
         totalRefunds: { type: Number, default: 0, min: 0 }
     },
-    { collection: 'food_admin_wallets', timestamps: true }
+    { collection: 'payment_admin_wallets', timestamps: true }
 );
 
 export const FoodAdminWallet = mongoose.model('FoodAdminWallet', adminWalletSchema);

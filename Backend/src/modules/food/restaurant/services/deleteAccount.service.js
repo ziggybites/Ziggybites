@@ -63,7 +63,7 @@ export async function deleteRestaurantAccount(userId) {
             {
                 $group: {
                     _id: null,
-                    totalAmount: { $sum: { $ifNull: ['$pricing.total', 0] } },
+                    totalAmount: { $sum: { $ifNull: ['$totalAmount', { $ifNull: ['$pricing.total', 0] }] } },
                     count: { $sum: 1 }
                 }
             }

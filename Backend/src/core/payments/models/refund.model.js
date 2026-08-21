@@ -52,7 +52,7 @@ const refundSchema = new mongoose.Schema(
         metadata: { type: mongoose.Schema.Types.Mixed, default: undefined }
     },
     {
-        collection: 'refunds',
+        collection: 'payment_refunds',
         timestamps: true
     }
 );

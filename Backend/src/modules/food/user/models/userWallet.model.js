@@ -25,7 +25,7 @@ const userWalletSchema = new mongoose.Schema(
         referralEarnings: { type: Number, default: 0 },
         transactions: { type: [walletTransactionSchema], default: [] }
     },
-    { collection: 'food_user_wallets', timestamps: true }
+    { collection: 'payment_user_wallets', timestamps: true }
 );
 
 export const FoodUserWallet = mongoose.model('FoodUserWallet', userWalletSchema);

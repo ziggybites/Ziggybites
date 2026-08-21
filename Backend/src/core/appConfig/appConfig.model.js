@@ -23,6 +23,9 @@ const appConfigSchema = new mongoose.Schema({
         type: String,
         default: "'Poppins', sans-serif"
     }
-}, { timestamps: true });
+}, {
+    collection: 'appconfigs',
+    timestamps: true
+});
 
 export const AppConfig = mongoose.model('AppConfig', appConfigSchema);

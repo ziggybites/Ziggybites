@@ -2,6 +2,7 @@ import { FoodTransaction } from '../models/foodTransaction.model.js';
 import { FoodRestaurantCommission } from '../../admin/models/restaurantCommission.model.js';
 import { FoodFeeSettings } from '../../admin/models/feeSettings.model.js';
 import mongoose from 'mongoose';
+import { buildOrderPricingSnapshot } from './order.helpers.js';
 
 const RESTAURANT_COMMISSION_CACHE_MS = 60 * 1000;
 let restaurantCommissionRulesCache = null;
@@ -48,7 +49,8 @@ export function computeRestaurantCommissionAmount(baseAmount, rule) {
 }
 
 export async function getRestaurantCommissionSnapshot(orderDoc) {
-  const baseAmount = Number(orderDoc?.pricing?.subtotal ?? 0) || 0;
+  const pricing = buildOrderPricingSnapshot(orderDoc);
+  const baseAmount = Number(pricing.subtotal ?? 0) || 0;
   const restaurantIdRaw =
     orderDoc?.restaurantId?._id ?? orderDoc?.restaurantId ?? null;
 
@@ -97,7 +99,7 @@ export async function getRestaurantCommissionSnapshot(orderDoc) {
   const pgFee = applyTaxes ? (Number(globalSettings.globalPaymentGatewayFee) || 0) : 0;
   const tcs = applyTaxes ? (Number(globalSettings.globalTcs) || 0) : 0;
 
-  const totalPaid = Number(orderDoc?.pricing?.total) || 0;
+  const totalPaid = Number(pricing.total) || 0;
 
   result.gstOnItem = Math.round(baseAmount * (gstOnItemRate / 100) * 100) / 100;
   result.gstOnCommission = Math.round(result.commissionAmount * (gstOnCommission / 100) * 100) / 100;
@@ -114,17 +116,18 @@ export async function createInitialTransaction(order) {
         return existingTransaction;
     }
 
+    const pricing = buildOrderPricingSnapshot(order);
     const commissionSnapshot = await getRestaurantCommissionSnapshot(order);
-    const totalCustomerPaid = order.pricing?.total || 0;
+    const totalCustomerPaid = pricing.total || 0;
     const riderShare = order.riderEarning || 0;
 
-    const restaurantCommissionFromOrder = Number(order.pricing?.restaurantCommission);
+    const restaurantCommissionFromOrder = Number(pricing.restaurantCommission);
     const restaurantCommission =
         Number.isFinite(restaurantCommissionFromOrder) && restaurantCommissionFromOrder > 0
             ? restaurantCommissionFromOrder
             : (commissionSnapshot.commissionAmount || 0);
 
-    const gstOnItemFromOrder = Number(order.pricing?.gstOnItem);
+    const gstOnItemFromOrder = Number(pricing.gstOnItem);
     const gstOnItem = Number.isFinite(gstOnItemFromOrder)
         ? gstOnItemFromOrder
         : (commissionSnapshot.gstOnItem || 0);
@@ -133,9 +136,9 @@ export async function createInitialTransaction(order) {
     const paymentGatewayFee = commissionSnapshot.paymentGatewayFee || 0;
     const tcs = commissionSnapshot.tcs || 0;
 
-    const restaurantNet = (order.pricing?.subtotal || 0) + (order.pricing?.packagingFee || 0) - restaurantCommission - gstOnItem - gstOnCommission - paymentGatewayFee - tcs;
+    const restaurantNet = (pricing.subtotal || 0) + (pricing.packagingFee || 0) - restaurantCommission - gstOnItem - gstOnCommission - paymentGatewayFee - tcs;
 
-    const calculatedPlatformNetProfit = (order.pricing?.platformFee || 0) + (order.pricing?.deliveryFee || 0) + restaurantCommission + gstOnItem + paymentGatewayFee + tcs - riderShare;
+    const calculatedPlatformNetProfit = (pricing.platformFee || 0) + (pricing.deliveryFee || 0) + restaurantCommission + gstOnItem + paymentGatewayFee + tcs - riderShare;
     const platformNetProfit = order.platformProfit !== undefined
         ? order.platformProfit
         : Math.max(0, calculatedPlatformNetProfit);
@@ -150,7 +153,7 @@ export async function createInitialTransaction(order) {
         payment: {
             method: String(order.payment?.method || 'cash'),
             status: String(order.payment?.status || 'cod_pending'),
-            amountDue: Number(order.payment?.amountDue ?? order.pricing?.total ?? 0) || 0,
+            amountDue: Number(order.payment?.amountDue ?? pricing.total ?? 0) || 0,
             razorpay: {
                 orderId: String(order.payment?.razorpay?.orderId || ''),
                 paymentId: String(order.payment?.razorpay?.paymentId || ''),
@@ -166,15 +169,15 @@ export async function createInitialTransaction(order) {
             }
         },
         pricing: {
-            subtotal: Number(order.pricing?.subtotal || 0) || 0,
-            tax: Number(order.pricing?.tax || 0) || 0,
-            packagingFee: Number(order.pricing?.packagingFee || 0) || 0,
-            deliveryFee: Number(order.pricing?.deliveryFee || 0) || 0,
-            platformFee: Number(order.pricing?.platformFee || 0) || 0,
+            subtotal: Number(pricing.subtotal || 0) || 0,
+            tax: Number(pricing.tax || 0) || 0,
+            packagingFee: Number(pricing.packagingFee || 0) || 0,
+            deliveryFee: Number(pricing.deliveryFee || 0) || 0,
+            platformFee: Number(pricing.platformFee || 0) || 0,
             restaurantCommission,
-            discount: Number(order.pricing?.discount || 0) || 0,
-            total: Number(order.pricing?.total || 0) || 0,
-            currency: String(order.pricing?.currency || order.currency || 'INR'),
+            discount: Number(pricing.discount || 0) || 0,
+            total: Number(pricing.total || 0) || 0,
+            currency: String(pricing.currency || order.currency || 'INR'),
         },
         amounts: {
             totalCustomerPaid,
@@ -186,7 +189,7 @@ export async function createInitialTransaction(order) {
             tcs,
             riderShare,
             platformNetProfit,
-            taxAmount: order.pricing?.tax || 0
+            taxAmount: pricing.tax || 0
         },
         gateway: {
             razorpayOrderId: order.payment?.razorpay?.orderId,
@@ -245,6 +248,15 @@ export async function updateTransactionStatus(orderId, kind, details = {}) {
         transaction.paymentMethod = details.paymentMethod;
         transaction.payment.method = details.paymentMethod;
     }
+    if (details.amountDue != null) {
+        transaction.payment.amountDue = Number(details.amountDue || 0);
+    }
+    if (details.refund) {
+        transaction.payment.refund = {
+            ...(transaction.payment.refund?.toObject?.() || transaction.payment.refund || {}),
+            ...details.refund,
+        };
+    }
 
     transaction.history.push({
         kind,
@@ -255,26 +267,6 @@ export async function updateTransactionStatus(orderId, kind, details = {}) {
     });
 
     await transaction.save({ session });
-
-    if (details.paymentMethod || details.status) {
-        try {
-            const updateFields = {};
-            if (details.paymentMethod) updateFields['payment.method'] = details.paymentMethod;
-            if (details.status === 'captured') updateFields['payment.status'] = 'paid';
-            if (details.status === 'failed') updateFields['payment.status'] = 'failed';
-            if (details.status === 'refunded') updateFields['payment.status'] = 'refunded';
-
-            if (Object.keys(updateFields).length > 0) {
-                await mongoose.model('FoodOrder').updateOne(
-                    { _id: orderId },
-                    { $set: updateFields },
-                    session ? { session } : undefined
-                );
-            }
-        } catch (err) {
-            console.error('Failed to sync transaction status to order:', err.message);
-        }
-    }
 
     return transaction;
 }

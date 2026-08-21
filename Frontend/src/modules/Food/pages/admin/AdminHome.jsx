@@ -27,16 +27,9 @@ import {
 } from "recharts"
 import { Activity, ArrowUpRight, ShoppingBag, CreditCard, Truck, Receipt, DollarSign, Store, UserCheck, Package, UserCircle, Clock, CheckCircle, Plus, XCircle } from "lucide-react"
 import { adminAPI } from "@food/api"
+import { formatCurrency } from "@food/utils/currency"
 const debugLog = () => {}
 const debugError = () => {}
-
-const INR_SYMBOL = "\u20B9"
-
-function formatCurrency(amount, options = {}) {
-  const numericAmount = Number(amount || 0)
-  const formattedAmount = numericAmount.toLocaleString("en-IN", options)
-  return `${INR_SYMBOL}${formattedAmount}`
-}
 
 
 export default function AdminHome() {
@@ -240,12 +233,12 @@ export default function AdminHome() {
               path="/admin/food/restaurants/commission"
             />
             <MetricCard
-              title="Orders processed"
-              value={processingOrders.toLocaleString("en-IN")}
-              helper="Orders currently being processed"
+              title="Total orders"
+              value={ordersTotal.toLocaleString("en-IN")}
+              helper={`${periodLabel} total orders`}
               icon={<Activity className="h-5 w-5 text-amber-600" />}
               accent="bg-amber-200/40"
-              path="/admin/food/orders/processing"
+              path="/admin/food/all-orders"
             />
             <MetricCard
               title="Platform fee"
@@ -273,7 +266,7 @@ export default function AdminHome() {
             />
             <MetricCard
               title="Platform Total"
-              value={formatCurrency(totalAdminEarnings, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              value={formatCurrency(totalAdminEarnings)}
               helper={totalRevenueHelper}
               icon={<DollarSign className="h-5 w-5 text-green-600" />}
               accent="bg-green-200/40"

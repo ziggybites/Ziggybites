@@ -51,7 +51,7 @@ export async function deleteDeliveryAccount(userId) {
             {
                 $group: {
                     _id: null,
-                    totalAmount: { $sum: { $ifNull: ['$pricing.deliveryFee', 0] } },
+                    totalAmount: { $sum: { $ifNull: ['$deliveryFee', { $ifNull: ['$pricing.deliveryFee', 0] }] } },
                     count: { $sum: 1 }
                 }
             }
