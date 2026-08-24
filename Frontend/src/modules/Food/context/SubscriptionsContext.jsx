@@ -1,65 +1,23 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { subscriptionAPI } from "@food/api"
 import { isModuleAuthenticated } from "@food/utils/auth"
-import { writeArrayStorage } from "../../../core/storage/localStorage.js"
 
 const SubscriptionsContext = createContext(null)
-const SUBSCRIPTIONS_STORAGE_KEY = "userSubscriptions"
-const SUBSCRIPTION_SCHEDULES_STORAGE_KEY = "userSubscriptionSchedules"
 
 const isUserAuthenticated = () => isModuleAuthenticated("user")
 
 export function SubscriptionsProvider({ children }) {
-  const [subscriptions, setSubscriptions] = useState(() => {
-    try {
-      const saved = localStorage.getItem(SUBSCRIPTIONS_STORAGE_KEY)
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
-  const [upcomingSchedules, setUpcomingSchedules] = useState(() => {
-    try {
-      const saved = localStorage.getItem(SUBSCRIPTION_SCHEDULES_STORAGE_KEY)
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
+  const [subscriptions, setSubscriptions] = useState([])
+  const [upcomingSchedules, setUpcomingSchedules] = useState([])
   const [loading, setLoading] = useState(
     () => (subscriptions.length === 0 || upcomingSchedules.length === 0) && isUserAuthenticated(),
   )
-
-  useEffect(() => {
-    try {
-      writeArrayStorage(SUBSCRIPTIONS_STORAGE_KEY, subscriptions)
-    } catch {
-      // ignore storage errors
-    }
-  }, [subscriptions])
-
-  useEffect(() => {
-    try {
-      writeArrayStorage(
-        SUBSCRIPTION_SCHEDULES_STORAGE_KEY,
-        upcomingSchedules,
-      )
-    } catch {
-      // ignore storage errors
-    }
-  }, [upcomingSchedules])
 
   const refreshSubscriptions = useCallback(async ({ silent = false } = {}) => {
     if (!isUserAuthenticated()) {
       setSubscriptions([])
       setUpcomingSchedules([])
       setLoading(false)
-      try {
-        localStorage.removeItem(SUBSCRIPTIONS_STORAGE_KEY)
-        localStorage.removeItem(SUBSCRIPTION_SCHEDULES_STORAGE_KEY)
-      } catch {
-        // ignore storage errors
-      }
       return { subscriptions: [], schedules: [] }
     }
 

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, CalendarDays, CheckCircle2, ChevronRight, Clock3, CreditCard, Store } from "lucide-react";
 import AnimatedPage from "@food/components/user/AnimatedPage";
@@ -26,7 +26,11 @@ const getStatusClasses = (status) => {
 
 export default function MySubscriptions() {
   const navigate = useNavigate();
-  const { subscriptions, loading } = useSubscriptions();
+  const { subscriptions, loading, refreshSubscriptions } = useSubscriptions();
+
+  useEffect(() => {
+    refreshSubscriptions({ silent: false }).catch(() => {});
+  }, [refreshSubscriptions]);
 
   const activeCount = useMemo(
     () =>

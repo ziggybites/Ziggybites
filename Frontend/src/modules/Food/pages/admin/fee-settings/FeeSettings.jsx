@@ -18,9 +18,6 @@ export default function FeeSettings() {
     platformFee: "",
     packagingFee: "",
     gstRate: "",
-    gstOnDeliveryFee: "",
-    gstOnPlatformFee: "",
-    gstOnPackagingFee: "",
     deliveryBonusAmount: "",
     dispatchRadiusTiers: "2, 4, 6, 8, 10",
   })
@@ -43,9 +40,6 @@ export default function FeeSettings() {
           platformFee: response.data.data.feeSettings.platformFee ?? "",
           packagingFee: response.data.data.feeSettings.packagingFee ?? "",
           gstRate: response.data.data.feeSettings.gstRate ?? "",
-          gstOnDeliveryFee: response.data.data.feeSettings.gstOnDeliveryFee ?? "",
-          gstOnPlatformFee: response.data.data.feeSettings.gstOnPlatformFee ?? "",
-          gstOnPackagingFee: response.data.data.feeSettings.gstOnPackagingFee ?? "",
           deliveryBonusAmount: response.data.data.feeSettings.deliveryBonusAmount ?? "",
           dispatchRadiusTiers: response.data.data.feeSettings.dispatchRadiusTiers?.join(", ") ?? "2, 4, 6, 8, 10",
         })
@@ -59,9 +53,6 @@ export default function FeeSettings() {
           platformFee: "",
           packagingFee: "",
           gstRate: "",
-          gstOnDeliveryFee: "",
-          gstOnPlatformFee: "",
-          gstOnPackagingFee: "",
           deliveryBonusAmount: "",
           dispatchRadiusTiers: "2, 4, 6, 8, 10",
         })
@@ -91,9 +82,6 @@ export default function FeeSettings() {
         platformFee: feeSettings.platformFee === "" ? undefined : Number(feeSettings.platformFee),
         packagingFee: feeSettings.packagingFee === "" ? undefined : Number(feeSettings.packagingFee),
         gstRate: feeSettings.gstRate === "" ? undefined : Number(feeSettings.gstRate),
-        gstOnDeliveryFee: feeSettings.gstOnDeliveryFee === "" ? undefined : Number(feeSettings.gstOnDeliveryFee),
-        gstOnPlatformFee: feeSettings.gstOnPlatformFee === "" ? undefined : Number(feeSettings.gstOnPlatformFee),
-        gstOnPackagingFee: feeSettings.gstOnPackagingFee === "" ? undefined : Number(feeSettings.gstOnPackagingFee),
         deliveryBonusAmount: feeSettings.deliveryBonusAmount === "" ? undefined : Number(feeSettings.deliveryBonusAmount),
         dispatchRadiusTiers: feeSettings.dispatchRadiusTiers ? feeSettings.dispatchRadiusTiers.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n)) : undefined,
         isActive: true,
@@ -112,9 +100,6 @@ export default function FeeSettings() {
             platformFee: saved.platformFee ?? "",
             packagingFee: saved.packagingFee ?? "",
             gstRate: saved.gstRate ?? "",
-            gstOnDeliveryFee: saved.gstOnDeliveryFee ?? "",
-            gstOnPlatformFee: saved.gstOnPlatformFee ?? "",
-            gstOnPackagingFee: saved.gstOnPackagingFee ?? "",
             deliveryBonusAmount: saved.deliveryBonusAmount ?? "",
             dispatchRadiusTiers: saved.dispatchRadiusTiers?.join(", ") ?? "2, 4, 6, 8, 10",
           })
@@ -524,10 +509,10 @@ export default function FeeSettings() {
                   </p>
                 </div>
 
-                {/* GST Rate (Item) */}
+                {/* Subscription GST */}
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-slate-700">
-                    GST on Item (%)
+                    Subscription GST (%)
                   </label>
                   <input
                     type="number"
@@ -540,67 +525,7 @@ export default function FeeSettings() {
                     placeholder="5"
                   />
                   <p className="text-xs text-slate-500">
-                    GST percentage applied on order subtotal
-                  </p>
-                </div>
-
-                {/* GST on Delivery Fee */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    GST on Delivery Fee (%)
-                  </label>
-                  <input
-                    type="number"
-                    value={feeSettings.gstOnDeliveryFee}
-                    onChange={(e) => setFeeSettings({ ...feeSettings, gstOnDeliveryFee: e.target.value })}
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
-                    placeholder="18"
-                  />
-                  <p className="text-xs text-slate-500">
-                    GST percentage applied on delivery fee
-                  </p>
-                </div>
-
-                {/* GST on Platform Fee */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    GST on Platform Fee (%)
-                  </label>
-                  <input
-                    type="number"
-                    value={feeSettings.gstOnPlatformFee}
-                    onChange={(e) => setFeeSettings({ ...feeSettings, gstOnPlatformFee: e.target.value })}
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
-                    placeholder="18"
-                  />
-                  <p className="text-xs text-slate-500">
-                    GST percentage applied on platform fee
-                  </p>
-                </div>
-
-                {/* GST on Packaging Fee */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    GST on Packaging Fee (%)
-                  </label>
-                  <input
-                    type="number"
-                    value={feeSettings.gstOnPackagingFee}
-                    onChange={(e) => setFeeSettings({ ...feeSettings, gstOnPackagingFee: e.target.value })}
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
-                    placeholder="18"
-                  />
-                  <p className="text-xs text-slate-500">
-                    GST percentage applied on packaging fee
+                    GST percentage applied on subscription food subtotal
                   </p>
                 </div>
 

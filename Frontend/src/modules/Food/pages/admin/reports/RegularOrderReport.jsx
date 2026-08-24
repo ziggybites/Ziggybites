@@ -3,36 +3,15 @@ import { BarChart3, ChevronDown, Settings, FileText, FileSpreadsheet, Code, Load
 import { adminAPI } from "@food/api"
 import { toast } from "sonner"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@food/components/ui/dropdown-menu"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@food/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@food/components/ui/dialog"
 import { exportReportsToCSV, exportReportsToExcel, exportReportsToPDF, exportReportsToJSON } from "@food/components/admin/reports/reportsExportUtils"
 import { getOrderAmountBreakdown } from "@food/utils/orderAmounts"
 import searchIcon from "@food/assets/Dashboard-icons/image8.png"
 import exportIcon from "@food/assets/Dashboard-icons/image9.png"
-import scheduledIcon from "@food/assets/Dashboard-icons/scheduled.svg"
-import pendingIcon from "@food/assets/Dashboard-icons/pending.svg"
-import acceptedIcon from "@food/assets/Dashboard-icons/accepted.svg"
-import processingIcon from "@food/assets/Dashboard-icons/processing.svg"
-import onTheWayIcon from "@food/assets/Dashboard-icons/on-the-way.svg"
-import deliveredIcon from "@food/assets/Dashboard-icons/delivered.svg"
-import canceledIcon from "@food/assets/Dashboard-icons/canceled.svg"
-import paymentFailedIcon from "@food/assets/Dashboard-icons/payment-failed.svg"
-import refundedIcon from "@food/assets/Dashboard-icons/refunded.svg"
+
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
-
-
-const statusMeta = {
-  Scheduled: { label: "Scheduled Orders", color: "text-amber-600", bg: "bg-amber-50", icon: scheduledIcon },
-  Pending: { label: "Pending Orders", color: "text-blue-600", bg: "bg-blue-50", icon: pendingIcon },
-  Accepted: { label: "Accepted Orders", color: "text-sky-600", bg: "bg-sky-50", icon: acceptedIcon },
-  Processing: { label: "Processing Orders", color: "text-indigo-600", bg: "bg-indigo-50", icon: processingIcon },
-  "Food On The Way": { label: "Food On The Way", color: "text-cyan-600", bg: "bg-cyan-50", icon: onTheWayIcon },
-  Delivered: { label: "Delivered", color: "text-emerald-600", bg: "bg-emerald-50", icon: deliveredIcon },
-  Canceled: { label: "Canceled", color: "text-red-600", bg: "bg-red-50", icon: canceledIcon },
-  "Payment Failed": { label: "Payment Failed", color: "text-orange-600", bg: "bg-orange-50", icon: paymentFailedIcon },
-  Refunded: { label: "Refunded", color: "text-teal-600", bg: "bg-teal-50", icon: refundedIcon },
-}
 
 const PAGE_SIZE = 25
 
@@ -44,7 +23,7 @@ export default function RegularOrderReport() {
   const [zones, setZones] = useState([])
   const [restaurants, setRestaurants] = useState([])
   const [customers, setCustomers] = useState([])
-  
+
   const [filters, setFilters] = useState({
     zone: "All Zones",
     restaurant: "All restaurants",
@@ -53,26 +32,21 @@ export default function RegularOrderReport() {
   })
   const [searchQuery, setSearchQuery] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
-
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
-  // Fetch zones, restaurants, and customers for filter dropdowns
   useEffect(() => {
     const fetchFilterData = async () => {
       try {
-        // Fetch zones
         const zonesRes = await adminAPI.getZones({ limit: 1000, isActive: true })
         if (zonesRes.data?.success) {
           setZones(zonesRes.data.data.zones || [])
         }
 
-        // Fetch restaurants
         const restaurantsRes = await adminAPI.getRestaurants({ limit: 1000 })
         if (restaurantsRes.data?.success) {
           setRestaurants(restaurantsRes.data.data.restaurants || [])
         }
 
-        // Fetch customers (users) via existing customers API
         const customersRes = await adminAPI.getCustomers({ limit: 1000 })
         if (customersRes.data?.success) {
           setCustomers(customersRes.data.data.customers || [])
@@ -85,7 +59,6 @@ export default function RegularOrderReport() {
     fetchFilterData()
   }, [])
 
-  // Calculate date range based on time filter
   const getDateRange = () => {
     const now = new Date()
     let fromDate = null
@@ -96,26 +69,25 @@ export default function RegularOrderReport() {
         fromDate = new Date(now.setHours(0, 0, 0, 0))
         toDate = new Date(now.setHours(23, 59, 59, 999))
         break
-      case "This Week":
+      case "This Week": {
         const weekStart = new Date(now)
         weekStart.setDate(now.getDate() - now.getDay())
         weekStart.setHours(0, 0, 0, 0)
         fromDate = weekStart
         toDate = new Date(now.setHours(23, 59, 59, 999))
         break
+      }
       case "This Month":
         fromDate = new Date(now.getFullYear(), now.getMonth(), 1)
         toDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999)
         break
       default:
-        // All Time - no date filter
         break
     }
 
     return { fromDate, toDate }
   }
 
-  // Fetch orders from backend
   useEffect(() => {
     const fetchOrders = async () => {
       if (orders.length === 0) {
@@ -123,24 +95,30 @@ export default function RegularOrderReport() {
       } else {
         setFilterLoading(true)
       }
+
       setError(null)
+
       try {
         const { fromDate, toDate } = getDateRange()
         const params = {
           page: 1,
-          limit: 10000, // Fetch all orders for report (can be optimized later)
-          startDate: fromDate ? fromDate.toISOString().split('T')[0] : undefined,
-          endDate: toDate ? toDate.toISOString().split('T')[0] : undefined,
+          limit: 10000,
+          startDate: fromDate ? fromDate.toISOString().split("T")[0] : undefined,
+          endDate: toDate ? toDate.toISOString().split("T")[0] : undefined,
         }
 
         const response = await adminAPI.getOrders(params)
-        
+
         if (response.data?.success) {
-          // Transform backend orders (FoodOrder docs) to report format
           const rawOrders = response.data.data.orders || []
           const transformedOrders = rawOrders.map((order) => {
             const items = Array.isArray(order.items) ? order.items : []
             const amountBreakdown = getOrderAmountBreakdown(order)
+            const settlementAmounts = order.settlementAmounts || order.transaction?.amounts || {}
+            const transactionPricing = order.transaction?.pricing || {}
+            const isSubscriptionPrepaidOrder =
+              String(order?.paymentMethod || order?.payment?.method || "").toLowerCase() === "subscription" ||
+              String(order?.subscriptionUsage?.billingMode || "").toLowerCase() === "subscription_prepaid"
 
             const itemsSubtotal = items.reduce((sum, item) => {
               const qty = Number(item.quantity || 1)
@@ -148,16 +126,43 @@ export default function RegularOrderReport() {
               return sum + qty * price
             }, 0)
 
-            const subtotal =
+            const foodValue =
               itemsSubtotal > 0
                 ? itemsSubtotal
-                : amountBreakdown.subtotal
-
-            const deliveryCharge = amountBreakdown.deliveryFee
-            const platformFee = amountBreakdown.platformFee
-            const vatTax = amountBreakdown.tax
-            const couponDiscount = amountBreakdown.discount
-            const totalAmount = amountBreakdown.total
+                : Number(
+                    settlementAmounts.subscriptionAllocationAmount ||
+                    amountBreakdown.subtotal ||
+                    transactionPricing.subtotal ||
+                    0
+                  )
+            const packagingFee = Number(amountBreakdown.packagingFee || transactionPricing.packagingFee || 0)
+            const deliveryCharge = Number(
+              isSubscriptionPrepaidOrder
+                ? settlementAmounts.riderShare ||
+                  order.riderEarning ||
+                  0
+                : settlementAmounts.riderShare ||
+                  amountBreakdown.deliveryFee ||
+                  transactionPricing.deliveryFee ||
+                  order.riderEarning ||
+                  0
+            )
+            const platformFee = Number(amountBreakdown.platformFee || transactionPricing.platformFee || 0)
+            const vatTax = Number(
+              settlementAmounts.taxAmount ||
+              amountBreakdown.tax ||
+              transactionPricing.tax ||
+              0
+            )
+            const couponDiscount = Number(amountBreakdown.discount || transactionPricing.discount || 0)
+            const totalAmount = Number(
+              isSubscriptionPrepaidOrder
+                ? settlementAmounts.subscriptionAllocationAmount ||
+                  settlementAmounts.totalCustomerPaid ||
+                  amountBreakdown.total ||
+                  foodValue
+                : amountBreakdown.total
+            )
 
             const restaurantName =
               order.restaurantId?.restaurantName ||
@@ -194,6 +199,7 @@ export default function RegularOrderReport() {
 
             const backendStatus = String(order.orderStatus || "").toLowerCase()
             let displayStatus = order.orderStatus
+
             if (!backendStatus || backendStatus === "created" || backendStatus === "confirmed") {
               displayStatus = "Pending"
             } else if (backendStatus === "preparing" || backendStatus === "ready_for_pickup") {
@@ -215,7 +221,8 @@ export default function RegularOrderReport() {
               customerId: String(customerId || ""),
               customerName,
               zoneId: String(zoneId || ""),
-              totalItemAmount: subtotal,
+              totalItemAmount: foodValue,
+              packagingFee,
               couponDiscount,
               vatTax,
               deliveryCharge,
@@ -224,6 +231,7 @@ export default function RegularOrderReport() {
               orderStatus: displayStatus,
             }
           })
+
           setOrders(transformedOrders)
         } else {
           setError(response.data?.message || "Failed to fetch orders")
@@ -258,6 +266,7 @@ export default function RegularOrderReport() {
     }
 
     if (!searchQuery.trim()) return result
+
     const q = searchQuery.toLowerCase().trim()
     return result.filter((order) =>
       String(order.orderId || "").toLowerCase().includes(q) ||
@@ -271,18 +280,19 @@ export default function RegularOrderReport() {
       alert("No data to export")
       return
     }
+
     const headers = [
       { key: "orderId", label: "Order ID" },
       { key: "restaurant", label: "Restaurant" },
       { key: "customerName", label: "Customer Name" },
-      { key: "totalItemAmount", label: "Total Item Amount" },
+      { key: "totalItemAmount", label: "Food Value" },
+      { key: "packagingFee", label: "Packaging Fee" },
       { key: "couponDiscount", label: "Coupon Discount" },
-      { key: "vatTax", label: "VAT/Tax" },
-      { key: "deliveryCharge", label: "Delivery Charge" },
-      { key: "platformFee", label: "Platform Fee" },
-      { key: "totalAmount", label: "Order Amount" },
+      { key: "deliveryCharge", label: "Delivery Share" },
+      { key: "totalAmount", label: "Total Amount" },
       { key: "orderStatus", label: "Status" },
     ]
+
     switch (format) {
       case "csv": exportReportsToCSV(filteredOrders, headers, "regular_order_report"); break
       case "excel": exportReportsToExcel(filteredOrders, headers, "regular_order_report"); break
@@ -291,9 +301,7 @@ export default function RegularOrderReport() {
     }
   }
 
-  const handleFilterApply = () => {
-    // Filters are already applied via useMemo
-  }
+  const handleFilterApply = () => {}
 
   const handleResetFilters = () => {
     setFilters({
@@ -306,7 +314,11 @@ export default function RegularOrderReport() {
     setCurrentPage(1)
   }
 
-  const activeFiltersCount = (filters.zone !== "All Zones" ? 1 : 0) + (filters.restaurant !== "All restaurants" ? 1 : 0) + (filters.customer !== "All customers" ? 1 : 0) + (filters.time !== "All Time" ? 1 : 0)
+  const activeFiltersCount =
+    (filters.zone !== "All Zones" ? 1 : 0) +
+    (filters.restaurant !== "All restaurants" ? 1 : 0) +
+    (filters.customer !== "All customers" ? 1 : 0) +
+    (filters.time !== "All Time" ? 1 : 0)
 
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / PAGE_SIZE))
 
@@ -316,32 +328,36 @@ export default function RegularOrderReport() {
     return filteredOrders.slice(start, start + PAGE_SIZE)
   }, [filteredOrders, currentPage, totalPages])
 
-  const statusCounts = useMemo(
+  const pricingStats = useMemo(
     () =>
       filteredOrders.reduce(
         (acc, order) => {
-          acc.total += 1
-          if (acc[order.orderStatus] != null) acc[order.orderStatus] += 1
+          acc.totalOrders += 1
+          acc.foodValue += Number(order.totalItemAmount || 0)
+          acc.packagingFee += Number(order.packagingFee || 0)
+          acc.discount += Number(order.couponDiscount || 0)
+          acc.gst += Number(order.vatTax || 0)
+          acc.delivery += Number(order.deliveryCharge || 0)
+          acc.platform += Number(order.platformFee || 0)
+          acc.totalAmount += Number(order.totalAmount || 0)
           return acc
         },
         {
-          total: 0,
-          Scheduled: 0,
-          Pending: 0,
-          Accepted: 0,
-          Processing: 0,
-          "Food On The Way": 0,
-          Delivered: 0,
-          Canceled: 0,
-          "Payment Failed": 0,
-          Refunded: 0,
+          totalOrders: 0,
+          foodValue: 0,
+          packagingFee: 0,
+          discount: 0,
+          gst: 0,
+          delivery: 0,
+          platform: 0,
+          totalAmount: 0,
         }
       ),
     [filteredOrders]
   )
 
   const formatAmount = (amount) =>
-    `₹${Number(amount || 0).toLocaleString("en-IN", {
+    `Rs. ${Number(amount || 0).toLocaleString("en-IN", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     })}`
@@ -354,25 +370,6 @@ export default function RegularOrderReport() {
   const handlePageChange = (newPage) => {
     if (newPage < 1 || newPage > totalPages) return
     setCurrentPage(newPage)
-  }
-
-  const renderStatusRow = (statusKey) => {
-    const meta = statusMeta[statusKey]
-    if (!meta) return null
-    return (
-      <div
-        key={statusKey}
-        className="flex items-center justify-between bg-white rounded-lg border border-slate-200 px-3 py-2 shadow-sm"
-      >
-        <div className="flex items-center gap-2">
-          <div className={`w-8 h-8 rounded-lg ${meta.bg} flex items-center justify-center overflow-hidden`}>
-            <img src={meta.icon} alt={meta.label} className="w-5 h-5 object-contain" />
-          </div>
-          <span className="text-[11px] font-medium text-slate-800">{meta.label}</span>
-        </div>
-          <span className={`text-xs font-semibold ${meta.color}`}>{statusCounts[statusKey] || 0}</span>
-      </div>
-    )
   }
 
   if (loading) {
@@ -405,7 +402,6 @@ export default function RegularOrderReport() {
   return (
     <div className="p-2 lg:p-3 bg-slate-50 min-h-screen">
       <div className="w-full mx-auto">
-        {/* Page Header */}
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-3 mb-3">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center">
@@ -415,7 +411,6 @@ export default function RegularOrderReport() {
           </div>
         </div>
 
-        {/* Search Data Filters */}
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-3 mb-3">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <div className="relative flex-1 min-w-0">
@@ -480,13 +475,13 @@ export default function RegularOrderReport() {
               <ChevronDown className="absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" />
             </div>
 
-            <button 
+            <button
               onClick={handleResetFilters}
               className="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 transition-all whitespace-nowrap"
             >
               Reset
             </button>
-            <button 
+            <button
               onClick={handleFilterApply}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-all whitespace-nowrap relative ${
                 activeFiltersCount > 0 ? "ring-2 ring-blue-300" : ""
@@ -502,24 +497,21 @@ export default function RegularOrderReport() {
           </div>
         </div>
 
-        {/* Status Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 mb-3">
-          {renderStatusRow("Scheduled")}
-          {renderStatusRow("Pending")}
-          {renderStatusRow("Processing")}
-          {renderStatusRow("Food On The Way")}
-          {renderStatusRow("Accepted")}
-          {renderStatusRow("Delivered")}
-          {renderStatusRow("Canceled")}
-          {renderStatusRow("Payment Failed")}
-          {renderStatusRow("Refunded")}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+          <SummaryCard label="Total Orders" value={pricingStats.totalOrders} tone="blue" />
+          <SummaryCard label="Food Value" value={formatAmount(pricingStats.foodValue)} tone="slate" />
+          <SummaryCard label="Packaging Fee" value={formatAmount(pricingStats.packagingFee)} tone="amber" />
+          <SummaryCard label="Discount" value={formatAmount(pricingStats.discount)} tone="rose" />
+          <SummaryCard label="GST" value={formatAmount(pricingStats.gst)} tone="emerald" />
+          <SummaryCard label="Delivery Share" value={formatAmount(pricingStats.delivery)} tone="cyan" />
+          <SummaryCard label="Platform Fee" value={formatAmount(pricingStats.platform)} tone="indigo" />
+          <SummaryCard label="Total Amount" value={formatAmount(pricingStats.totalAmount)} tone="green" />
         </div>
 
-        {/* Total Orders & Table */}
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
             <h2 className="text-base font-bold text-slate-900">
-              Total Orders <span className="text-blue-600">{statusCounts.total}</span>
+              Total Orders <span className="text-blue-600">{pricingStats.totalOrders}</span>
             </h2>
 
             <div className="flex items-center gap-2">
@@ -566,7 +558,7 @@ export default function RegularOrderReport() {
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <button 
+              <button
                 onClick={() => setIsSettingsOpen(true)}
                 className="p-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition-all"
               >
@@ -582,7 +574,6 @@ export default function RegularOrderReport() {
             </div>
           )}
 
-          {/* Table */}
           <div className="overflow-x-auto scrollbar-hide">
             <table className="w-full" style={{ tableLayout: "fixed", width: "100%" }}>
               <thead className="bg-slate-50 border-b border-slate-200">
@@ -600,22 +591,19 @@ export default function RegularOrderReport() {
                     Customer Name
                   </th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: "8%" }}>
-                    Total Item Amount
+                    Food Value
                   </th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: "7%" }}>
-                    Coupon Discount
-                  </th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: "6%" }}>
-                    Vat/Tax
+                    Packaging
                   </th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: "7%" }}>
-                    Delivery Charge
+                    Coupon
                   </th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: "7%" }}>
-                    Platform Fee
+                    Delivery Share
                   </th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: "8%" }}>
-                    Order Amount
+                    Total Amount
                   </th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: "5%" }}>
                     Status
@@ -625,7 +613,7 @@ export default function RegularOrderReport() {
               <tbody className="bg-white divide-y divide-slate-100">
                 {paginatedOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={11} className="px-6 py-20 text-center">
+                    <td colSpan={10} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
                         <p className="text-sm text-slate-500">No orders match your filters</p>
@@ -650,22 +638,19 @@ export default function RegularOrderReport() {
                         <span className="text-[10px] text-slate-700 truncate block">{order.customerName}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className="text-[10px] text-slate-700">{formatAmount(order.totalAmount)}</span>
+                        <span className="text-[10px] text-slate-700">{formatAmount(order.totalItemAmount)}</span>
+                      </td>
+                      <td className="px-1.5 py-1">
+                        <span className="text-[10px] text-slate-700">{formatAmount(order.packagingFee)}</span>
                       </td>
                       <td className="px-1.5 py-1">
                         <span className="text-[10px] text-slate-700">{formatAmount(order.couponDiscount)}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className="text-[10px] text-slate-700">{formatAmount(order.vatTax)}</span>
-                      </td>
-                      <td className="px-1.5 py-1">
                         <span className="text-[10px] text-slate-700">{formatAmount(order.deliveryCharge)}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className="text-[10px] text-slate-700">{formatAmount(order.platformFee)}</span>
-                      </td>
-                      <td className="px-1.5 py-1">
-                        <span className="text-[10px] font-medium text-slate-900">{formatAmount(order.totalAmount || order.totalItemAmount)}</span>
+                        <span className="text-[10px] font-medium text-slate-900">{formatAmount(order.totalAmount)}</span>
                       </td>
                       <td className="px-1.5 py-1">
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-slate-100 text-slate-700">
@@ -679,7 +664,6 @@ export default function RegularOrderReport() {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="flex items-center justify-between mt-3">
             <p className="text-[10px] text-slate-500">
               Showing{" "}
@@ -723,7 +707,6 @@ export default function RegularOrderReport() {
         </div>
       </div>
 
-      {/* Settings Dialog */}
       <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
         <DialogContent className="max-w-md bg-white p-0 opacity-0 data-[state=open]:opacity-100 data-[state=closed]:opacity-0 transition-opacity duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:scale-100 data-[state=closed]:scale-100">
           <DialogHeader className="px-6 pt-6 pb-4">
@@ -751,5 +734,22 @@ export default function RegularOrderReport() {
   )
 }
 
+function SummaryCard({ label, value, tone }) {
+  const toneMap = {
+    blue: "bg-blue-50 text-blue-700 border-blue-100",
+    slate: "bg-slate-50 text-slate-700 border-slate-100",
+    amber: "bg-amber-50 text-amber-700 border-amber-100",
+    rose: "bg-rose-50 text-rose-700 border-rose-100",
+    emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
+    cyan: "bg-cyan-50 text-cyan-700 border-cyan-100",
+    indigo: "bg-indigo-50 text-indigo-700 border-indigo-100",
+    green: "bg-green-50 text-green-700 border-green-100",
+  }
 
-
+  return (
+    <div className={`rounded-lg border p-3 shadow-sm ${toneMap[tone] || toneMap.blue}`}>
+      <p className="text-[11px] font-medium opacity-80">{label}</p>
+      <p className="mt-1 text-base font-bold">{value}</p>
+    </div>
+  )
+}

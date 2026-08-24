@@ -889,11 +889,14 @@ export async function getTransactionReport(query = {}) {
             ...(match.restaurantId ? { restaurantId: match.restaurantId } : {}),
             status: { $in: ['paid', 'refunded'] }
         })
-            .select('status pricing payment')
+            .populate('userId', 'name')
+            .populate('restaurantId', 'restaurantName')
+            .populate('subscriptionId', 'planTitle')
+            .select('status pricing payment paymentMethod userId restaurantId subscriptionId createdAt')
             .lean()
     ]);
 
-    const transactions = transactionRows.map((tx) => {
+    const orderTransactions = transactionRows.map((tx) => {
         const order = tx.orderId || {};
         const pricing = buildOrderPricingSnapshot(order);
         const isSubscriptionPrepaidOrder =
@@ -926,13 +929,28 @@ export async function getTransactionReport(query = {}) {
 
         return {
             id: tx._id,
+            referenceId: tx.orderReadableId || order.orderId || 'N/A',
             orderId: tx.orderReadableId || order.orderId || 'N/A',
+            transactionType: 'delivered_order_settlement',
+            transactionTypeLabel: 'Delivered Order Settlement',
             restaurant: tx.restaurantId?.restaurantName || 'N/A',
             customerName: tx.userId?.name || 'Guest',
+            billingMode: isSubscriptionPrepaidOrder ? 'subscription_prepaid' : 'direct_order',
+            planTitle: order?.subscriptionUsage?.planTitle || '',
+            customerPaymentAmount: Number(tx.amounts?.directCustomerPaidAmount || 0),
+            mealValue: subtotal,
+            operationalValue:
+                tx.amounts?.subscriptionAllocationAmount ||
+                tx.amounts?.totalCustomerPaid ||
+                pricing.total ||
+                0,
+            restaurantShare: Number(tx.amounts?.restaurantShare || 0),
+            deliveryShare: Number(tx.amounts?.riderShare || 0),
+            platformProfit: Number(tx.amounts?.platformNetProfit || 0),
             totalItemAmount: subtotal,
             itemDiscount: isSubscriptionPrepaidOrder ? 0 : pricing.discount || 0,
             couponDiscount: 0,
-            referralDiscount: 0, // Placeholder
+            referralDiscount: 0,
             discountedAmount: Math.max(0, (pricing.subtotal || 0) - (isSubscriptionPrepaidOrder ? 0 : (pricing.discount || 0))),
             vatTax: isSubscriptionPrepaidOrder ? 0 : (tx.amounts?.taxAmount || pricing.tax || 0),
             deliveryCharge: isSubscriptionPrepaidOrder ? 0 : (pricing.deliveryFee || 0),
@@ -943,7 +961,7 @@ export async function getTransactionReport(query = {}) {
                 pricing.total ||
                 0,
             status: tx.status,
-            billingMode: isSubscriptionPrepaidOrder ? 'subscription_prepaid' : 'direct_order',
+            createdAt: tx.createdAt,
             adminEarningBreakdown: {
                 deliveryProfit: deliveryFeeUser - deliveryCostAdmin - deliveryGstAdmin,
                 platformFee: platformFee,
@@ -961,21 +979,69 @@ export async function getTransactionReport(query = {}) {
         };
     });
 
+    const subscriptionTransactions = subscriptionPurchaseRows.map((purchase) => {
+        const totalPaid =
+            Number(purchase?.payment?.amountPaid || 0) ||
+            Number(purchase?.pricing?.totalAmount || 0) ||
+            0;
+
+        return {
+            id: purchase._id,
+            referenceId: `SUB-${String(purchase?._id || '').slice(-6).toUpperCase()}`,
+            orderId: 'SUBSCRIPTION',
+            transactionType: 'subscription_purchase',
+            transactionTypeLabel: 'Subscription Purchase',
+            restaurant: purchase?.restaurantId?.restaurantName || 'N/A',
+            customerName: purchase?.userId?.name || 'Guest',
+            billingMode: 'subscription_prepaid',
+            paymentMethod: String(purchase?.paymentMethod || purchase?.payment?.method || 'unknown'),
+            planTitle: purchase?.subscriptionId?.planTitle || '',
+            customerPaymentAmount: totalPaid,
+            mealValue: Number(purchase?.pricing?.foodSubtotal || 0),
+            operationalValue: totalPaid,
+            restaurantShare: 0,
+            deliveryShare: 0,
+            platformProfit: 0,
+            totalItemAmount: Number(purchase?.pricing?.foodSubtotal || 0),
+            itemDiscount: 0,
+            couponDiscount: Number(purchase?.pricing?.couponDiscount || 0),
+            referralDiscount: 0,
+            discountedAmount: Math.max(
+                0,
+                Number(purchase?.pricing?.totalBeforeDiscount || totalPaid || 0) - Number(purchase?.pricing?.couponDiscount || 0)
+            ),
+            vatTax: Number(purchase?.pricing?.gstAmount || 0),
+            deliveryCharge: Number(purchase?.pricing?.deliveryCharges || 0),
+            platformFee: Number(purchase?.pricing?.platformFee || 0),
+            orderAmount: totalPaid,
+            status: purchase?.status || 'paid',
+            createdAt: purchase?.createdAt,
+            adminEarningBreakdown: {
+                deliveryProfit: 0,
+                platformFee: Number(purchase?.pricing?.platformFee || 0),
+                packagingFee: 0,
+                restaurantCommission: 0,
+                gstOnItem: Number(purchase?.pricing?.gstAmount || 0),
+                gstOnCommission: 0,
+                paymentGatewayFee: 0,
+                tcs: 0,
+                totalAdminReceivable: totalPaid,
+                deliveryCostToAdmin: 0,
+                deliveryGstToAdmin: 0,
+                gstCollectedFromUser: Number(purchase?.pricing?.gstAmount || 0)
+            }
+        };
+    });
+
+    const transactions = [...subscriptionTransactions, ...orderTransactions]
+        .sort((a, b) => new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0));
+
     let completedTransaction = 0;
     let refundedTransaction = 0;
     let operationalOrderValue = 0;
     let adminEarning = 0;
     let restaurantEarning = 0;
     let deliverymanEarning = 0;
-
-    for (const purchase of subscriptionPurchaseRows) {
-        const purchaseAmount =
-            Number(purchase?.payment?.amountPaid || 0) ||
-            Number(purchase?.pricing?.totalAmount || 0) ||
-            0;
-        if (purchase?.status === 'paid') completedTransaction += purchaseAmount;
-        if (purchase?.status === 'refunded') refundedTransaction += purchaseAmount;
-    }
 
     let adminEarningBreakdown = {
         deliveryProfit: 0,
@@ -990,6 +1056,10 @@ export async function getTransactionReport(query = {}) {
     for (const tx of transactionRows) {
         // Calculate Summary
         if (tx.status === 'captured' || tx.status === 'settled' || (tx.orderId && tx.orderId.orderStatus === 'delivered')) {
+            completedTransaction +=
+                Number(tx.pricing?.subtotal || 0) ||
+                Number(tx.orderId?.subtotal || 0) ||
+                0;
             operationalOrderValue +=
                 tx.amounts?.subscriptionAllocationAmount ||
                 tx.amounts?.totalCustomerPaid ||
@@ -1028,7 +1098,32 @@ export async function getTransactionReport(query = {}) {
         deliverymanEarning,
     };
 
-    return { transactions, summary };
+    const subscriptionSummary = subscriptionTransactions.reduce((acc, tx) => {
+        acc.totalPurchases += 1;
+        acc.totalPaid += Number(tx.customerPaymentAmount || 0);
+        acc.mealValue += Number(tx.mealValue || 0);
+        acc.gstAmount += Number(tx.vatTax || 0);
+        acc.deliveryCharge += Number(tx.deliveryCharge || 0);
+        acc.platformFee += Number(tx.platformFee || 0);
+        acc.couponDiscount += Number(tx.couponDiscount || 0);
+        return acc;
+    }, {
+        totalPurchases: 0,
+        totalPaid: 0,
+        mealValue: 0,
+        gstAmount: 0,
+        deliveryCharge: 0,
+        platformFee: 0,
+        couponDiscount: 0
+    });
+
+    return {
+        transactions,
+        summary,
+        orderTransactions,
+        subscriptionTransactions,
+        subscriptionSummary
+    };
 }
 
 export async function getRestaurantReport(query = {}) {
@@ -2022,14 +2117,10 @@ export async function upsertFeeSettings(body) {
         if (body.gstRate === null) $unset.gstRate = 1;
         else if (body.gstRate !== undefined) $set.gstRate = body.gstRate;
 
-        if (body.gstOnDeliveryFee === null) $unset.gstOnDeliveryFee = 1;
-        else if (body.gstOnDeliveryFee !== undefined) $set.gstOnDeliveryFee = body.gstOnDeliveryFee;
-
-        if (body.gstOnPlatformFee === null) $unset.gstOnPlatformFee = 1;
-        else if (body.gstOnPlatformFee !== undefined) $set.gstOnPlatformFee = body.gstOnPlatformFee;
-
-        if (body.gstOnPackagingFee === null) $unset.gstOnPackagingFee = 1;
-        else if (body.gstOnPackagingFee !== undefined) $set.gstOnPackagingFee = body.gstOnPackagingFee;
+        // Always remove legacy fee-tax GST fields once fee settings are touched.
+        $unset.gstOnDeliveryFee = 1;
+        $unset.gstOnPlatformFee = 1;
+        $unset.gstOnPackagingFee = 1;
 
         if (body.deliveryBonusAmount === null) $unset.deliveryBonusAmount = 1;
         else if (body.deliveryBonusAmount !== undefined) $set.deliveryBonusAmount = body.deliveryBonusAmount;
@@ -2058,9 +2149,6 @@ export async function upsertFeeSettings(body) {
     if (body.platformFee !== undefined && body.platformFee !== null) payload.platformFee = body.platformFee;
     if (body.packagingFee !== undefined && body.packagingFee !== null) payload.packagingFee = body.packagingFee;
     if (body.gstRate !== undefined && body.gstRate !== null) payload.gstRate = body.gstRate;
-    if (body.gstOnDeliveryFee !== undefined && body.gstOnDeliveryFee !== null) payload.gstOnDeliveryFee = body.gstOnDeliveryFee;
-    if (body.gstOnPlatformFee !== undefined && body.gstOnPlatformFee !== null) payload.gstOnPlatformFee = body.gstOnPlatformFee;
-    if (body.gstOnPackagingFee !== undefined && body.gstOnPackagingFee !== null) payload.gstOnPackagingFee = body.gstOnPackagingFee;
     if (body.deliveryBonusAmount !== undefined && body.deliveryBonusAmount !== null) payload.deliveryBonusAmount = body.deliveryBonusAmount;
     if (body.dispatchRadiusTiers !== undefined && body.dispatchRadiusTiers !== null) payload.dispatchRadiusTiers = body.dispatchRadiusTiers;
 

@@ -174,10 +174,16 @@ export function normalizeOrderForClient(orderDoc) {
   const mongoId = (order._id || orderDoc?._id || "").toString();
   const displayId = order.order_id || mongoId;
   const pricing = buildOrderPricingSnapshot(order);
+  const transaction =
+    order?.transactionId && typeof order.transactionId === "object"
+      ? order.transactionId
+      : null;
   return {
     ...order,
     pricing,
     total: pricing.total,
+    transaction,
+    settlementAmounts: transaction?.amounts || null,
     orderMongoId: mongoId,
     orderId: displayId,
     status: order?.orderStatus || order?.status || "",
@@ -275,7 +281,7 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
     note: order?.note || "",
     riderEarning: order?.riderEarning || 0,
     deliveryBonusAmount: order?.deliveryBonusAmount || 0,
-    earnings: order?.riderEarning || pricing.deliveryFee || 0,
+    earnings: order?.riderEarning || 0,
     deliveryFee: pricing.deliveryFee || 0,
     deliveryFleet: order?.deliveryFleet,
     dispatch: order?.dispatch,

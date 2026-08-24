@@ -54,10 +54,9 @@ export default function SubscriptionDetails() {
   const schedules = getSchedulesForSubscription(subscriptionId);
 
   useEffect(() => {
-    if (!subscription && subscriptionId) {
-      refreshSubscriptions({ silent: false }).catch(() => {});
-    }
-  }, [subscription, subscriptionId, refreshSubscriptions]);
+    if (!subscriptionId) return;
+    refreshSubscriptions({ silent: false }).catch(() => {});
+  }, [subscriptionId, refreshSubscriptions]);
 
   const nextSchedule = useMemo(() => schedules[0] || null, [schedules]);
 

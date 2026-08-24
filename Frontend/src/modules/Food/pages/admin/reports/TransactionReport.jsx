@@ -24,7 +24,8 @@ const debugError = (...args) => {}
 
 export default function TransactionReport() {
   const [searchQuery, setSearchQuery] = useState("")
-  const [transactions, setTransactions] = useState([])
+  const [orderTransactions, setOrderTransactions] = useState([])
+  const [subscriptionTransactions, setSubscriptionTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [summary, setSummary] = useState({
@@ -35,6 +36,15 @@ export default function TransactionReport() {
     restaurantEarning: 0,
     deliverymanEarning: 0,
     adminEarningBreakdown: {}
+  })
+  const [subscriptionSummary, setSubscriptionSummary] = useState({
+    totalPurchases: 0,
+    totalPaid: 0,
+    mealValue: 0,
+    gstAmount: 0,
+    deliveryCharge: 0,
+    platformFee: 0,
+    couponDiscount: 0,
   })
   const [filters, setFilters] = useState({
     zone: "All Zones",
@@ -103,7 +113,8 @@ export default function TransactionReport() {
         const response = await adminAPI.getTransactionReport(params)
 
         if (response?.data?.success && response.data.data) {
-          setTransactions(response.data.data.transactions || [])
+          setOrderTransactions(response.data.data.orderTransactions || response.data.data.transactions || [])
+          setSubscriptionTransactions(response.data.data.subscriptionTransactions || [])
           setSummary(response.data.data.summary || {
             completedTransaction: 0,
             refundedTransaction: 0,
@@ -113,8 +124,18 @@ export default function TransactionReport() {
             deliverymanEarning: 0,
             adminEarningBreakdown: {}
           })
+          setSubscriptionSummary(response.data.data.subscriptionSummary || {
+            totalPurchases: 0,
+            totalPaid: 0,
+            mealValue: 0,
+            gstAmount: 0,
+            deliveryCharge: 0,
+            platformFee: 0,
+            couponDiscount: 0,
+          })
         } else {
-          setTransactions([])
+          setOrderTransactions([])
+          setSubscriptionTransactions([])
           if (response?.data?.message) {
             toast.error(response.data.message)
           }
@@ -122,7 +143,8 @@ export default function TransactionReport() {
       } catch (error) {
         debugError("Error fetching transaction report:", error)
         toast.error("Failed to fetch transaction report")
-        setTransactions([])
+        setOrderTransactions([])
+        setSubscriptionTransactions([])
       } finally {
         setIsRefreshing(false)
         setLoading(false)
@@ -132,20 +154,52 @@ export default function TransactionReport() {
     fetchTransactionReport()
   }, [searchQuery, filters])
 
-  const filteredTransactions = useMemo(() => {
-    return transactions // Backend already filters, so just return transactions
-  }, [transactions])
+  const filteredOrderTransactions = useMemo(() => {
+    const query = String(searchQuery || "").trim().toLowerCase()
+    if (!query) return orderTransactions
+
+    return orderTransactions.filter((transaction) =>
+      [
+        transaction.referenceId,
+        transaction.orderId,
+        transaction.restaurant,
+        transaction.customerName,
+        transaction.transactionTypeLabel,
+        transaction.billingMode,
+      ].some((value) => String(value || "").toLowerCase().includes(query))
+    )
+  }, [orderTransactions, searchQuery])
+
+  const filteredSubscriptionTransactions = useMemo(() => {
+    const query = String(searchQuery || "").trim().toLowerCase()
+    if (!query) return subscriptionTransactions
+
+    return subscriptionTransactions.filter((transaction) =>
+      [
+        transaction.referenceId,
+        transaction.restaurant,
+        transaction.customerName,
+        transaction.planTitle,
+        transaction.paymentMethod,
+        transaction.transactionTypeLabel,
+      ].some((value) => String(value || "").toLowerCase().includes(query))
+    )
+  }, [subscriptionTransactions, searchQuery])
+  const allTransactions = useMemo(
+    () => [...filteredSubscriptionTransactions, ...filteredOrderTransactions],
+    [filteredOrderTransactions, filteredSubscriptionTransactions]
+  )
 
   const handleExport = (format) => {
-    if (filteredTransactions.length === 0) {
+    if (allTransactions.length === 0) {
       alert("No data to export")
       return
     }
     switch (format) {
-      case "csv": exportTransactionReportToCSV(filteredTransactions); break
-      case "excel": exportTransactionReportToExcel(filteredTransactions); break
-      case "pdf": exportTransactionReportToPDF(filteredTransactions); break
-      case "json": exportTransactionReportToJSON(filteredTransactions); break
+      case "csv": exportTransactionReportToCSV(allTransactions); break
+      case "excel": exportTransactionReportToExcel(allTransactions); break
+      case "pdf": exportTransactionReportToPDF(allTransactions); break
+      case "json": exportTransactionReportToJSON(allTransactions); break
     }
   }
 
@@ -189,6 +243,17 @@ export default function TransactionReport() {
 
     return 'bg-slate-100 text-slate-700'
   }
+
+  const renderEmptyState = (message) => (
+    <tr>
+      <td colSpan={13} className="px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center">
+          <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
+          <p className="text-sm text-slate-500">{message}</p>
+        </div>
+      </td>
+    </tr>
+  )
 
   if (loading) {
     return (
@@ -285,7 +350,7 @@ export default function TransactionReport() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
           {/* Left Column - Large Cards */}
           <div className="space-y-3">
-            {/* Collected Revenue - Green */}
+            {/* Meal Value - Green */}
             <div className="rounded-lg shadow-sm border border-slate-200 p-4" style={{ backgroundColor: '#f1f5f9' }}>
               <div className="relative mb-3 flex justify-center">
                 <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
@@ -297,11 +362,11 @@ export default function TransactionReport() {
               </div>
               <div className="text-center">
                 <p className="text-xl font-bold text-green-600 mb-1">{formatCurrency(summary.completedTransaction)}</p>
-                <p className="text-sm text-slate-600 leading-tight">Collected Revenue</p>
+                <p className="text-sm text-slate-600 leading-tight">Meal Value</p>
               </div>
             </div>
 
-            {/* Operational Order Value - Blue */}
+            {/* Settlement Value - Blue */}
             <div className="rounded-lg shadow-sm border border-slate-200 p-4" style={{ backgroundColor: '#f1f5f9' }}>
               <div className="relative mb-3 flex justify-center">
                 <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
@@ -313,7 +378,7 @@ export default function TransactionReport() {
               </div>
               <div className="text-center">
                 <p className="text-xl font-bold text-blue-600 mb-1">{formatFullCurrency(summary.operationalOrderValue || 0)}</p>
-                <p className="text-sm text-slate-600 leading-tight">Operational Order Value</p>
+                <p className="text-sm text-slate-600 leading-tight">Settlement Value</p>
               </div>
             </div>
           </div>
@@ -332,7 +397,7 @@ export default function TransactionReport() {
                     <img src={adminEarningIcon} alt="Admin Earning" className="w-6 h-6" />
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-900">Admin Earning</p>
+                    <p className="text-sm font-semibold text-slate-900">Platform Profit</p>
                     <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
                       <Info className="w-3 h-3 text-white" />
                     </div>
@@ -350,7 +415,7 @@ export default function TransactionReport() {
                     <img src={restaurantEarningIcon} alt="Restaurant Earning" className="w-6 h-6" />
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-900">Restaurant Earning</p>
+                    <p className="text-sm font-semibold text-slate-900">Restaurant Share</p>
                     <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
                       <Info className="w-3 h-3 text-white" />
                     </div>
@@ -368,7 +433,7 @@ export default function TransactionReport() {
                     <img src={deliverymanEarningIcon} alt="Deliveryman Earning" className="w-6 h-6" />
                   </div>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-semibold text-slate-900">Deliveryman Earning</p>
+                    <p className="text-sm font-semibold text-slate-900">Delivery Share</p>
                     <div className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center">
                       <Info className="w-3 h-3 text-white" />
                     </div>
@@ -380,16 +445,42 @@ export default function TransactionReport() {
           </div>
         </div>
 
-        {/* Order Transactions Section */}
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-3 mb-3">
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Subscriptions Purchased</p>
+            <p className="text-2xl font-bold text-slate-900">{subscriptionSummary.totalPurchases || 0}</p>
+            <p className="text-xs text-slate-500 mt-1">One-time prepaid subscription payments</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Subscription Revenue</p>
+            <p className="text-2xl font-bold text-emerald-600">{formatFullCurrency(subscriptionSummary.totalPaid || 0)}</p>
+            <p className="text-xs text-slate-500 mt-1">Amount collected from users at purchase</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">Subscription GST</p>
+            <p className="text-2xl font-bold text-blue-600">{formatFullCurrency(subscriptionSummary.gstAmount || 0)}</p>
+            <p className="text-xs text-slate-500 mt-1">One-time GST collected at purchase</p>
+          </div>
+          <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">One-Time Fees</p>
+            <p className="text-2xl font-bold text-violet-600">{formatFullCurrency((subscriptionSummary.deliveryCharge || 0) + (subscriptionSummary.platformFee || 0))}</p>
+            <p className="text-xs text-slate-500 mt-1">Delivery charge + platform fee at purchase</p>
+          </div>
+        </div>
+
+        {/* Subscription Purchases Section */}
         <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
-            <h2 className="text-base font-bold text-slate-900">Order Transactions {filteredTransactions.length}</h2>
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Subscription Purchases {filteredSubscriptionTransactions.length}</h2>
+              <p className="text-xs text-slate-500 mt-0.5">One-time user payments taken during subscription checkout</p>
+            </div>
 
             <div className="flex items-center gap-2">
               <div className="relative flex-1 sm:flex-initial min-w-[180px]">
                 <input
                   type="text"
-                  placeholder="Search by Order ID"
+                  placeholder="Search by ref, customer, restaurant"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-7 pr-2 py-1.5 w-full text-[11px] rounded-lg border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -432,36 +523,116 @@ export default function TransactionReport() {
             </div>
           </div>
 
-          {/* Table */}
+          <div className="overflow-x-auto scrollbar-hide">
+            <table className="w-full" style={{ tableLayout: 'fixed', width: '100%' }}>
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">SI</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Ref Id</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Restaurant</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Customer</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Plan</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Meal Value</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Coupon</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">GST</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Delivery</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Platform</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Total Paid</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Method</th>
+                  <th className="px-2 py-2 text-left text-[10px] font-bold text-slate-700 uppercase tracking-wider">Status</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-slate-100">
+                {filteredSubscriptionTransactions.length === 0 ? (
+                  renderEmptyState("No subscription purchases match your search")
+                ) : (
+                  filteredSubscriptionTransactions.map((transaction, index) => (
+                    <tr
+                      key={transaction.id}
+                      className="hover:bg-slate-50 transition-colors"
+                    >
+                      <td className="px-2 py-2">
+                        <span className="text-xs font-medium text-slate-700">{index + 1}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-xs text-slate-700">{transaction.referenceId || transaction.orderId}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-xs text-slate-700 truncate block">{transaction.restaurant}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-xs text-slate-700 truncate block">{transaction.customerName}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-xs text-slate-700 truncate block">{transaction.planTitle || "Subscription Plan"}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-xs text-slate-700">{formatFullCurrency(transaction.mealValue || 0)}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-xs text-slate-700">{formatFullCurrency(transaction.couponDiscount || 0)}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-xs text-slate-700">{formatFullCurrency(transaction.vatTax || 0)}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-xs text-slate-700">{formatFullCurrency(transaction.deliveryCharge || 0)}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-xs text-slate-700">{formatFullCurrency(transaction.platformFee || 0)}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-xs font-medium text-slate-900">{formatFullCurrency(transaction.customerPaymentAmount || 0)}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className="text-xs text-slate-700 uppercase">{transaction.paymentMethod || "N/A"}</span>
+                      </td>
+                      <td className="px-2 py-2">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${getStatusBadgeClasses(transaction.status)}`}>
+                          {transaction.status || 'N/A'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Order Settlements Section */}
+        <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-3 mt-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+            <div>
+              <h2 className="text-base font-bold text-slate-900">Order Settlements {filteredOrderTransactions.length}</h2>
+              <p className="text-xs text-slate-500 mt-0.5">Per-day delivered order settlement entries for restaurant and rider earnings</p>
+            </div>
+          </div>
+
           <div className="overflow-x-auto scrollbar-hide">
             <table className="w-full" style={{ tableLayout: 'fixed', width: '100%' }}>
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '3%' }}>SI</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '7%' }}>Order Id</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Ref Id</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '10%' }}>Type</th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '10%' }}>Restaurant</th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '10%' }}>Customer Name</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '11%' }}>Meal Value</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '9%' }}>Operational Discount</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '9%' }}>Daily GST</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '10%' }}>Daily Delivery</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '9%' }}>Daily Platform</th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '9%' }}>Operational Value</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Billing</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '9%' }}>User Paid</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '9%' }}>Meal Value</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '9%' }}>Settlement</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Rest Share</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Rider</th>
+                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Platform</th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: '8%' }}>Status</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-slate-100">
-                {filteredTransactions.length === 0 ? (
-                  <tr>
-                    <td colSpan={11} className="px-6 py-20 text-center">
-                      <div className="flex flex-col items-center justify-center">
-                        <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
-                        <p className="text-sm text-slate-500">No transactions match your search</p>
-                      </div>
-                    </td>
-                  </tr>
+                {filteredOrderTransactions.length === 0 ? (
+                  renderEmptyState("No order settlements match your search")
                 ) : (
-                  filteredTransactions.map((transaction, index) => (
+                  filteredOrderTransactions.map((transaction, index) => (
                     <tr
                       key={transaction.id}
                       className="hover:bg-slate-50 transition-colors"
@@ -470,37 +641,37 @@ export default function TransactionReport() {
                         <span className="text-[10px] font-medium text-slate-700">{index + 1}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className="text-[10px] text-slate-700">{transaction.orderId}</span>
+                        <span className="text-[10px] text-slate-700">{transaction.referenceId || transaction.orderId}</span>
+                      </td>
+                      <td className="px-1.5 py-1">
+                        <span className="text-[10px] text-slate-700 truncate block">{transaction.transactionTypeLabel || transaction.transactionType || 'N/A'}</span>
                       </td>
                       <td className="px-1.5 py-1">
                         <span className="text-[10px] text-slate-700 truncate block">{transaction.restaurant}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className={`text-[10px] truncate block ${
-                          transaction.customerName === "Invalid Customer Data" 
-                            ? "text-red-600 font-semibold" 
-                            : "text-slate-700"
-                        }`}>
-                          {transaction.customerName}
-                        </span>
+                        <span className="text-[10px] text-slate-700 truncate block">{transaction.customerName}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.totalItemAmount)}</span>
+                        <span className="text-[10px] text-slate-700">{transaction.billingMode === 'subscription_prepaid' ? 'Subscription' : 'Direct'}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.couponDiscount)}</span>
+                        <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.customerPaymentAmount || 0)}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.vatTax)}</span>
+                        <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.mealValue || transaction.totalItemAmount || 0)}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.deliveryCharge)}</span>
+                        <span className="text-[10px] font-medium text-slate-900">{formatFullCurrency(transaction.operationalValue || transaction.orderAmount || 0)}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.platformFee || 0)}</span>
+                        <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.restaurantShare || 0)}</span>
                       </td>
                       <td className="px-1.5 py-1">
-                        <span className="text-[10px] font-medium text-slate-900">{formatFullCurrency(transaction.orderAmount)}</span>
+                        <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.deliveryShare || 0)}</span>
+                      </td>
+                      <td className="px-1.5 py-1">
+                        <span className="text-[10px] text-slate-700">{formatFullCurrency(transaction.platformProfit || 0)}</span>
                       </td>
                       <td className="px-1.5 py-1">
                         <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${getStatusBadgeClasses(transaction.status || transaction.orderStatus)}`}>

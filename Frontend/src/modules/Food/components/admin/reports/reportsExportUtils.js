@@ -1,22 +1,22 @@
 // Export utility functions for reports
-import { downloadFile } from "@/shared/utils/downloadUtils"
+
 export const exportReportsToCSV = (data, headers, filename = "report") => {
-  const rows = data.map((item, index) => {
-    return headers.map(header => {
+  const rows = data.map((item) => {
+    return headers.map((header) => {
       let value = item[header.key] || item[header] || ""
-      if (typeof value === 'string') {
-        value = value.replace(/[₹\u20B9]/g, '').trim()
+      if (typeof value === "string") {
+        value = value.replace(/[â‚¹\u20B9]/g, "").trim()
       }
-      return typeof value === 'object' ? JSON.stringify(value) : value
+      return typeof value === "object" ? JSON.stringify(value) : value
     })
   })
-  
-  const headerRow = headers.map(h => typeof h === 'string' ? h : h.label).join(",")
+
+  const headerRow = headers.map((h) => typeof h === "string" ? h : h.label).join(",")
   const csvContent = [
     headerRow,
-    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, "\"\"")}"`).join(",")),
   ].join("\n")
-  
+
   const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
   const link = document.createElement("a")
   const url = URL.createObjectURL(blob)
@@ -29,9 +29,9 @@ export const exportReportsToCSV = (data, headers, filename = "report") => {
 }
 
 export const exportReportsToExcel = (data, headers, filename = "report") => {
-  const headerLabels = headers.map(h => typeof h === 'string' ? h : h.label)
-  
-  let htmlContent = `
+  const headerLabels = headers.map((h) => typeof h === "string" ? h : h.label)
+
+  const htmlContent = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
     <head>
       <meta charset="utf-8">
@@ -40,13 +40,13 @@ export const exportReportsToExcel = (data, headers, filename = "report") => {
       <table>
         <thead>
           <tr>
-            ${headerLabels.map(h => `<th>${h}</th>`).join("")}
+            ${headerLabels.map((h) => `<th>${h}</th>`).join("")}
           </tr>
         </thead>
         <tbody>
-          ${data.map(item => {
-            return `<tr>` + headers.map(header => {
-              let value = item[header.key] || item[header] || ""
+          ${data.map((item) => {
+            return `<tr>` + headers.map((header) => {
+              const value = item[header.key] || item[header] || ""
               return `<td>${String(value)}</td>`
             }).join("") + `</tr>`
           }).join("")}
@@ -55,7 +55,7 @@ export const exportReportsToExcel = (data, headers, filename = "report") => {
     </body>
     </html>
   `
-  
+
   const blob = new Blob([htmlContent], { type: "application/vnd.ms-excel" })
   const link = document.createElement("a")
   const url = URL.createObjectURL(blob)
@@ -68,9 +68,9 @@ export const exportReportsToExcel = (data, headers, filename = "report") => {
 }
 
 export const exportReportsToPDF = (data, headers, filename = "report", title = "Report") => {
-  const headerRow = headers.map(h => typeof h === 'string' ? h : h.label)
-  
-  let htmlContent = `
+  const headerRow = headers.map((h) => typeof h === "string" ? h : h.label)
+
+  const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -90,12 +90,12 @@ export const exportReportsToPDF = (data, headers, filename = "report", title = "
       <table>
         <thead>
           <tr>
-            ${headerRow.map(h => `<th>${h}</th>`).join("")}
+            ${headerRow.map((h) => `<th>${h}</th>`).join("")}
           </tr>
         </thead>
         <tbody>
-          ${data.map(item => {
-            const cells = headers.map(header => {
+          ${data.map((item) => {
+            const cells = headers.map((header) => {
               const value = item[header.key] || item[header] || ""
               return `<td>${String(value)}</td>`
             })
@@ -106,7 +106,7 @@ export const exportReportsToPDF = (data, headers, filename = "report", title = "
     </body>
     </html>
   `
-  
+
   const printWindow = window.open("", "_blank")
   printWindow.document.write(htmlContent)
   printWindow.document.close()
@@ -132,25 +132,28 @@ export const exportReportsToJSON = (data, filename = "report") => {
 
 // Specific export functions for Transaction Report
 export const exportTransactionReportToCSV = (transactions, filename = "transaction_report") => {
-  const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Coupon Discount", "VAT/Tax", "Delivery Charge", "Platform Fee", "Order Amount"]
+  const headers = ["SI", "Reference ID", "Type", "Restaurant", "Customer Name", "Billing", "User Paid", "Meal Value", "Settlement Value", "Restaurant Share", "Delivery Share", "Platform Profit", "Status"]
   const rows = transactions.map((transaction, index) => [
     index + 1,
-    transaction.orderId,
-    transaction.restaurant,
-    transaction.customerName,
-    transaction.totalItemAmount.toFixed(2),
-    transaction.couponDiscount.toFixed(2),
-    transaction.vatTax.toFixed(2),
-    transaction.deliveryCharge.toFixed(2),
-    Number(transaction.platformFee || 0).toFixed(2),
-    transaction.orderAmount.toFixed(2)
+    transaction.referenceId || transaction.orderId || "N/A",
+    transaction.transactionTypeLabel || transaction.transactionType || "N/A",
+    transaction.restaurant || "N/A",
+    transaction.customerName || "N/A",
+    transaction.billingMode === "subscription_prepaid" ? "Subscription" : "Direct",
+    Number(transaction.customerPaymentAmount || 0).toFixed(2),
+    Number(transaction.mealValue || 0).toFixed(2),
+    Number(transaction.operationalValue || transaction.orderAmount || 0).toFixed(2),
+    Number(transaction.restaurantShare || 0).toFixed(2),
+    Number(transaction.deliveryShare || 0).toFixed(2),
+    Number(transaction.platformProfit || 0).toFixed(2),
+    transaction.status || "N/A",
   ])
-  
+
   const csvContent = [
     headers.join(","),
-    ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+    ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, "\"\"")}"`).join(",")),
   ].join("\n")
-  
+
   const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
   const link = document.createElement("a")
   const url = URL.createObjectURL(blob)
@@ -163,9 +166,9 @@ export const exportTransactionReportToCSV = (transactions, filename = "transacti
 }
 
 export const exportTransactionReportToExcel = (transactions, filename = "transaction_report") => {
-  const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Coupon Discount", "VAT/Tax", "Delivery Charge", "Platform Fee", "Order Amount"]
-  
-  let htmlContent = `
+  const headers = ["SI", "Reference ID", "Type", "Restaurant", "Customer Name", "Billing", "User Paid", "Meal Value", "Settlement Value", "Restaurant Share", "Delivery Share", "Platform Profit", "Status"]
+
+  const htmlContent = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
     <head>
       <meta charset="utf-8">
@@ -174,22 +177,25 @@ export const exportTransactionReportToExcel = (transactions, filename = "transac
       <table>
         <thead>
           <tr>
-            ${headers.map(h => `<th>${h}</th>`).join("")}
+            ${headers.map((h) => `<th>${h}</th>`).join("")}
           </tr>
         </thead>
         <tbody>
           ${transactions.map((transaction, index) => `
             <tr>
               <td>${index + 1}</td>
-              <td>${transaction.orderId}</td>
-              <td>${transaction.restaurant}</td>
-              <td>${transaction.customerName}</td>
-              <td>₹${transaction.totalItemAmount.toFixed(2)}</td>
-              <td>₹${transaction.couponDiscount.toFixed(2)}</td>
-              <td>₹${transaction.vatTax.toFixed(2)}</td>
-              <td>₹${transaction.deliveryCharge.toFixed(2)}</td>
-              <td>₹${Number(transaction.platformFee || 0).toFixed(2)}</td>
-              <td>₹${transaction.orderAmount.toFixed(2)}</td>
+              <td>${transaction.referenceId || transaction.orderId || "N/A"}</td>
+              <td>${transaction.transactionTypeLabel || transaction.transactionType || "N/A"}</td>
+              <td>${transaction.restaurant || "N/A"}</td>
+              <td>${transaction.customerName || "N/A"}</td>
+              <td>${transaction.billingMode === "subscription_prepaid" ? "Subscription" : "Direct"}</td>
+              <td>Rs. ${Number(transaction.customerPaymentAmount || 0).toFixed(2)}</td>
+              <td>Rs. ${Number(transaction.mealValue || 0).toFixed(2)}</td>
+              <td>Rs. ${Number(transaction.operationalValue || transaction.orderAmount || 0).toFixed(2)}</td>
+              <td>Rs. ${Number(transaction.restaurantShare || 0).toFixed(2)}</td>
+              <td>Rs. ${Number(transaction.deliveryShare || 0).toFixed(2)}</td>
+              <td>Rs. ${Number(transaction.platformProfit || 0).toFixed(2)}</td>
+              <td>${transaction.status || "N/A"}</td>
             </tr>
           `).join("")}
         </tbody>
@@ -197,7 +203,7 @@ export const exportTransactionReportToExcel = (transactions, filename = "transac
     </body>
     </html>
   `
-  
+
   const blob = new Blob([htmlContent], { type: "application/vnd.ms-excel" })
   const link = document.createElement("a")
   const url = URL.createObjectURL(blob)
@@ -210,9 +216,9 @@ export const exportTransactionReportToExcel = (transactions, filename = "transac
 }
 
 export const exportTransactionReportToPDF = (transactions, filename = "transaction_report") => {
-  const headers = ["SI", "Order ID", "Restaurant", "Customer Name", "Total Item Amount", "Coupon Discount", "VAT/Tax", "Delivery Charge", "Platform Fee", "Order Amount"]
-  
-  let htmlContent = `
+  const headers = ["SI", "Reference ID", "Type", "Restaurant", "Customer Name", "Billing", "User Paid", "Meal Value", "Settlement Value", "Restaurant Share", "Delivery Share", "Platform Profit", "Status"]
+
+  const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -232,22 +238,25 @@ export const exportTransactionReportToPDF = (transactions, filename = "transacti
       <table>
         <thead>
           <tr>
-            ${headers.map(h => `<th>${h}</th>`).join("")}
+            ${headers.map((h) => `<th>${h}</th>`).join("")}
           </tr>
         </thead>
         <tbody>
           ${transactions.map((transaction, index) => `
             <tr>
               <td>${index + 1}</td>
-              <td>${transaction.orderId}</td>
-              <td>${transaction.restaurant}</td>
-              <td>${transaction.customerName}</td>
-              <td>₹${transaction.totalItemAmount.toFixed(2)}</td>
-              <td>₹${transaction.couponDiscount.toFixed(2)}</td>
-              <td>₹${transaction.vatTax.toFixed(2)}</td>
-              <td>₹${transaction.deliveryCharge.toFixed(2)}</td>
-              <td>₹${Number(transaction.platformFee || 0).toFixed(2)}</td>
-              <td>₹${transaction.orderAmount.toFixed(2)}</td>
+              <td>${transaction.referenceId || transaction.orderId || "N/A"}</td>
+              <td>${transaction.transactionTypeLabel || transaction.transactionType || "N/A"}</td>
+              <td>${transaction.restaurant || "N/A"}</td>
+              <td>${transaction.customerName || "N/A"}</td>
+              <td>${transaction.billingMode === "subscription_prepaid" ? "Subscription" : "Direct"}</td>
+              <td>Rs. ${Number(transaction.customerPaymentAmount || 0).toFixed(2)}</td>
+              <td>Rs. ${Number(transaction.mealValue || 0).toFixed(2)}</td>
+              <td>Rs. ${Number(transaction.operationalValue || transaction.orderAmount || 0).toFixed(2)}</td>
+              <td>Rs. ${Number(transaction.restaurantShare || 0).toFixed(2)}</td>
+              <td>Rs. ${Number(transaction.deliveryShare || 0).toFixed(2)}</td>
+              <td>Rs. ${Number(transaction.platformProfit || 0).toFixed(2)}</td>
+              <td>${transaction.status || "N/A"}</td>
             </tr>
           `).join("")}
         </tbody>
@@ -255,7 +264,7 @@ export const exportTransactionReportToPDF = (transactions, filename = "transacti
     </body>
     </html>
   `
-  
+
   const printWindow = window.open("", "_blank")
   printWindow.document.write(htmlContent)
   printWindow.document.close()

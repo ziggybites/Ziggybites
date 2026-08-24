@@ -1674,6 +1674,7 @@ export async function listOrdersAdmin(query) {
     $or: [
       { "payment.method": { $in: ["cash", "wallet"] } },
       { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
+      { "subscriptionUsage.billingMode": "subscription_prepaid" },
     ],
   };
 
@@ -1771,6 +1772,7 @@ export async function listOrdersAdmin(query) {
       .select("+deliveryOtp")
       .populate("userId", "name phone email")
       .populate("restaurantId", "restaurantName area city ownerPhone")
+      .populate("transactionId", "pricing amounts paymentMethod status")
       .populate("dispatch.deliveryPartnerId", "name phone")
       .sort({ createdAt: -1 })
       .skip(skip)

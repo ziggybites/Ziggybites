@@ -501,12 +501,14 @@ async function resolveSubscriptionOrderPricing(userId, dto = {}) {
     throw new ValidationError('Dish price is required for subscription');
   }
 
-  const foodSubtotal = roundMoney(itemPrice * mealCount * planDays);
-  const gstRate = Number.isFinite(Number(dto.gstRate)) ? Number(dto.gstRate) : 5;
-  const gstAmount = roundMoney(foodSubtotal * (gstRate / 100));
   const feeSettings = await FoodFeeSettings.findOne({ isActive: true })
     .sort({ createdAt: -1 })
     .lean();
+  const foodSubtotal = roundMoney(itemPrice * mealCount * planDays);
+  const gstRate = Number.isFinite(Number(feeSettings?.gstRate))
+    ? Number(feeSettings.gstRate)
+    : 5;
+  const gstAmount = roundMoney(foodSubtotal * (gstRate / 100));
   const deliveryFeePerDay = Number.isFinite(Number(dto.deliveryFeePerDay))
     ? Number(dto.deliveryFeePerDay)
     : Number(feeSettings?.deliveryFee || 10) || 10;

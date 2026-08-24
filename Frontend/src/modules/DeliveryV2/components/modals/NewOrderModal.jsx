@@ -62,7 +62,14 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
   if (!order) return null;
 
   const bonus = order.deliveryBonusAmount || 0;
-  const earnings = order.earnings || order.riderEarning || (order.orderAmount ? order.orderAmount * 0.1 : 0);
+  const earnings =
+    Number(
+      order.deliveryEarning ??
+      order.earningAmount ??
+      order.riderEarning ??
+      order.amount ??
+      0,
+    ) || 0;
   const baseEarnings = Math.max(0, earnings - bonus);
 
   const restaurantName = order.restaurantName || order.restaurant_name || (order.restaurantId?.name) || 'Restaurant';
