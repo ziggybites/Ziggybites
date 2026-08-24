@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useMemo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
 import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
 import { motion, AnimatePresence } from "framer-motion"
@@ -76,15 +76,18 @@ export default function FinanceDetailsPage() {
   const settlementData = useMemo(() => {
     const cycle = financeData?.currentCycle || {};
     const summary = financeData?.invoiceSummary || {};
+    const grossAmount = Number(cycle.grossAmount || summary.gross || 0)
+    const commissionAmount = Number(cycle.commissionAmount || summary.commission || 0)
+    const earningsAmount = Number(cycle.totalEarnings || summary.earnings || cycle.estimatedPayout || 0)
     
     return {
       totalOrders: cycle.totalOrders || 0,
       netOrderValue: {
-        itemSubtotal: summary.subtotal || 0,
-        totalGSTCollected: summary.taxes || 0,
+        itemSubtotal: grossAmount,
+        totalGSTCollected: 0,
         restaurantDiscountPromos: 0,
         restaurantDiscountOthers: 0,
-        total: summary.subtotal || 0
+        total: grossAmount
       },
       additions: {
         tds194H: 0,
@@ -92,23 +95,27 @@ export default function FinanceDetailsPage() {
         total: 0
       },
       orderLevelDeductions: {
-        total: 0
+        commission: commissionAmount,
+        total: commissionAmount
       },
       taxDeductions: {
         gstOnServiceFees: 0,
         tds194O: 0,
         gstPaidByZomato: 0,
-        total: summary.taxes || 0
+        total: 0
       },
       investmentsInGrowth: {
         onlineOrderingAds: 0,
         total: 0
       },
-      estimatedPayout: cycle.estimatedPayout || 0,
+      estimatedPayout: cycle.estimatedPayout || earningsAmount,
       start: cycle.start?.day || "15",
       end: cycle.end?.day || "21",
       month: cycle.start?.month || "Dec",
-      year: cycle.start?.year || "25"
+      year: cycle.start?.year || "25",
+      earningsAmount,
+      grossAmount,
+      commissionAmount,
     }
   }, [financeData])
 

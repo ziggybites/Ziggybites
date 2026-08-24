@@ -3,6 +3,7 @@ import { FoodOrder } from '../../orders/models/order.model.js';
 import { FoodTransaction } from '../../orders/models/foodTransaction.model.js';
 import { FoodRestaurant } from '../models/restaurant.model.js';
 import { FoodRestaurantWithdrawal } from '../models/foodRestaurantWithdrawal.model.js';
+import { FoodRestaurantWallet } from '../models/restaurantWallet.model.js';
 
 function toTwoDigitYearString(dateObj) {
     const y = String(dateObj.getFullYear());
@@ -130,8 +131,16 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
         0
     );
 
-    // Deduct all effective withdrawals from available balance.
-    // Both pending and approved reduce withdrawable amount; rejected should not.
+    const walletDoc = await FoodRestaurantWallet.findOne({ restaurantId: rid })
+        .select('balance lockedAmount totalEarnings totalSettled')
+        .lean();
+
+    const walletBalance = Number(walletDoc?.balance || 0);
+    const walletLockedAmount = Number(walletDoc?.lockedAmount || 0);
+    const walletAvailableBalance = Math.max(0, walletBalance - walletLockedAmount);
+
+    // Deduct all effective withdrawals from unsettled payout visibility only.
+    // Both pending and approved reduce in-flight payout visibility; rejected should not.
     const effectiveWithdrawalsAgg = await FoodRestaurantWithdrawal.aggregate([
         {
             $match: {
@@ -147,16 +156,21 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
         { $group: { _id: null, total: { $sum: '$amount' } } }
     ]);
     const totalEffectiveWithdrawals = Number(effectiveWithdrawalsAgg?.[0]?.total || 0);
-    const availableBalance = Math.max(0, globalEstimatedPayout - totalEffectiveWithdrawals);
+    const pendingPayoutBalance = Math.max(0, globalEstimatedPayout - totalEffectiveWithdrawals);
 
     const currentCycle = {
         start: { ...nowWindow.startMeta },
         end: { ...nowWindow.endMeta },
         totalEarnings: currentCycleEstimatedPayout, // We still show current cycle earnings label
         totalWithdrawn: totalEffectiveWithdrawals,
-        estimatedPayout: availableBalance, // This is what UI shows as "Estimated Payout" (Available Balance)
+        estimatedPayout: walletAvailableBalance, // Withdrawable wallet balance
+        pendingPayout: pendingPayoutBalance, // Unsettled order earnings not yet credited to wallet
+        walletBalance,
+        walletLockedAmount,
         totalOrders: currentCycleOrders.length,
         payoutDate: null,
+        grossAmount: currentCycleOrders.reduce((sum, order) => sum + (Number(order.totalAmount) || 0), 0),
+        commissionAmount: currentCycleOrders.reduce((sum, order) => sum + (Number(order.commission) || 0), 0),
         orders: currentCycleOrders
     };
 
@@ -165,7 +179,9 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
         count: currentCycleOrders.length,
         subtotal: currentCycleOrders.reduce((sum, o) => sum + (Number(o.orderTotal) || 0), 0),
         taxes: currentCycleOrders.reduce((sum, o) => sum + Math.max(0, (Number(o.totalAmount) || 0) - (Number(o.orderTotal) || 0)), 0),
-        gross: currentCycleOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0)
+        gross: currentCycleOrders.reduce((sum, o) => sum + (Number(o.totalAmount) || 0), 0),
+        earnings: currentCycleOrders.reduce((sum, o) => sum + (Number(o.payout) || 0), 0),
+        commission: currentCycleOrders.reduce((sum, o) => sum + (Number(o.commission) || 0), 0)
     };
 
     // Past cycles: build from provided startDate/endDate query.
@@ -210,7 +226,10 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
 
         pastCyclesResult = {
             orders: pastCycleOrders,
-            totalOrders: pastCycleOrders.length
+            totalOrders: pastCycleOrders.length,
+            grossAmount: pastCycleOrders.reduce((sum, order) => sum + (Number(order.totalAmount) || 0), 0),
+            earnings: pastCycleOrders.reduce((sum, order) => sum + (Number(order.payout) || 0), 0),
+            commission: pastCycleOrders.reduce((sum, order) => sum + (Number(order.commission) || 0), 0)
         };
     }
 
@@ -219,6 +238,13 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
             name: restaurant?.restaurantName || '',
             restaurantId: restaurant?._id ? `REST${restaurant._id.toString().slice(-6).padStart(6, '0')}` : 'N/A',
             address
+        },
+        wallet: {
+            balance: walletBalance,
+            lockedAmount: walletLockedAmount,
+            availableBalance: walletAvailableBalance,
+            totalEarnings: Number(walletDoc?.totalEarnings || 0),
+            totalSettled: Number(walletDoc?.totalSettled || 0),
         },
         currentCycle,
         invoiceSummary,

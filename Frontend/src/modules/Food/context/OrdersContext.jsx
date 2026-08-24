@@ -10,7 +10,6 @@ const ORDERS_SYNC_STORAGE_KEY = "userOrdersLastSyncedAt"
 const FETCH_LIMIT = 100
 const ORDERS_STALE_MS = 2 * 60 * 1000
 const ACTIVE_POLL_INTERVAL_MS = 20000
-const IDLE_POLL_INTERVAL_MS = 2 * 60 * 1000
 
 const isUserAuthenticated = () => isModuleAuthenticated("user")
 
@@ -286,18 +285,25 @@ export function OrdersProvider({ children }) {
 
     hydrateOrders()
 
-    const pollInterval = setInterval(() => {
-      if (!isUserAuthenticated()) return
-      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
-      refreshOrders({ silent: true }).catch(() => {})
-    }, hasActiveOrders ? ACTIVE_POLL_INTERVAL_MS : IDLE_POLL_INTERVAL_MS)
+    let pollInterval = null
+    if (hasActiveOrders) {
+      pollInterval = setInterval(() => {
+        if (!isUserAuthenticated()) return
+        if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+        refreshOrders({ silent: true }).catch(() => {})
+      }, ACTIVE_POLL_INTERVAL_MS)
+    }
 
     const handleAuthChange = () => {
       hydrateOrders({ force: true })
     }
 
     const handleVisibilityChange = () => {
-      if (typeof document !== "undefined" && document.visibilityState === "visible") {
+      if (
+        hasActiveOrders &&
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible"
+      ) {
         hydrateOrders()
       }
     }
@@ -308,7 +314,9 @@ export function OrdersProvider({ children }) {
     }
 
     return () => {
-      clearInterval(pollInterval)
+      if (pollInterval) {
+        clearInterval(pollInterval)
+      }
       window.removeEventListener("userAuthChanged", handleAuthChange)
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", handleVisibilityChange)

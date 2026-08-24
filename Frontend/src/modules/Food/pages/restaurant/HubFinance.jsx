@@ -172,6 +172,32 @@ export default function HubFinance() {
   }, [financeData, pastCyclesData])
 
   const invoiceSummary = useMemo(() => {
+    if (financeData?.invoiceSummary || pastCyclesData) {
+      const currentSummary = financeData?.invoiceSummary || {}
+      const pastOrders = pastCyclesData?.orders || []
+      const dedupedMap = new Map()
+
+      ;(financeData?.currentCycle?.orders || []).forEach((order) => {
+        const id = order.orderId || order._id || order.id
+        if (id) dedupedMap.set(id, order)
+      })
+      pastOrders.forEach((order) => {
+        const id = order.orderId || order._id || order.id
+        if (id && !dedupedMap.has(id)) dedupedMap.set(id, order)
+      })
+
+      const allOrders = Array.from(dedupedMap.values())
+      return {
+        earnings: allOrders.reduce((sum, order) => sum + (order.payout || order.restaurantEarning || 0), 0),
+        commission: allOrders.reduce((sum, order) => sum + (order.commission || 0), 0),
+        gross: allOrders.reduce((sum, order) => sum + (order.totalAmount || order.orderTotal || 0), 0),
+        count: allOrders.length,
+        currentEarnings: Number(currentSummary.earnings || 0),
+        currentCommission: Number(currentSummary.commission || 0),
+        currentGross: Number(currentSummary.gross || 0),
+      }
+    }
+
     const earnings = invoiceOrders.reduce((sum, order) => sum + (order.payout || order.restaurantEarning || 0), 0)
     const commission = invoiceOrders.reduce((sum, order) => sum + (order.commission || 0), 0)
     const gross = invoiceOrders.reduce((sum, order) => sum + (order.totalAmount || order.orderTotal || 0), 0)
