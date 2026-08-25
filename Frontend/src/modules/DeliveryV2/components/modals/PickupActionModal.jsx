@@ -6,7 +6,6 @@ import {
   Navigation, CheckCircle2, Camera, Loader2, Image as ImageIcon
 } from 'lucide-react';
 import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
-import { toast } from 'sonner';
 
 /**
  * PickupActionModal - Unified White/Green Theme with Slider Actions.
@@ -127,15 +126,13 @@ export const PickupActionModal = ({
                 <button
                   onClick={async () => {
                     const orderId = order._id || order.orderId || order.orderMongoId;
-                    if (!orderId) { toast.error('Order ID missing'); return; }
+                    if (!orderId) { return; }
                     setIsRequestingOtp(true);
                     try {
                       const { deliveryAPI } = await import('@food/api');
                       await deliveryAPI.requestPickupOtp(orderId);
                       setOtpRequested(true);
-                      toast.success('OTP sent to restaurant! Ask them for the code.');
                     } catch (err) {
-                      toast.error(err?.response?.data?.error || 'Failed to send OTP to restaurant');
                     } finally {
                       setIsRequestingOtp(false);
                     }
@@ -220,13 +217,10 @@ export const PickupActionModal = ({
                       import('@food/api').then(({ deliveryAPI }) => {
                          deliveryAPI.rejectOrder(order.orderId || order._id, { reason })
                            .then(() => {
-                              toast.success("Delivery cancelled successfully.");
                               if (onMinimize) onMinimize();
                            })
-                           .catch(() => toast.error("Failed to cancel delivery."));
+                           .catch(() => {});
                       });
-                   } else if (reason !== null) {
-                      toast.error("Reason is required to cancel delivery.");
                    }
                 }
               }}

@@ -26,7 +26,11 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
     if (!order) return { distanceKm: null, etaMins: null };
 
     // A. Use provided data if available (Direct distance from socket)
-    const rawDist = order.pickupDistanceKm || order.distanceKm;
+    const rawDist =
+      order.pickupDistanceKm ??
+      order.distanceKm ??
+      order.pickupDistance ??
+      order.distance;
     const rawEta = order.estimatedTime || order.duration || order.eta;
     
     if (rawDist != null) {
@@ -66,12 +70,19 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
       order.earnings ??
       order.deliveryEarning ??
       order.earningAmount ??
+      order.amounts?.riderShare ??
       order.riderEarning ??
       0,
     ) || 0;
 
   const restaurantName = order.restaurantName || order.restaurant_name || (order.restaurantId?.name) || 'Restaurant';
-  const restaurantAddress = order.restaurantAddress || order.restaurant_address || (order.restaurantId?.location?.address) || 'Address not available';
+  const restaurantAddress =
+    order.restaurantAddress ||
+    order.restaurant_address ||
+    order.restaurantLocation?.address ||
+    order.restaurantId?.location?.address ||
+    order.restaurantId?.location?.formattedAddress ||
+    'Address not available';
   const deliveryAddress = order?.deliveryAddress || {};
 
   const geoCoords =
@@ -98,6 +109,8 @@ export const NewOrderModal = ({ order, onAccept, onReject, onMinimize }) => {
   const customerAddress =
     order.customerAddress ||
     order.customer_address ||
+    deliveryAddress.formattedAddress ||
+    deliveryAddress.address ||
     (addressPartsFromSchema.length ? addressPartsFromSchema.join(', ') : '') ||
     (customerLocation?.lat != null && customerLocation?.lng != null
       ? `Lat ${Number(customerLocation.lat).toFixed(5)}, Lng ${Number(customerLocation.lng).toFixed(5)}`

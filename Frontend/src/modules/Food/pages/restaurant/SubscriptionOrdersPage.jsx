@@ -152,6 +152,32 @@ const isTerminalSubscriptionMealOrder = (meal = {}) => {
   ].includes(orderStatus);
 };
 
+const doesPickupOtpRevealMatchMeal = (pickupOtpReveal, meal = {}) => {
+  if (!pickupOtpReveal || !meal) return false;
+
+  const revealIds = [
+    pickupOtpReveal?.orderMongoId,
+    pickupOtpReveal?.orderId,
+    pickupOtpReveal?._id,
+    pickupOtpReveal?.id,
+  ]
+    .map((value) => (value == null ? "" : String(value).trim()))
+    .filter(Boolean);
+
+  if (revealIds.length === 0) return false;
+
+  const mealOrderIds = [
+    meal?.order?._id,
+    meal?.order?.id,
+    meal?.order?.order_id,
+    meal?.order?.orderId,
+  ]
+    .map((value) => (value == null ? "" : String(value).trim()))
+    .filter(Boolean);
+
+  return mealOrderIds.some((id) => revealIds.includes(id));
+};
+
 const getMealProgressStatus = (meal = {}) => {
   const orderStatus = String(meal?.order?.orderStatus || meal?.order?.status || "").toLowerCase().trim();
   const dispatchStatus = String(meal?.order?.dispatch?.status || "").toLowerCase().trim();
@@ -410,33 +436,6 @@ function SubscriptionOrdersPage() {
           </div>
         </div>
 
-        {activePickupOtpReveal && (
-          <div className="mb-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-xs font-black uppercase tracking-widest text-emerald-700">Pickup OTP requested</p>
-                <p className="mt-1 text-sm text-emerald-900">
-                  Delivery boy asked for the pickup OTP for Order #{activePickupOtpReveal.orderId || ""}
-                </p>
-                <div className="mt-3 inline-flex rounded-2xl border border-emerald-200 bg-white px-4 py-3">
-                  <span className="text-3xl font-black tracking-[0.3em] text-emerald-800">
-                    {activePickupOtpReveal.otp}
-                  </span>
-                </div>
-                <p className="mt-3 text-xs font-medium text-emerald-800">
-                  Share this OTP with the delivery boy to complete pickup.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={clearPickupOtpReveal}
-                className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm">
-                Hide
-              </button>
-            </div>
-          </div>
-        )}
-
         <div className="mb-4 flex gap-2 overflow-x-auto rounded-full bg-transparent py-1">
           {detailTabs.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -488,6 +487,7 @@ function SubscriptionOrdersPage() {
                   <div className="mt-3 space-y-2">
                     {group.items.map((meal) => {
                       const scheduleId = meal.scheduleId || meal._id;
+                      const showInlinePickupOtp = doesPickupOtpRevealMatchMeal(activePickupOtpReveal, meal);
                       const sent = meal.status === "sent_to_delivery";
                       const cancelled = ["cancelled", "skipped"].includes(String(meal.status || "").toLowerCase());
                       const hasAnotherActiveSubscriptionOrder = group.items.some((item) => {
@@ -561,6 +561,35 @@ function SubscriptionOrdersPage() {
                             <div className="mt-3 rounded-2xl border border-dashed border-gray-200 bg-white p-3">
                               <p className="text-xs font-bold uppercase tracking-wide text-gray-400">Notes</p>
                               <p className="mt-1 text-sm text-gray-700">{meal.notes}</p>
+                            </div>
+                          )}
+
+                          {showInlinePickupOtp && (
+                            <div className="mt-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4 shadow-sm">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-xs font-black uppercase tracking-widest text-emerald-700">
+                                    Pickup OTP requested
+                                  </p>
+                                  <p className="mt-1 text-sm text-emerald-900">
+                                    Delivery boy asked for the pickup OTP for Order #{meal?.order?.order_id || meal?.order?._id || ""}
+                                  </p>
+                                  <div className="mt-3 inline-flex rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+                                    <span className="text-3xl font-black tracking-[0.3em] text-emerald-800">
+                                      {activePickupOtpReveal?.otp}
+                                    </span>
+                                  </div>
+                                  <p className="mt-3 text-xs font-medium text-emerald-800">
+                                    Share this OTP with the delivery boy to complete pickup.
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={clearPickupOtpReveal}
+                                  className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm">
+                                  Hide
+                                </button>
+                              </div>
                             </div>
                           )}
 

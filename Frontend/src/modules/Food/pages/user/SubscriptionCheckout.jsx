@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { restaurantAPI, subscriptionAPI } from "@food/api";
-import { initRazorpayPayment } from "@food/utils/razorpay";
+import { initRazorpayPayment, loadRazorpayScript } from "@food/utils/razorpay";
 import { getCompanyNameAsync } from "@food/utils/businessSettings";
 import { useProfile } from "@food/context/ProfileContext";
 import { useLocation as useUserLocation } from "@food/hooks/useLocation";
@@ -149,6 +149,7 @@ export default function SubscriptionCheckout() {
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [priceQuote, setPriceQuote] = useState(null);
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
+  const [companyName, setCompanyName] = useState("");
 
   const { dish, selectedMeals = [], subscriptionPlan, selectedDeliveryAddress } = location.state || {};
 
@@ -167,6 +168,22 @@ export default function SubscriptionCheckout() {
       mounted = false;
     };
   }, [navigate]);
+
+  useEffect(() => {
+    let active = true;
+
+    loadRazorpayScript().catch(() => {});
+    getCompanyNameAsync()
+      .then((name) => {
+        if (!active) return;
+        setCompanyName(String(name || "").trim());
+      })
+      .catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const basePrice = Math.max(0, Number.parseFloat(dish?.price || 0) || 0);
   const mealCount = selectedMeals.length || 1;
@@ -595,7 +612,6 @@ export default function SubscriptionCheckout() {
         throw new Error("Unable to initialize subscription payment.");
       }
 
-      const companyName = await getCompanyNameAsync();
       const formattedPhone = String(customerPhone || "")
         .replace(/\D/g, "")
         .slice(-10);
@@ -607,7 +623,7 @@ export default function SubscriptionCheckout() {
         amount: razorpay.amount,
         currency: razorpay.currency || "INR",
         order_id: razorpay.orderId,
-        name: companyName,
+        name: companyName || undefined,
         description: `${subscriptionPlan?.title || `${days} Days`} - ${dish.name || "Meal Subscription"}`,
         prefill: {
           name: customerName,

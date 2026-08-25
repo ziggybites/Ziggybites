@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import { deliveryAPI } from '@food/api';
 import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
-import { toast } from 'sonner';
 import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
 
 const Backdrop = ({ onClose }) => (
@@ -114,11 +113,6 @@ const OtpModal = ({ order, onVerified, onClose }) => {
         setTimeout(() => onVerified(otpString), 600);
       }
     } catch (err) {
-      toast.error(
-        err?.response?.data?.error ||
-          err?.response?.data?.message ||
-          'Invalid OTP entered',
-      );
       throw err;
     } finally {
       setIsVerifyingOtp(false);

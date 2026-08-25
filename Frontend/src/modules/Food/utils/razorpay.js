@@ -7,6 +7,7 @@ import { APP_CONFIG } from "@/config/constants";
 import { getCachedSettings } from "@food/utils/businessSettings";
 
 let razorpayLoaded = false;
+let razorpayLoadPromise = null;
 
 const getRazorpayBranding = () => {
   const cachedSettings = getCachedSettings();
@@ -23,30 +24,50 @@ const getRazorpayBranding = () => {
  * Load Razorpay checkout script
  */
 export const loadRazorpayScript = () => {
-  return new Promise((resolve, reject) => {
-    if (razorpayLoaded) {
-      resolve();
-      return;
-    }
+  if (razorpayLoaded) {
+    return Promise.resolve();
+  }
 
-    if (window.Razorpay) {
+  if (typeof window !== 'undefined' && window.Razorpay) {
+    razorpayLoaded = true;
+    return Promise.resolve();
+  }
+
+  if (razorpayLoadPromise) {
+    return razorpayLoadPromise;
+  }
+
+  razorpayLoadPromise = new Promise((resolve, reject) => {
+    const existingScript = typeof document !== 'undefined'
+      ? document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')
+      : null;
+
+    const handleLoad = () => {
       razorpayLoaded = true;
+      razorpayLoadPromise = null;
       resolve();
+    };
+
+    const handleError = () => {
+      razorpayLoadPromise = null;
+      reject(new Error('Failed to load Razorpay script'));
+    };
+
+    if (existingScript) {
+      existingScript.addEventListener('load', handleLoad, { once: true });
+      existingScript.addEventListener('error', handleError, { once: true });
       return;
     }
 
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
-    script.onload = () => {
-      razorpayLoaded = true;
-      resolve();
-    };
-    script.onerror = () => {
-      reject(new Error('Failed to load Razorpay script'));
-    };
+    script.onload = handleLoad;
+    script.onerror = handleError;
     document.body.appendChild(script);
   });
+
+  return razorpayLoadPromise;
 };
 
 /**

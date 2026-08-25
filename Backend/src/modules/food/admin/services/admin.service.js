@@ -39,6 +39,7 @@ import { Payment } from '../../../../core/payments/models/payment.model.js';
 import { Transaction } from '../../../../core/payments/models/transaction.model.js';
 import { PaymentWebhookEvent } from '../../../../core/payments/models/webhookEvent.model.js';
 import { FoodSubscriptionSchedule } from '../../subscription/models/subscriptionSchedule.model.js';
+import { FoodSubscription } from '../../subscription/models/subscription.model.js';
 import { PaymentSubscriptionTransaction } from '../../subscription/models/subscriptionTransaction.model.js';
 import {
     backfillLegacyCategoryWorkflow,
@@ -2245,8 +2246,9 @@ export async function resetAllFinanceData() {
 export async function resetAllOrdersData() {
     const orderIds = await FoodOrder.find({}).distinct('_id');
 
-    const [scheduleDeleteResult, deleteResults] = await Promise.all([
+    const [scheduleDeleteResult, subscriptionDeleteResult, deleteResults] = await Promise.all([
         FoodSubscriptionSchedule.deleteMany({}),
+        FoodSubscription.deleteMany({}),
         Promise.all([
             FoodTransaction.deleteMany({ orderId: { $in: orderIds } }),
             mongoose.connection.db.collection('food_order_payments').deleteMany({
@@ -2264,7 +2266,8 @@ export async function resetAllOrdersData() {
             orders: deleteResults[2]?.deletedCount || 0,
             orderFinanceTransactions: deleteResults[0]?.deletedCount || 0,
             legacyOrderPayments: deleteResults[1]?.deletedCount || 0,
-            subscriptionSchedules: scheduleDeleteResult?.deletedCount || 0
+            subscriptionSchedules: scheduleDeleteResult?.deletedCount || 0,
+            subscriptions: subscriptionDeleteResult?.deletedCount || 0
         }
     };
 }

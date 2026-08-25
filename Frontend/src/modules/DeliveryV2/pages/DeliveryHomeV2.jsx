@@ -62,6 +62,37 @@ function BottomPopup({ isOpen, onClose, title, children }) {
   );
 }
 
+const resolveIncomingOrderId = (order) =>
+  order?.orderId || order?._id || order?.orderMongoId || order?.order_id || null;
+
+const mergeIncomingOrderData = (previousOrder, nextOrder) => {
+  if (!previousOrder) return nextOrder;
+  if (!nextOrder) return previousOrder;
+
+  const previousId = resolveIncomingOrderId(previousOrder);
+  const nextId = resolveIncomingOrderId(nextOrder);
+  if (!previousId || !nextId || String(previousId) !== String(nextId)) {
+    return nextOrder;
+  }
+
+  return {
+    ...previousOrder,
+    ...nextOrder,
+    pricing: nextOrder.pricing || previousOrder.pricing,
+    payment: nextOrder.payment || previousOrder.payment,
+    amounts: nextOrder.amounts || previousOrder.amounts,
+    dispatch: nextOrder.dispatch || previousOrder.dispatch,
+    deliveryAddress: nextOrder.deliveryAddress || previousOrder.deliveryAddress,
+    restaurantLocation: nextOrder.restaurantLocation || previousOrder.restaurantLocation,
+    customerLocation: nextOrder.customerLocation || previousOrder.customerLocation,
+    restaurantId: nextOrder.restaurantId || previousOrder.restaurantId,
+    items:
+      Array.isArray(nextOrder.items) && nextOrder.items.length > 0
+        ? nextOrder.items
+        : previousOrder.items,
+  };
+};
+
 /**
  * DeliveryHomeV2 - Premium 1:1 Match with Original App UI.
  * Featuring logical tab switching for Feed, Pocket, History, and Profile.
@@ -521,8 +552,9 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     return () => clearInterval(pingInterval);
   }, [isOnline]);
 
-  useEffect(() => { 
-    if (newOrder !== undefined) setIncomingOrder(newOrder); 
+  useEffect(() => {
+    if (newOrder === undefined) return;
+    setIncomingOrder((prev) => mergeIncomingOrderData(prev, newOrder));
   }, [newOrder]);
 
   useEffect(() => {
@@ -554,11 +586,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
     const incomingId = incomingOrder?.orderId || incomingOrder?._id || incomingOrder?.orderMongoId;
     if (incomingId && String(incomingId) === String(claimedOrderId.orderId)) {
-      if (claimedOrderId.claimedBy === 'cancelled') {
-        toast.error('Order was cancelled.', { duration: 4000 });
-      } else {
-        toast.info('Order was taken by another delivery partner.', { duration: 4000 });
-      }
       setIncomingOrder(null);
       clearNewOrder();
     } else if (!incomingId) {
@@ -658,14 +685,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
         if (!cancelled && nextIncomingOrder) {
           setCashLimitNotice(null);
-          setIncomingOrder((prev) => {
-            const prevId = prev?.orderId || prev?._id || prev?.orderMongoId;
-            const nextId =
-              nextIncomingOrder?.orderId ||
-              nextIncomingOrder?._id ||
-              nextIncomingOrder?.orderMongoId;
-            return prevId === nextId && prev ? prev : nextIncomingOrder;
-          });
+          setIncomingOrder((prev) => mergeIncomingOrderData(prev, nextIncomingOrder));
         }
       } catch (error) {
         console.warn('[DeliveryHomeV2] Available order fallback sync failed:', error?.message || error);
@@ -688,7 +708,6 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   useEffect(() => {
     if (orderStatusUpdate) {
       if (orderStatusUpdate.status === 'cancelled') {
-        toast.error('Order cancelled');
         resetTrip();
       }
       clearOrderStatusUpdate();
@@ -702,10 +721,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
         const reason = window.prompt("Your order exceeded the 1 hour limit and was cancelled by the system. Please provide a reason for the failure/delay:");
         if (reason && reason.trim() !== "") {
           deliveryAPI.rejectOrder(autoKilledOrder.orderId || autoKilledOrder.orderMongoId || autoKilledOrder._id, { reason })
-            .then(() => toast.success("Reason saved successfully."))
-            .catch(() => toast.error("Failed to save reason."));
-        } else {
-          toast.error("You must provide a reason for the delayed delivery.");
+            .catch(() => {});
         }
         clearAutoKilledOrder();
       }, 500); // small delay to ensure UI doesn't block the unmount of previous modals
@@ -1220,13 +1236,10 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                                 import('@food/api').then(({ deliveryAPI }) => {
                                    deliveryAPI.rejectOrder(activeOrder.orderId || activeOrder._id, { reason })
                                      .then(() => {
-                                        toast.success("Delivery cancelled successfully.");
                                         setIsModalMinimized(true);
                                      })
-                                     .catch(() => toast.error("Failed to cancel delivery."));
+                                     .catch(() => {});
                                 });
-                             } else if (reason !== null) {
-                                toast.error("Reason is required to cancel delivery.");
                              }
                          }
                       }}

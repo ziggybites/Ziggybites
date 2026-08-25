@@ -4,7 +4,6 @@ import { useLocation } from 'react-router-dom';
 import { API_BASE_URL } from '@food/api/config';
 import { deliveryAPI } from '@food/api';
 import { toast } from 'sonner';
-import notificationSound from '@food/assets/audio/alert.mp3';
 import { dispatchNotificationInboxRefresh } from '@food/hooks/useNotificationInbox';
 import { DeliveryNotificationContext } from '../context/DeliveryNotificationContext';
 import {
@@ -38,17 +37,6 @@ const debugWarn = (...args) => {
 };
 const debugError = (...args) => {
   console.error('[DeliverySocket]', ...args);
-};
-
-if (typeof window !== 'undefined') {
-  debugLog('notificationSound URL:', notificationSound);
-}
-
-const resolveAudioSource = (source) => {
-  if (!source) return '';
-  // Handle ES6 module imports where the URL might be in a 'default' property
-  const url = typeof source === 'object' ? (source.default || source) : source;
-  return url;
 };
 
 const safeReadJson = (key) => {
@@ -118,6 +106,43 @@ const resolveDeliveryPartnerIdFromClient = () => {
 const supportsBrowserNotifications = () =>
   typeof window !== 'undefined' && typeof Notification !== 'undefined';
 
+const resolveOfferId = (orderLike = {}) =>
+  orderLike?.orderId ||
+  orderLike?.orderMongoId ||
+  orderLike?.order_id ||
+  orderLike?.order_mongo_id ||
+  orderLike?._id ||
+  orderLike?.id ||
+  null;
+
+const mergeOfferData = (previousOffer, nextOffer) => {
+  if (!previousOffer) return nextOffer;
+  if (!nextOffer) return previousOffer;
+
+  const previousId = resolveOfferId(previousOffer);
+  const nextId = resolveOfferId(nextOffer);
+  if (!previousId || !nextId || String(previousId) !== String(nextId)) {
+    return nextOffer;
+  }
+
+  return {
+    ...previousOffer,
+    ...nextOffer,
+    pricing: nextOffer.pricing || previousOffer.pricing,
+    payment: nextOffer.payment || previousOffer.payment,
+    amounts: nextOffer.amounts || previousOffer.amounts,
+    dispatch: nextOffer.dispatch || previousOffer.dispatch,
+    deliveryAddress: nextOffer.deliveryAddress || previousOffer.deliveryAddress,
+    restaurantLocation: nextOffer.restaurantLocation || previousOffer.restaurantLocation,
+    customerLocation: nextOffer.customerLocation || previousOffer.customerLocation,
+    restaurantId: nextOffer.restaurantId || previousOffer.restaurantId,
+    items:
+      Array.isArray(nextOffer.items) && nextOffer.items.length > 0
+        ? nextOffer.items
+        : previousOffer.items,
+  };
+};
+
 const buildDeliveryOrderNotification = (orderData = {}) => {
   const orderId = orderData.orderId || orderData.orderMongoId || orderData.id || 'New';
   const itemCount = Array.isArray(orderData.items) ? orderData.items.length : 0;
@@ -135,45 +160,6 @@ const buildDeliveryOrderNotification = (orderData = {}) => {
     },
   };
 }
-
-const triggerWebViewNativeNotification = async (orderData = {}) => {
-  if (typeof window === 'undefined') return false;
-
-  const bridgePayload = {
-    title: 'New delivery order',
-    body: `Order #${orderData?.orderId || orderData?.orderMongoId || orderData?.id || ''}`.trim(),
-    orderId: orderData?.orderId || orderData?.order_id || '',
-    orderMongoId: orderData?.orderMongoId || orderData?.order_mongo_id || '',
-    targetUrl: '/delivery',
-  };
-
-  try {
-    if (
-      window.flutter_inappwebview &&
-      typeof window.flutter_inappwebview.callHandler === 'function'
-    ) {
-      const handlerNames = [
-        'playNotificationSound',
-        'triggerNotificationFeedback',
-        'onPushNotification',
-      ];
-
-      for (const handlerName of handlerNames) {
-        try {
-          await window.flutter_inappwebview.callHandler(handlerName, bridgePayload);
-          return true;
-        } catch {
-          // Try next handler name.
-        }
-      }
-    }
-  } catch {
-    // Ignore bridge failures and fall back to browser/web audio.
-  }
-
-  return false;
-}
-
 
 export const useDeliveryNotifications = () => {
   const context = useContext(DeliveryNotificationContext);
@@ -255,6 +241,23 @@ export const useDeliveryNotifications = () => {
     alertLoopStartedAtRef.current = 0;
   }, []);
 
+  const stopNotificationAudio = useCallback(() => {
+    if (!audioRef.current) return;
+    try {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    } catch (error) {
+      debugWarn('Error stopping delivery notification audio:', error);
+    }
+  }, []);
+
+  const clearIncomingOrderAlert = useCallback(() => {
+    stopAlertLoop();
+    stopNotificationAudio();
+    activeOrderRef.current = null;
+    setNewOrder(null);
+  }, [stopAlertLoop, stopNotificationAudio]);
+
   const startAlertLoop = useCallback((playSoundFn) => {
     stopAlertLoop();
     alertLoopStartedAtRef.current = Date.now();
@@ -272,60 +275,7 @@ export const useDeliveryNotifications = () => {
     }, ALERT_LOOP_INTERVAL_MS);
   }, [stopAlertLoop]);
   
-  const playNotificationSound = useCallback(async (orderData = {}) => {
-    try {
-      const usedNativeBridge = await triggerWebViewNativeNotification(orderData);
-
-      if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-        navigator.vibrate([200, 100, 200, 100, 300]);
-      }
-
-      if (usedNativeBridge) {
-        return;
-      }
-
-      // Always use original sound for delivery
-      const soundFile = resolveAudioSource(notificationSound, 'delivery-zomato');
-      
-      // Update audio source if preference changed or initialize if not exists
-      if (audioRef.current) {
-        const currentSrc = audioRef.current.src;
-        const newSrc = soundFile;
-        // Check if source needs to be updated
-        if (!currentSrc.includes(newSrc.split('/').pop())) {
-          audioRef.current.pause();
-          audioRef.current.src = newSrc;
-          audioRef.current.load();
-          debugLog('?? Audio source updated to Original');
-        }
-      } else {
-        // Initialize audio if not exists
-        audioRef.current = new Audio();
-        audioRef.current.src = soundFile;
-        audioRef.current.preload = 'auto';
-        audioRef.current.volume = 0.9;
-        audioRef.current.load();
-        debugLog('?? Audio initialized with Original Sound', 'Source:', soundFile);
-      }
-      
-      if (audioRef.current) {
-        audioRef.current.muted = false;
-        audioRef.current.volume = 0.9;
-        audioRef.current.currentTime = 0;
-        audioRef.current.play().catch(error => {
-          // On strict autoplay environments, we still keep vibration/native bridge path active.
-          if (!error.message?.includes('user didn\'t interact') && !error.name?.includes('NotAllowedError')) {
-            debugWarn('Error playing notification sound:', error);
-          }
-        });
-      }
-    } catch (error) {
-      // Don't log autoplay policy errors
-      if (!error.message?.includes('user didn\'t interact') && !error.name?.includes('NotAllowedError')) {
-        debugWarn('Error playing sound:', error);
-      }
-    }
-  }, []);
+  const playNotificationSound = useCallback(async () => {}, []);
 
   const showBackgroundOrderNotification = useCallback(async (orderData = {}) => {
     if (!shouldShowBrowserNotification(orderData)) {
@@ -347,8 +297,7 @@ export const useDeliveryNotifications = () => {
             tag: notificationOptions.tag,
             renotify: true,
             requireInteraction: true,
-            silent: false,
-            vibrate: [200, 100, 200, 100, 300],
+            silent: true,
             icon: '/logo.png',
             data: notificationOptions.data,
           });
@@ -360,7 +309,7 @@ export const useDeliveryNotifications = () => {
         body: notificationOptions.body,
         tag: notificationOptions.tag,
         requireInteraction: true,
-        silent: false,
+        silent: true,
         icon: '/logo.png',
         data: notificationOptions.data,
       });
@@ -556,7 +505,7 @@ export const useDeliveryNotifications = () => {
 
   useEffect(() => {
     if (!isDeliveryRoute) return;
-    const handleDeliveryPushOrderReceived = (event) => {
+    const handleDeliveryPushOrderReceived = async (event) => {
       const detail = event?.detail || {};
       debugLog('Delivery push order received', detail);
 
@@ -565,18 +514,73 @@ export const useDeliveryNotifications = () => {
         return;
       }
 
+      const payloadData = detail?.payload?.data || {};
       const normalizedOrder = {
-        orderId: detail?.orderId || detail?.payload?.data?.orderId || detail?.payload?.data?.order_id,
+        orderId: detail?.orderId || payloadData?.orderId || payloadData?.order_id,
         orderMongoId:
-          detail?.payload?.data?.orderMongoId ||
-          detail?.payload?.data?.order_mongo_id ||
+          payloadData?.orderMongoId ||
+          payloadData?.order_mongo_id ||
           null,
+        orderStatus: payloadData?.orderStatus || payloadData?.status || 'confirmed',
+        status: payloadData?.orderStatus || payloadData?.status || 'confirmed',
+        paymentMethod: payloadData?.paymentMethod || payloadData?.payment?.method || '',
+        restaurantName: payloadData?.restaurantName || payloadData?.restaurant_name || '',
+        restaurantAddress: payloadData?.restaurantAddress || payloadData?.restaurant_address || '',
+        customerAddress: payloadData?.customerAddress || payloadData?.customer_address || '',
+        riderEarning:
+          Number(
+            payloadData?.riderEarning ??
+            payloadData?.deliveryEarning ??
+            payloadData?.earningAmount ??
+            payloadData?.earnings ??
+            0,
+          ) || 0,
+        earnings:
+          Number(
+            payloadData?.earnings ??
+            payloadData?.deliveryEarning ??
+            payloadData?.earningAmount ??
+            payloadData?.riderEarning ??
+            0,
+          ) || 0,
+        pickupDistanceKm:
+          payloadData?.pickupDistanceKm ?? payloadData?.distanceKm ?? payloadData?.distance ?? null,
+        estimatedTime: payloadData?.estimatedTime ?? payloadData?.eta ?? null,
         source: detail?.source || 'firebase',
         pushPayload: detail?.payload || null,
       };
 
-      setNewOrder((prev) => prev || normalizedOrder);
+      setNewOrder((prev) => mergeOfferData(prev, normalizedOrder));
       handleIncomingOrderAlert(normalizedOrder);
+
+      try {
+        const availableResponse = await deliveryAPI.getOrders({ limit: 20, page: 1 });
+        const availablePayload =
+          availableResponse?.data?.data ||
+          availableResponse?.data ||
+          {};
+        const availableOrders = Array.isArray(availablePayload?.docs)
+          ? availablePayload.docs
+          : Array.isArray(availablePayload?.items)
+            ? availablePayload.items
+            : Array.isArray(availablePayload)
+              ? availablePayload
+              : [];
+
+        const incomingId = resolveOfferId(normalizedOrder);
+        const matchedOrder = availableOrders.find((order) => {
+          const orderId = resolveOfferId(order);
+          return incomingId && orderId && String(orderId) === String(incomingId);
+        });
+
+        if (matchedOrder) {
+          setNewOrder((prev) => mergeOfferData(prev, matchedOrder));
+          return;
+        }
+      } catch (error) {
+        debugWarn('Delivery push hydration failed:', error?.message || error);
+      }
+
       void recoverDeliveryState();
     };
 
@@ -585,99 +589,6 @@ export const useDeliveryNotifications = () => {
       window.removeEventListener('deliveryPushOrderReceived', handleDeliveryPushOrderReceived);
     };
   }, [handleIncomingOrderAlert, recoverDeliveryState, isDeliveryRoute]);
-
-  // Track user interaction for autoplay policy
-  useEffect(() => {
-    if (!isDeliveryRoute) return;
-    const handleUserInteraction = async () => {
-      userInteractedRef.current = true;
-
-      const soundFile = resolveAudioSource(notificationSound, 'delivery-zomato');
-
-      if (!audioRef.current) {
-        audioRef.current = new Audio(soundFile);
-        audioRef.current.preload = 'auto';
-        audioRef.current.volume = 0.7;
-      }
-
-      if (!audioUnlockAttemptedRef.current && audioRef.current) {
-        audioUnlockAttemptedRef.current = true;
-        try {
-          audioRef.current.muted = true;
-          // Ensure src is set even if it was just initialized
-          if (!audioRef.current.src || audioRef.current.src === window.location.href) {
-             const soundFile = resolveAudioSource(notificationSound);
-             audioRef.current.src = soundFile;
-          }
-          audioRef.current.load();
-          await audioRef.current.play();
-          audioRef.current.pause();
-          audioRef.current.currentTime = 0;
-          debugLog('?? Audio unlocked successfully');
-        } catch (error) {
-          audioUnlockAttemptedRef.current = false;
-          if (!error.message?.includes('user didn\'t interact') && !error.name?.includes('NotAllowedError')) {
-            debugWarn('Error unlocking notification audio:', error, 'Audio src:', audioRef.current?.src);
-          }
-        } finally {
-          // Ensure audio never remains muted after unlock attempts.
-          if (audioRef.current) {
-            audioRef.current.muted = false;
-          }
-        }
-      }
-
-      // Remove listeners after first interaction
-      document.removeEventListener('click', handleUserInteraction);
-      document.removeEventListener('touchstart', handleUserInteraction);
-      document.removeEventListener('keydown', handleUserInteraction);
-      window.removeEventListener('pointerdown', handleUserInteraction);
-    };
-    
-    // Listen for user interaction
-    document.addEventListener('click', handleUserInteraction, { once: true });
-    document.addEventListener('touchstart', handleUserInteraction, { once: true });
-    document.addEventListener('keydown', handleUserInteraction, { once: true });
-    window.addEventListener('pointerdown', handleUserInteraction, { once: true, passive: true });
-    
-    return () => {
-      document.removeEventListener('click', handleUserInteraction);
-      document.removeEventListener('touchstart', handleUserInteraction);
-      document.removeEventListener('keydown', handleUserInteraction);
-      window.removeEventListener('pointerdown', handleUserInteraction);
-    };
-  }, [isDeliveryRoute]);
-  
-  // Initialize audio on mount - use selected preference from localStorage
-  useEffect(() => {
-    if (!isDeliveryRoute) return;
-    // Always use original sound for delivery
-    const soundFile = resolveAudioSource(notificationSound, 'delivery-zomato');
-    
-    if (!audioRef.current) {
-      audioRef.current = new Audio(soundFile);
-      audioRef.current.preload = 'auto';
-      audioRef.current.volume = 0.7;
-      debugLog('?? Audio initialized with Original Sound');
-    } else {
-      // Update audio source if preference changed
-      const currentSrc = audioRef.current.src;
-      const newSrc = soundFile;
-      if (!currentSrc.includes(newSrc.split('/').pop())) {
-        audioRef.current.pause();
-        audioRef.current.src = newSrc;
-        audioRef.current.load();
-        debugLog('?? Audio updated to Original');
-      }
-    }
-    
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, [isDeliveryRoute]); // Note: This runs once per active delivery shell mount. To update dynamically, we'd need to listen to storage events
 
   // Fetch delivery partner ID
   useEffect(() => {
@@ -977,9 +888,7 @@ export const useDeliveryNotifications = () => {
 
     socketRef.current.on('order_cancelled', (statusData) => {
       debugLog('?? Delivery order cancelled event received via socket:', statusData);
-      stopAlertLoop();
-      activeOrderRef.current = null;
-      setNewOrder(null);
+      clearIncomingOrderAlert();
       
       const cancelledId = statusData?.orderId || statusData?.orderMongoId || statusData?._id;
       if (cancelledId) setClaimedOrderId({ orderId: cancelledId, claimedBy: 'cancelled' });
@@ -1000,9 +909,7 @@ export const useDeliveryNotifications = () => {
 
     socketRef.current.on('order_auto_killed', (data) => {
       debugLog('?? Delivery order auto-killed event received via socket:', data);
-      stopAlertLoop();
-      activeOrderRef.current = null;
-      setNewOrder(null);
+      clearIncomingOrderAlert();
       
       const cancelledId = data?.orderId || data?.orderMongoId || data?._id;
       if (cancelledId) setClaimedOrderId({ orderId: cancelledId, claimedBy: 'cancelled' });
@@ -1016,18 +923,14 @@ export const useDeliveryNotifications = () => {
 
     socketRef.current.on('order_reassigned_elsewhere', (data) => {
       debugLog('?? Order reassigned to another partner:', data);
-      stopAlertLoop();
-      activeOrderRef.current = null;
-      setNewOrder(null);
+      clearIncomingOrderAlert();
       if (data?.orderId) setClaimedOrderId(data.orderId);
     });
 
     // Backend emits 'order_claimed' when another delivery boy accepts an offered order
     socketRef.current.on('order_claimed', (data) => {
       debugLog('?? order_claimed received - order taken by another partner:', data);
-      stopAlertLoop();
-      activeOrderRef.current = null;
-      setNewOrder(null);
+      clearIncomingOrderAlert();
       const claimedId = data?.orderId || data?.orderMongoId || data?.order_id;
       if (claimedId) setClaimedOrderId({ orderId: claimedId, claimedBy: data?.claimedBy });
     });
@@ -1048,9 +951,7 @@ export const useDeliveryNotifications = () => {
             toast.success(payload?.message || 'You have been marked online by the Admin.', { duration: 5000 });
         } else {
             toast.error(payload?.message || 'You have been marked offline by the Admin.', { duration: 8000 });
-            stopAlertLoop();
-            activeOrderRef.current = null;
-            setNewOrder(null);
+            clearIncomingOrderAlert();
         }
       } catch (err) {
         debugError('Error handling admin_force_status:', err);
@@ -1097,7 +998,7 @@ export const useDeliveryNotifications = () => {
 
     return () => {
       debugLog('? Cleaning up socket connection...');
-      stopAlertLoop();
+      clearIncomingOrderAlert();
       joinedDeliveryRoomRef.current = null;
       window.removeEventListener('deliveryAuthChanged', handleAuthChange);
       window.removeEventListener('authRefreshed', handleAuthRefreshed);
@@ -1109,7 +1010,7 @@ export const useDeliveryNotifications = () => {
         socketRef.current = null;
       }
     };
-  }, [deliveryPartnerId, handleIncomingOrderAlert, joinDeliveryRoomIfPossible, playNotificationSound, recoverDeliveryState, showBackgroundOrderNotification, startAlertLoop, stopAlertLoop, isDeliveryRoute]);
+  }, [clearIncomingOrderAlert, deliveryPartnerId, handleIncomingOrderAlert, joinDeliveryRoomIfPossible, playNotificationSound, recoverDeliveryState, showBackgroundOrderNotification, startAlertLoop, stopAlertLoop, isDeliveryRoute]);
 
   useEffect(() => {
     if (!isDeliveryRoute) return;
@@ -1132,9 +1033,7 @@ export const useDeliveryNotifications = () => {
 
   // Helper functions
   const clearNewOrder = () => {
-    stopAlertLoop();
-    activeOrderRef.current = null;
-    setNewOrder(null);
+    clearIncomingOrderAlert();
   };
 
   const clearClaimedOrderId = () => setClaimedOrderId(null);
