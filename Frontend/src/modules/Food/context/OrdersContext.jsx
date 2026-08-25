@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from "react"
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from "react"
+import { useLocation } from "react-router-dom"
 import { orderAPI } from "@food/api"
 import { isModuleAuthenticated } from "@food/utils/auth"
 import { getOrderAmountBreakdown } from "@food/utils/orderAmounts"
@@ -202,6 +203,7 @@ const fetchAllOrders = async () => {
 }
 
 export function OrdersProvider({ children }) {
+  const location = useLocation()
   const [orders, setOrders] = useState(() => {
     if (typeof window === "undefined") return []
     try {
@@ -212,6 +214,11 @@ export function OrdersProvider({ children }) {
     }
   })
   const [loading, setLoading] = useState(() => orders.length === 0 && isUserAuthenticated())
+  const ordersRef = useRef(orders)
+
+  useEffect(() => {
+    ordersRef.current = orders
+  }, [orders])
 
   useEffect(() => {
     try {
@@ -265,6 +272,15 @@ export function OrdersProvider({ children }) {
     [orders],
   )
 
+  const normalizedPath =
+    typeof location?.pathname === "string"
+      ? location.pathname.replace(/\/+$/, "") || "/"
+      : "/"
+  const isOrdersListPage =
+    normalizedPath === "/food/user/order" ||
+    normalizedPath === "/food/user/orders"
+  const shouldPollActiveOrders = hasActiveOrders && !isOrdersListPage
+
   useEffect(() => {
     const hydrateOrders = ({ force = false } = {}) => {
       if (!isUserAuthenticated()) {
@@ -278,21 +294,12 @@ export function OrdersProvider({ children }) {
         return
       }
 
-      refreshOrders({ silent: orders.length > 0 }).catch(() => {
+      refreshOrders({ silent: ordersRef.current.length > 0 }).catch(() => {
         setLoading(false)
       })
     }
 
     hydrateOrders()
-
-    let pollInterval = null
-    if (hasActiveOrders) {
-      pollInterval = setInterval(() => {
-        if (!isUserAuthenticated()) return
-        if (typeof document !== "undefined" && document.visibilityState !== "visible") return
-        refreshOrders({ silent: true }).catch(() => {})
-      }, ACTIVE_POLL_INTERVAL_MS)
-    }
 
     const handleAuthChange = () => {
       hydrateOrders({ force: true })
@@ -314,15 +321,28 @@ export function OrdersProvider({ children }) {
     }
 
     return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval)
-      }
       window.removeEventListener("userAuthChanged", handleAuthChange)
       if (typeof document !== "undefined") {
         document.removeEventListener("visibilitychange", handleVisibilityChange)
       }
     }
-  }, [orders, hasActiveOrders, refreshOrders])
+  }, [refreshOrders])
+
+  useEffect(() => {
+    if (!shouldPollActiveOrders) {
+      return undefined
+    }
+
+    const pollInterval = setInterval(() => {
+      if (!isUserAuthenticated()) return
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return
+      refreshOrders({ silent: true }).catch(() => {})
+    }, ACTIVE_POLL_INTERVAL_MS)
+
+    return () => {
+      clearInterval(pollInterval)
+    }
+  }, [refreshOrders, shouldPollActiveOrders])
 
   const createOrder = (orderData) => {
     const newOrder = {
