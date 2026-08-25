@@ -32,35 +32,57 @@ const formatCurrency = (value) =>
 const normalizeCheckoutDeliveryAddress = (address, fallbackLocation, phone = "") => {
   if (!address && !fallbackLocation) return null;
 
-  const lat = Number(
-    address?.latitude ??
-      address?.lat ??
-      address?.location?.latitude ??
-      address?.location?.lat ??
-      fallbackLocation?.latitude,
-  );
-  const lng = Number(
-    address?.longitude ??
-      address?.lng ??
-      address?.location?.longitude ??
-      address?.location?.lng ??
-      fallbackLocation?.longitude,
-  );
-
   const coordinatesFromAddress = Array.isArray(address?.location?.coordinates)
     ? address.location.coordinates.map(Number)
     : null;
-  const coordinates =
+  const hasAddressCoordinates =
     coordinatesFromAddress?.length === 2 &&
-    coordinatesFromAddress.every((value) => Number.isFinite(value))
+    coordinatesFromAddress.every((value) => Number.isFinite(value));
+
+  const lat = hasAddressCoordinates
+    ? Number(coordinatesFromAddress[1])
+    : Number(
+        address?.latitude ??
+          address?.lat ??
+          address?.location?.latitude ??
+          address?.location?.lat ??
+          fallbackLocation?.latitude,
+      );
+  const lng = hasAddressCoordinates
+    ? Number(coordinatesFromAddress[0])
+    : Number(
+        address?.longitude ??
+          address?.lng ??
+          address?.location?.longitude ??
+          address?.location?.lng ??
+          fallbackLocation?.longitude,
+      );
+
+  const addressLineParts = [
+    address?.street,
+    address?.additionalDetails,
+    address?.city,
+    address?.state,
+    address?.zipCode || address?.postalCode,
+  ]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean);
+  const explicitAddressText = addressLineParts.join(", ");
+
+  const coordinates =
+    hasAddressCoordinates
       ? coordinatesFromAddress
       : Number.isFinite(lat) && Number.isFinite(lng)
         ? [lng, lat]
         : undefined;
 
-  const formattedAddress =
+  const formattedAddressFromAddress =
+    explicitAddressText ||
     address?.formattedAddress ||
     address?.address ||
+    "";
+  const formattedAddress =
+    formattedAddressFromAddress ||
     fallbackLocation?.formattedAddress ||
     fallbackLocation?.address ||
     "";
@@ -68,10 +90,7 @@ const normalizeCheckoutDeliveryAddress = (address, fallbackLocation, phone = "")
     formattedAddress && formattedAddress !== "Select location"
       ? formattedAddress
       : [
-          address?.additionalDetails,
-          address?.street,
-          address?.city,
-          address?.state,
+          explicitAddressText,
           fallbackLocation?.area,
           fallbackLocation?.city,
           fallbackLocation?.state,
@@ -86,7 +105,7 @@ const normalizeCheckoutDeliveryAddress = (address, fallbackLocation, phone = "")
     address: fallbackAddressText,
     street:
       address?.street ||
-      address?.address ||
+      explicitAddressText ||
       fallbackLocation?.street ||
       fallbackLocation?.address ||
       fallbackLocation?.area ||

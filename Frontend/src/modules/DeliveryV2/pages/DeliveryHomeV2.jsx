@@ -640,6 +640,9 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       newOrder,
       currentIncomingOrder: incomingOrder,
     });
+    if (newOrder) {
+      setIsModalMinimized(false);
+    }
     setIncomingOrder((prev) => mergeIncomingOrderData(prev, newOrder));
   }, [newOrder]);
 
@@ -1180,7 +1183,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
       </div>
 
       {/* OVERLAYS (Persistent if active) - Outside flex container to avoid clipping and z-index issues */}
-      {(currentTab === 'feed' || activeOrder) && (
+      {(currentTab === 'feed' || activeOrder || incomingOrder || showVerification) && (
         <AnimatePresence>
           {!isModalMinimized && (
             <motion.div

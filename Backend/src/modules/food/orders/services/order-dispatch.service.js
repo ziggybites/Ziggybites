@@ -291,6 +291,9 @@ export async function tryAutoAssign(orderId, options = {}) {
           logger.info(
             `[DeliveryDispatchDebug] phase2 socket order=${order._id} partner=${String(p.partnerId)} room=${roomName} pickupDistanceKm=${Number(p.distanceKm || 0).toFixed(2)}`,
           );
+          logger.info(
+            `[DeliveryOrderPopupServer] source=socket phase=phase2 order=${order._id} partner=${String(p.partnerId)} room=${roomName} emitted=true event=new_order_available`,
+          );
           io.to(roomName).emit('new_order_available', eventPayload);
         }
       }
@@ -303,6 +306,9 @@ export async function tryAutoAssign(orderId, options = {}) {
       try {
         logger.info(
           `[DeliveryDispatchDebug] phase2 push order=${order._id} riders=${phase2NotifyList.map((item) => String(item.ownerId)).join(',')}`,
+        );
+        logger.info(
+          `[DeliveryOrderPopupServer] source=push phase=phase2 order=${order._id} riders=${phase2NotifyList.map((item) => String(item.ownerId)).join(',')} emitted=${phase2NotifyList.length > 0}`,
         );
         await notifyOwnersSafely(
           phase2NotifyList,
@@ -330,6 +336,9 @@ export async function tryAutoAssign(orderId, options = {}) {
           logger.info(
             `[DeliveryDispatchDebug] phase1 socket order=${order._id} partner=${String(p.partnerId)} room=${roomName} pickupDistanceKm=${Number(p.distanceKm || 0).toFixed(2)}`,
           );
+          logger.info(
+            `[DeliveryOrderPopupServer] source=socket phase=phase1 order=${order._id} partner=${String(p.partnerId)} room=${roomName} emitted=true event=new_order_available`,
+          );
           io.to(roomName).emit('new_order_available', eventPayload);
         }
       }
@@ -343,6 +352,9 @@ export async function tryAutoAssign(orderId, options = {}) {
       try {
         logger.info(
           `[DeliveryDispatchDebug] phase1 push order=${order._id} riders=${notifyList.map((item) => String(item.ownerId)).join(',')}`,
+        );
+        logger.info(
+          `[DeliveryOrderPopupServer] source=push phase=phase1 order=${order._id} riders=${notifyList.map((item) => String(item.ownerId)).join(',')} emitted=${notifyList.length > 0}`,
         );
         await notifyOwnersSafely(
           notifyList,
