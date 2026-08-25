@@ -476,27 +476,37 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     },
   });
 
-  // Manual resend should behave like a true global rebroadcast:
-  // clear previous offers, then notify every currently online approved partner
-  // regardless of radius so the restaurant can force a fresh marketplace-wide send.
-  const { partners: globalPartners } = await listAllOnlineDeliveryPartners({
+  // Manual resend should still respect nearby-radius dispatch so push notifications
+  // only go to riders who are actually in range of the restaurant.
+  const feeSettings = await FoodFeeSettings.findOne({ isActive: true }).lean();
+  const radiusTiers = Array.isArray(feeSettings?.dispatchRadiusTiers) && feeSettings.dispatchRadiusTiers.length > 0
+    ? feeSettings.dispatchRadiusTiers
+    : [2, 4, 6, 8, 10];
+  const maxKm = radiusTiers[radiusTiers.length - 1] || 10;
+
+  const { partners: nearbyPartners } = await listNearbyOnlineDeliveryPartners(order.restaurantId, {
+    maxKm,
+    limit: 25,
     requiredAmount,
     allowOverLimitFallback: true,
   });
 
   const io = getIO();
   const payload = buildDeliverySocketPayload(order, order.restaurantId);
-  for (const partner of globalPartners) {
+  for (const partner of nearbyPartners) {
     const roomName = rooms.delivery(partner.partnerId);
     if (io) {
-      io.to(roomName).emit('new_order_available', payload);
+      io.to(roomName).emit('new_order_available', {
+        ...payload,
+        pickupDistanceKm: partner.distanceKm,
+      });
     }
   }
 
-  if (globalPartners.length > 0) {
+  if (nearbyPartners.length > 0) {
     try {
       await notifyOwnersSafely(
-        globalPartners.map((partner) => ({
+        nearbyPartners.map((partner) => ({
           ownerType: 'DELIVERY_PARTNER',
           ownerId: partner.partnerId,
         })),
@@ -515,7 +525,7 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
   await FoodOrder.findByIdAndUpdate(order._id, {
     $push: {
       'dispatch.offeredTo': {
-        $each: globalPartners.map((partner) => ({
+        $each: nearbyPartners.map((partner) => ({
           partnerId: partner.partnerId,
           at: new Date(),
           action: 'offered',
