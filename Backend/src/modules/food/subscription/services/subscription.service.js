@@ -145,9 +145,17 @@ function normalizeDishForClient(dish) {
 }
 
 function normalizeDeliveryAddress(address = {}, { customerName = '', customerPhone = '' } = {}) {
-  const coordinates = Array.isArray(address?.location?.coordinates)
+  const coordinatesFromLocation = Array.isArray(address?.location?.coordinates)
     ? address.location.coordinates.map(Number).filter((n) => Number.isFinite(n))
     : undefined;
+  const latitude = Number(address?.latitude ?? address?.lat);
+  const longitude = Number(address?.longitude ?? address?.lng);
+  const coordinates =
+    coordinatesFromLocation?.length === 2
+      ? coordinatesFromLocation
+      : Number.isFinite(latitude) && Number.isFinite(longitude)
+        ? [longitude, latitude]
+        : undefined;
   return {
     label: address.label || 'Home',
     name: address.name || address.fullName || customerName || '',
@@ -232,6 +240,9 @@ function buildSubscriptionQuoteResponse(summary = {}) {
   const gstAmount = roundMoney(summary.gstAmount || 0);
   const deliveryFeePerDay = roundMoney(summary.deliveryFeePerDay || 0);
   const deliveryCharges = roundMoney(summary.deliveryCharges || 0);
+  const deliveryDistanceKm = Number.isFinite(Number(summary.deliveryDistanceKm))
+    ? Number(Number(summary.deliveryDistanceKm).toFixed(1))
+    : null;
   const platformFee = roundMoney(summary.platformFee || 0);
   const totalBeforeDiscount = roundMoney(summary.totalBeforeDiscount || 0);
   const couponDiscount = roundMoney(summary.couponDiscount || 0);
@@ -248,6 +259,7 @@ function buildSubscriptionQuoteResponse(summary = {}) {
       foodSubtotal,
       gstRate,
       gstAmount,
+      deliveryDistanceKm,
       deliveryFeePerDay,
       deliveryCharges,
       platformFee,
@@ -312,12 +324,6 @@ async function getSubscriptionRiderEarning(distanceKm) {
   }
 
   if (!Number.isFinite(earning) || earning <= 0) return 0;
-
-  const feeSettings = await FoodFeeSettings.findOne({ isActive: true }).lean();
-  const deliveryBonusAmount = Number(feeSettings?.deliveryBonusAmount || 0);
-  if (deliveryBonusAmount > 0) {
-    earning += deliveryBonusAmount;
-  }
 
   return Math.round(earning);
 }
@@ -457,7 +463,7 @@ async function resolveSubscriptionOrderPricing(userId, dto = {}) {
   }
 
   const restaurant = await FoodRestaurant.findById(dto.restaurantId)
-    .select('restaurantName status isAcceptingOrders')
+    .select('restaurantName status isAcceptingOrders location')
     .lean();
   if (!restaurant) throw new ValidationError('Restaurant not found');
   if (restaurant.status !== 'approved' || restaurant.isAcceptingOrders === false) {
@@ -509,9 +515,66 @@ async function resolveSubscriptionOrderPricing(userId, dto = {}) {
     ? Number(feeSettings.gstRate)
     : 5;
   const gstAmount = roundMoney(foodSubtotal * (gstRate / 100));
+  const freeUpTo = Number(feeSettings?.freeDeliveryUpTo || 0);
+  const normalizedDeliveryAddress = dto.deliveryAddress
+    ? normalizeDeliveryAddress(dto.deliveryAddress)
+    : null;
+  let distanceKm = null;
+  if (
+    restaurant?.location?.coordinates?.length === 2 &&
+    normalizedDeliveryAddress?.location?.coordinates?.length === 2
+  ) {
+    const [rLng, rLat] = restaurant.location.coordinates;
+    const [dLng, dLat] = normalizedDeliveryAddress.location.coordinates;
+    const d = haversineKm(rLat, rLng, dLat, dLng);
+    distanceKm = Number.isFinite(d) ? d : null;
+  }
+
+  let calculatedDeliveryFeePerDay = Number(feeSettings?.deliveryFee ?? 0) || 0;
+  let matchedDeliveryRange = null;
+  if (Number.isFinite(freeUpTo) && freeUpTo > 0 && foodSubtotal >= freeUpTo) {
+    calculatedDeliveryFeePerDay = 0;
+  } else {
+    const ranges = Array.isArray(feeSettings?.deliveryFeeRanges)
+      ? [...feeSettings.deliveryFeeRanges]
+      : [];
+    if (ranges.length > 0 && Number.isFinite(distanceKm)) {
+      ranges.sort((a, b) => Number(a.min) - Number(b.min));
+      const matchedRange = ranges.find((range, index) => {
+        const min = Number(range?.min);
+        const max = Number(range?.max);
+        const validRange = Number.isFinite(min) && Number.isFinite(max);
+        if (!validRange) return false;
+        const isLast = index === ranges.length - 1;
+        return isLast
+          ? distanceKm >= min && distanceKm <= max
+          : distanceKm >= min && distanceKm < max;
+      });
+      if (matchedRange && Number.isFinite(Number(matchedRange.fee))) {
+        matchedDeliveryRange = matchedRange;
+        calculatedDeliveryFeePerDay = Number(matchedRange.fee);
+      }
+    }
+  }
+
+  console.log('[subscription.quote] delivery pricing debug', {
+    restaurantId: String(dto.restaurantId || ''),
+    restaurantCoordinates: restaurant?.location?.coordinates || null,
+    rawDeliveryAddress: dto.deliveryAddress || null,
+    normalizedDeliveryCoordinates:
+      normalizedDeliveryAddress?.location?.coordinates || null,
+    distanceKm,
+    freeDeliveryUpTo: freeUpTo,
+    foodSubtotal,
+    deliveryFee: feeSettings?.deliveryFee ?? null,
+    deliveryFeeRanges: feeSettings?.deliveryFeeRanges || [],
+    matchedDeliveryRange,
+    calculatedDeliveryFeePerDay,
+  });
+
   const deliveryFeePerDay = Number.isFinite(Number(dto.deliveryFeePerDay))
     ? Number(dto.deliveryFeePerDay)
-    : Number(feeSettings?.deliveryFee || 10) || 10;
+    : calculatedDeliveryFeePerDay;
   const deliveryCharges = roundMoney(deliveryFeePerDay * planDays);
   const platformFee = roundMoney(Number(feeSettings?.platformFee || 0) || 0);
   const totalBeforeDiscount = roundMoney(foodSubtotal + gstAmount + deliveryCharges + platformFee);
@@ -624,6 +687,7 @@ async function resolveSubscriptionOrderPricing(userId, dto = {}) {
     foodSubtotal,
     gstRate,
     gstAmount,
+    deliveryDistanceKm: distanceKm,
     deliveryFeePerDay,
     deliveryCharges,
     platformFee,
@@ -1237,6 +1301,23 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
     0,
     roundMoney(Number(subscription.creditPerOrder || computedOrderTotal || itemPrice)),
   );
+  const allocatedDeliveryFeeAmount = roundMoney(Number(subscription.deliveryFeePerDay || 0) || 0);
+  const allocatedPlatformFeeAmount = roundMoney(
+    (Number(subscription.platformFee || 0) || 0) / totalCredits,
+  );
+  const allocatedGstAmount = roundMoney(
+    (Number(subscription.gstAmount || 0) || 0) / totalCredits,
+  );
+  const allocatedCouponDiscountAmount = roundMoney(
+    (Number(subscription.couponDiscount || 0) || 0) / totalCredits,
+  );
+  const totalAllocatedRevenueAmount = roundMoney(
+    computedOrderTotal +
+      allocatedDeliveryFeeAmount +
+      allocatedPlatformFeeAmount +
+      allocatedGstAmount -
+      allocatedCouponDiscountAmount,
+  );
   const subscriptionCreditApplied = computedOrderTotal;
   const payableTotal = 0;
   const subscriptionWalletCredit = 0;
@@ -1272,7 +1353,7 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
     distanceKm = Number.isFinite(d) ? d : null;
   }
 
-  const riderEarning = await getSubscriptionRiderEarning(distanceKm);
+  const riderEarning = roundMoney(Number(subscription.deliveryFeePerDay || 0) || 0);
   const commissionSnapshot = await foodTransactionService.getRestaurantCommissionSnapshot({
     pricing,
     restaurantId: subscription.restaurantId,
@@ -1286,7 +1367,11 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
 
   const platformProfit = Math.max(
     0,
-    pricing.restaurantCommission - riderEarning,
+    pricing.restaurantCommission +
+      allocatedDeliveryFeeAmount +
+      allocatedPlatformFeeAmount -
+      allocatedCouponDiscountAmount -
+      riderEarning,
   );
 
   const order = new FoodOrder({
@@ -1317,6 +1402,11 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
       purchaseTotalAmount: Number(subscription.totalAmount || 0) || 0,
       directCustomerPaymentAmount: 0,
       operationalOrderValue: computedOrderTotal,
+      allocatedDeliveryFeeAmount,
+      allocatedPlatformFeeAmount,
+      allocatedGstAmount,
+      allocatedCouponDiscountAmount,
+      totalAllocatedRevenueAmount,
       creditPerOrder,
       subscriptionCreditApplied,
       status: 'applied',

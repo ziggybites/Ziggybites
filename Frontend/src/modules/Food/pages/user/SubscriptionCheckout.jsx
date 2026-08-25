@@ -19,6 +19,7 @@ import { getCompanyNameAsync } from "@food/utils/businessSettings";
 import { useProfile } from "@food/context/ProfileContext";
 import { useLocation as useUserLocation } from "@food/hooks/useLocation";
 import { DEFAULT_APP_CUSTOMIZATION, loadAppCustomization } from "@food/utils/appCustomization";
+import { normalizeUserLocationForStorage } from "../../../../core/storage/localStorage.js";
 
 const RUPEE_SYMBOL = "\u20B9";
 
@@ -27,6 +28,92 @@ const formatCurrency = (value) =>
   `${RUPEE_SYMBOL}${Number(value || 0).toLocaleString("en-IN", {
     maximumFractionDigits: 2,
   })}`;
+
+const normalizeCheckoutDeliveryAddress = (address, fallbackLocation, phone = "") => {
+  if (!address && !fallbackLocation) return null;
+
+  const lat = Number(
+    address?.latitude ??
+      address?.lat ??
+      address?.location?.latitude ??
+      address?.location?.lat ??
+      fallbackLocation?.latitude,
+  );
+  const lng = Number(
+    address?.longitude ??
+      address?.lng ??
+      address?.location?.longitude ??
+      address?.location?.lng ??
+      fallbackLocation?.longitude,
+  );
+
+  const coordinatesFromAddress = Array.isArray(address?.location?.coordinates)
+    ? address.location.coordinates.map(Number)
+    : null;
+  const coordinates =
+    coordinatesFromAddress?.length === 2 &&
+    coordinatesFromAddress.every((value) => Number.isFinite(value))
+      ? coordinatesFromAddress
+      : Number.isFinite(lat) && Number.isFinite(lng)
+        ? [lng, lat]
+        : undefined;
+
+  const formattedAddress =
+    address?.formattedAddress ||
+    address?.address ||
+    fallbackLocation?.formattedAddress ||
+    fallbackLocation?.address ||
+    "";
+  const fallbackAddressText =
+    formattedAddress && formattedAddress !== "Select location"
+      ? formattedAddress
+      : [
+          address?.additionalDetails,
+          address?.street,
+          address?.city,
+          address?.state,
+          fallbackLocation?.area,
+          fallbackLocation?.city,
+          fallbackLocation?.state,
+        ]
+          .filter(Boolean)
+          .join(", ") || "Current Location";
+
+  return {
+    ...address,
+    label: address?.label || "Home",
+    formattedAddress: fallbackAddressText,
+    address: fallbackAddressText,
+    street:
+      address?.street ||
+      address?.address ||
+      fallbackLocation?.street ||
+      fallbackLocation?.address ||
+      fallbackLocation?.area ||
+      "Current Location",
+    additionalDetails: address?.additionalDetails || fallbackLocation?.area || "",
+    city: address?.city || fallbackLocation?.city || fallbackLocation?.area || "Current City",
+    state: address?.state || fallbackLocation?.state || fallbackLocation?.city || "Current State",
+    zipCode:
+      address?.zipCode ||
+      address?.postalCode ||
+      fallbackLocation?.postalCode ||
+      fallbackLocation?.zipCode ||
+      "",
+    phone: address?.phone || phone || "",
+    ...(Number.isFinite(lat) ? { latitude: lat } : {}),
+    ...(Number.isFinite(lng) ? { longitude: lng } : {}),
+    ...(coordinates
+      ? {
+          location: {
+            ...(address?.location || {}),
+            type: "Point",
+            coordinates,
+          },
+        }
+      : {}),
+  };
+};
 
 const formatFullAddress = (address) => {
   if (!address) return "";
@@ -89,6 +176,7 @@ export default function SubscriptionCheckout() {
   const totalFoodCost = roundMoney(pricing.foodSubtotal || 0);
   const gstRate = Number(pricing.gstRate || 0);
   const gstAmount = roundMoney(pricing.gstAmount || 0);
+  const deliveryDistanceKm = Number(pricing.deliveryDistanceKm || 0);
   const deliveryFeePerDay = roundMoney(pricing.deliveryFeePerDay || 0);
   const totalDeliveryCharges = roundMoney(pricing.deliveryCharges || 0);
   const totalBeforeDiscount = roundMoney(pricing.totalBeforeDiscount || 0);
@@ -97,35 +185,39 @@ export default function SubscriptionCheckout() {
   const totalDeliveries = Number(pricing.totalDeliveries || mealCount * days);
 
   const savedAddress = getDefaultAddress();
+  const storedUserLocation = useMemo(() => {
+    try {
+      const raw = localStorage.getItem("userLocation");
+      return raw ? normalizeUserLocationForStorage(JSON.parse(raw)) : null;
+    } catch {
+      return null;
+    }
+  }, []);
   const defaultAddress = useMemo(() => {
-    if (selectedDeliveryAddress) return selectedDeliveryAddress;
-    if (savedAddress) return savedAddress;
-    if (!currentLocation?.latitude || !currentLocation?.longitude) return null;
-
-    const formattedAddress =
-      currentLocation.formattedAddress || currentLocation.address || "";
-    if (!formattedAddress || formattedAddress === "Select location") return null;
-
-    return {
-      label: "Home",
-      formattedAddress,
-      address: formattedAddress,
-      street:
-        currentLocation.street ||
-        currentLocation.address ||
-        currentLocation.area ||
-        "Current Location",
-      additionalDetails: currentLocation.area || "",
-      city: currentLocation.city || currentLocation.area || "Current City",
-      state: currentLocation.state || currentLocation.city || "Current State",
-      zipCode: currentLocation.postalCode || currentLocation.zipCode || "",
-      phone: userProfile?.phone || "",
-      location: {
-        type: "Point",
-        coordinates: [currentLocation.longitude, currentLocation.latitude],
-      },
-    };
-  }, [currentLocation, savedAddress, selectedDeliveryAddress, userProfile?.phone]);
+    const fallbackLocation =
+      currentLocation?.latitude && currentLocation?.longitude
+        ? currentLocation
+        : storedUserLocation;
+    if (selectedDeliveryAddress) {
+      return normalizeCheckoutDeliveryAddress(
+        selectedDeliveryAddress,
+        fallbackLocation,
+        userProfile?.phone || "",
+      );
+    }
+    if (savedAddress) {
+      return normalizeCheckoutDeliveryAddress(
+        savedAddress,
+        fallbackLocation,
+        userProfile?.phone || "",
+      );
+    }
+    return normalizeCheckoutDeliveryAddress(
+      null,
+      fallbackLocation,
+      userProfile?.phone || "",
+    );
+  }, [currentLocation, savedAddress, selectedDeliveryAddress, storedUserLocation, userProfile?.phone]);
 
   useEffect(() => {
     const fetchCoupons = async () => {
@@ -213,6 +305,7 @@ export default function SubscriptionCheckout() {
     planDays: days,
     itemPrice: basePrice,
     couponCode: couponCodeOverride ? String(couponCodeOverride).trim().toUpperCase() : undefined,
+    deliveryAddress: defaultAddress || undefined,
     currency: "INR",
   });
 
@@ -227,9 +320,27 @@ export default function SubscriptionCheckout() {
 
       setIsQuoteLoading(true);
       try {
-        const response = await subscriptionAPI.getQuote(buildQuotePayload());
+        const payload = buildQuotePayload();
+        console.log("[SubscriptionCheckout] address debug", {
+          selectedDeliveryAddress,
+          savedAddress,
+          currentLocation,
+          storedUserLocation,
+          defaultAddress,
+        });
+        console.log("[SubscriptionCheckout] quote payload", payload);
+        console.log(
+          "[SubscriptionCheckout] quote payload json",
+          JSON.stringify(payload, null, 2),
+        );
+        const response = await subscriptionAPI.getQuote(payload);
         if (!active) return;
         const nextQuote = response?.data?.data || null;
+        console.log("[SubscriptionCheckout] quote response", nextQuote);
+        console.log(
+          "[SubscriptionCheckout] quote response json",
+          JSON.stringify(nextQuote, null, 2),
+        );
         setPriceQuote(nextQuote);
         const nextCouponCode = String(nextQuote?.pricing?.couponCode || "").trim().toUpperCase();
         if (nextCouponCode) {
@@ -270,6 +381,7 @@ export default function SubscriptionCheckout() {
     dish?.name,
     dish?.restaurantId,
     dish?.restaurantName,
+    defaultAddress,
     selectedMeals,
     subscriptionPlan?.id,
   ]);
@@ -809,6 +921,12 @@ export default function SubscriptionCheckout() {
                 {totalDeliveries} deliveries
               </div>
             </div>
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-[10px] bg-white px-3 py-2">
+              <p className="text-[11px] font-semibold text-gray-500">Delivery distance</p>
+              <p className="text-xs font-bold text-gray-900">
+                {deliveryDistanceKm > 0 ? `${deliveryDistanceKm.toFixed(1)} km` : "Not available"}
+              </p>
+            </div>
           </div>
 
           <div className="space-y-4 text-sm">
@@ -844,7 +962,9 @@ export default function SubscriptionCheckout() {
               <div className="min-w-0">
                 <p className="font-semibold text-gray-700">Delivery charges</p>
                 <p className="mt-0.5 text-xs font-medium text-gray-400">
-                  {formatCurrency(deliveryFeePerDay)} x {days} days
+                  {deliveryDistanceKm > 0
+                    ? `${deliveryDistanceKm.toFixed(1)} km slab · ${formatCurrency(deliveryFeePerDay)} x ${days} days`
+                    : `${formatCurrency(deliveryFeePerDay)} x ${days} days`}
                 </p>
               </div>
               <span className="shrink-0 font-bold">{formatCurrency(totalDeliveryCharges)}</span>

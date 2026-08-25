@@ -280,7 +280,6 @@ export function buildDeliverySocketPayload(orderDoc, restaurantDoc = null) {
     userPhone: order?.customerPhone || order?.deliveryAddress?.phone || order?.userId?.phone || "",
     note: order?.note || "",
     riderEarning: order?.riderEarning || 0,
-    deliveryBonusAmount: order?.deliveryBonusAmount || 0,
     earnings: order?.riderEarning || 0,
     deliveryFee: pricing.deliveryFee || 0,
     deliveryFleet: order?.deliveryFleet,

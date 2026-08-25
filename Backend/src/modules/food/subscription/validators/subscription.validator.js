@@ -52,6 +52,21 @@ const quoteSubscriptionOrderSchema = z.object({
   itemPrice: z.number().min(0).optional(),
   couponCode: z.string().optional(),
   currency: z.string().optional(),
+  deliveryAddress: z.object({
+    label: z.string().optional(),
+    name: z.string().optional(),
+    fullName: z.string().optional(),
+    street: z.string().optional(),
+    additionalDetails: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    zipCode: z.string().optional(),
+    phone: z.string().optional(),
+    location: z.object({
+      type: z.string().optional(),
+      coordinates: z.array(z.number()).optional(),
+    }).optional(),
+  }).passthrough().optional(),
 });
 
 const verifySubscriptionPaymentSchema = z.object({

@@ -200,10 +200,9 @@ export const useOrderManager = () => {
       // 2. Proceed to mark as complete
       let finalOrder = activeOrder;
       try {
-        const completeRes = await deliveryAPI.completeDelivery(orderId, { 
-          otp: otpToUse, 
+        const completeRes = await deliveryAPI.completeDelivery(orderId, {
+          otp: otpToUse,
           rating: 5,
-          paymentMethod: paymentMethodOverride // Pass 'cash' or 'qr' if provided
         });
         if (completeRes.data?.success && completeRes.data?.data?.order) {
           finalOrder = completeRes.data.data.order;

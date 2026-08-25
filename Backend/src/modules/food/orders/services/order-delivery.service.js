@@ -373,7 +373,24 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
 
   const enriched = (docs || []).map((doc) => {
     const tx = txByOrderId.get(String(doc?._id)) || null;
-    if (!tx) return doc;
+    const riderShare =
+      Number(
+        doc?.riderEarning ??
+          tx?.amounts?.riderShare ??
+          doc?.deliveryEarning ??
+          0,
+      ) || 0;
+
+    if (!tx) {
+      return {
+        ...doc,
+        riderEarning: riderShare,
+        deliveryEarning: riderShare,
+        earningAmount: riderShare,
+        earnings: riderShare,
+        amount: riderShare,
+      };
+    }
     return {
       ...doc,
       paymentMethod: tx.payment?.method || tx.paymentMethod || doc.paymentMethod,
@@ -381,6 +398,11 @@ export async function listOrdersAvailableDelivery(deliveryPartnerId, query) {
       pricing: tx.pricing || doc.pricing,
       amounts: tx.amounts || doc.amounts,
       transactionStatus: tx.status || doc.transactionStatus,
+      riderEarning: riderShare,
+      deliveryEarning: riderShare,
+      earningAmount: riderShare,
+      earnings: riderShare,
+      amount: riderShare,
     };
   });
 
@@ -1104,8 +1126,13 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
   
   // 2. Financial Context Resolution
   const tx = await FoodTransaction.findOne({ orderId: order._id }).lean();
-  const prevPayStatus = String(tx?.payment?.status || order?.payment?.status || 'cod_pending');
-  const payMethod = String(tx?.payment?.method || order?.payment?.method || order?.paymentMethod || 'cash');
+  const isSubscriptionPrepaidOrder =
+    String(order?.subscriptionUsage?.billingMode || '').toLowerCase() === 'subscription_prepaid' ||
+    String(tx?.paymentMethod || tx?.payment?.method || order?.payment?.method || '').toLowerCase() === 'subscription';
+  const prevPayStatus = String(tx?.payment?.status || order?.payment?.status || (isSubscriptionPrepaidOrder ? 'paid' : 'cod_pending'));
+  const payMethod = isSubscriptionPrepaidOrder
+    ? 'subscription'
+    : String(tx?.payment?.method || tx?.paymentMethod || order?.payment?.method || order?.paymentMethod || 'cash');
 
   /**
    * Final Payment Method Logic:
@@ -1114,8 +1141,10 @@ export async function completeDelivery(orderId, deliveryPartnerId, body = {}) {
    * - Otherwise, we keep the original method.
    */
   let finalPayMethod = payMethod;
-  if (selectedPaymentMethod === 'qr') finalPayMethod = 'razorpay_qr';
-  else if (selectedPaymentMethod === 'cash') finalPayMethod = 'cash';
+  if (!isSubscriptionPrepaidOrder) {
+    if (selectedPaymentMethod === 'qr') finalPayMethod = 'razorpay_qr';
+    else if (selectedPaymentMethod === 'cash') finalPayMethod = 'cash';
+  }
 
   // 3. QR Payment Verification (Blocking)
   if (finalPayMethod === 'razorpay_qr') {

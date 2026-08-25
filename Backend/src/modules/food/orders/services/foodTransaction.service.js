@@ -143,6 +143,30 @@ export async function createInitialTransaction(order) {
             0
         ) || 0
         : 0;
+    const subscriptionDeliveryFeeAmount = isSubscriptionPrepaidOrder
+        ? Number(order?.subscriptionUsage?.allocatedDeliveryFeeAmount ?? 0) || 0
+        : 0;
+    const subscriptionPlatformFeeAmount = isSubscriptionPrepaidOrder
+        ? Number(order?.subscriptionUsage?.allocatedPlatformFeeAmount ?? 0) || 0
+        : 0;
+    const subscriptionGstAmount = isSubscriptionPrepaidOrder
+        ? Number(order?.subscriptionUsage?.allocatedGstAmount ?? 0) || 0
+        : 0;
+    const subscriptionCouponDiscountAmount = isSubscriptionPrepaidOrder
+        ? Number(order?.subscriptionUsage?.allocatedCouponDiscountAmount ?? 0) || 0
+        : 0;
+    const subscriptionTotalAllocatedAmount = isSubscriptionPrepaidOrder
+        ? Number(
+            order?.subscriptionUsage?.totalAllocatedRevenueAmount ??
+            (
+                subscriptionAllocationAmount +
+                subscriptionDeliveryFeeAmount +
+                subscriptionPlatformFeeAmount +
+                subscriptionGstAmount -
+                subscriptionCouponDiscountAmount
+            )
+        ) || 0
+        : 0;
     const totalCustomerPaid = directCustomerPaidAmount;
     const riderShare = order.riderEarning || 0;
 
@@ -163,19 +187,19 @@ export async function createInitialTransaction(order) {
 
     const restaurantNet = (pricing.subtotal || 0) + (pricing.packagingFee || 0) - restaurantCommission - gstOnItem - gstOnCommission - paymentGatewayFee - tcs;
 
-    const calculatedPlatformNetProfit = (pricing.platformFee || 0) + (pricing.deliveryFee || 0) + restaurantCommission + gstOnItem + paymentGatewayFee + tcs - riderShare;
+    const calculatedPlatformNetProfit = isSubscriptionPrepaidOrder
+        ? restaurantCommission + subscriptionDeliveryFeeAmount + subscriptionPlatformFeeAmount - subscriptionCouponDiscountAmount - riderShare
+        : (pricing.platformFee || 0) + (pricing.deliveryFee || 0) + restaurantCommission + gstOnItem + paymentGatewayFee + tcs - riderShare;
     const platformNetProfit = order.platformProfit !== undefined
         ? order.platformProfit
         : Math.max(0, calculatedPlatformNetProfit);
 
-    const transaction = new FoodTransaction({
-        orderId: order._id,
-        userId: order.userId,
-        restaurantId: order.restaurantId,
-        deliveryPartnerId: order.dispatch?.deliveryPartnerId,
-        paymentMethod: order.payment?.method || 'cash',
-        status: order.payment?.status === 'paid' ? 'captured' : 'pending',
-        payment: {
+    const paymentSnapshot = isSubscriptionPrepaidOrder
+        ? {
+            status: String(order.payment?.status || 'paid'),
+            amountDue: Number(order.payment?.amountDue ?? 0) || 0,
+        }
+        : {
             method: String(order.payment?.method || 'cash'),
             status: String(order.payment?.status || 'cod_pending'),
             amountDue: Number(order.payment?.amountDue ?? pricing.total ?? 0) || 0,
@@ -192,8 +216,20 @@ export async function createInitialTransaction(order) {
                 status: String(order.payment?.qr?.status || ''),
                 expiresAt: order.payment?.qr?.expiresAt || null,
             }
-        },
-        pricing: {
+        };
+
+    const pricingSnapshot = isSubscriptionPrepaidOrder
+        ? {
+            subtotal: Number(pricing.subtotal || 0) || 0,
+            tax: subscriptionGstAmount,
+            deliveryFee: subscriptionDeliveryFeeAmount,
+            platformFee: subscriptionPlatformFeeAmount,
+            restaurantCommission,
+            discount: subscriptionCouponDiscountAmount,
+            total: Number(pricing.total || 0) || 0,
+            currency: String(pricing.currency || order.currency || 'INR'),
+        }
+        : {
             subtotal: Number(pricing.subtotal || 0) || 0,
             tax: Number(pricing.tax || 0) || 0,
             packagingFee: Number(pricing.packagingFee || 0) || 0,
@@ -203,28 +239,50 @@ export async function createInitialTransaction(order) {
             discount: Number(pricing.discount || 0) || 0,
             total: Number(pricing.total || 0) || 0,
             currency: String(pricing.currency || order.currency || 'INR'),
-        },
-        amounts: {
-            totalCustomerPaid,
-            directCustomerPaidAmount,
-            subscriptionAllocationAmount,
-            restaurantShare: Math.max(0, restaurantNet),
-            restaurantCommission,
-            gstOnItem,
-            gstOnCommission,
-            paymentGatewayFee,
-            tcs,
-            riderShare,
-            platformNetProfit,
-            taxAmount: pricing.tax || 0
-        },
-        gateway: {
+        };
+
+    const amountSnapshot = {
+        totalCustomerPaid,
+        ...(isSubscriptionPrepaidOrder ? {} : { directCustomerPaidAmount }),
+        ...(isSubscriptionPrepaidOrder ? { subscriptionAllocationAmount } : {}),
+        ...(isSubscriptionPrepaidOrder ? { subscriptionDeliveryFeeAmount } : {}),
+        ...(isSubscriptionPrepaidOrder ? { subscriptionPlatformFeeAmount } : {}),
+        ...(isSubscriptionPrepaidOrder ? { subscriptionGstAmount } : {}),
+        ...(isSubscriptionPrepaidOrder ? { subscriptionCouponDiscountAmount } : {}),
+        ...(isSubscriptionPrepaidOrder ? { subscriptionTotalAllocatedAmount } : {}),
+        restaurantShare: Math.max(0, restaurantNet),
+        restaurantCommission,
+        ...(isSubscriptionPrepaidOrder ? {} : { gstOnItem }),
+        ...(isSubscriptionPrepaidOrder ? {} : { gstOnCommission }),
+        ...(isSubscriptionPrepaidOrder ? {} : { paymentGatewayFee }),
+        ...(isSubscriptionPrepaidOrder ? {} : { tcs }),
+        riderShare,
+        platformNetProfit,
+        ...(isSubscriptionPrepaidOrder ? {} : { taxAmount: pricing.tax || 0 }),
+    };
+
+    const gatewaySnapshot = isSubscriptionPrepaidOrder
+        ? undefined
+        : {
+            provider: 'razorpay',
             razorpayOrderId: order.payment?.razorpay?.orderId,
             qrUrl: order.payment?.qr?.imageUrl
-        },
+        };
+
+    const transaction = new FoodTransaction({
+        orderId: order._id,
+        userId: order.userId,
+        restaurantId: order.restaurantId,
+        deliveryPartnerId: order.dispatch?.deliveryPartnerId,
+        ...(isSubscriptionPrepaidOrder ? {} : { paymentMethod: order.payment?.method || 'cash' }),
+        status: order.payment?.status === 'paid' ? 'captured' : 'pending',
+        payment: paymentSnapshot,
+        pricing: pricingSnapshot,
+        amounts: amountSnapshot,
+        ...(gatewaySnapshot ? { gateway: gatewaySnapshot } : {}),
         history: [{
             kind: 'created',
-            amount: subscriptionAllocationAmount || totalCustomerPaid,
+            amount: subscriptionTotalAllocatedAmount || subscriptionAllocationAmount || totalCustomerPaid,
             note: 'Initial transaction created with order'
         }]
     });
@@ -256,6 +314,13 @@ export async function updateTransactionStatus(orderId, kind, details = {}) {
     const transaction = await FoodTransaction.findOne(query).session(session);
     if (!transaction) return null;
 
+    if (!transaction.payment) {
+        transaction.payment = {};
+    }
+    if (!transaction.gateway) {
+        transaction.gateway = {};
+    }
+
     if (details.status) {
         transaction.status = details.status;
         if (details.status === 'captured') transaction.payment.status = 'paid';
@@ -285,9 +350,49 @@ export async function updateTransactionStatus(orderId, kind, details = {}) {
         };
     }
 
+    const effectivePaymentMethod = String(
+        details.paymentMethod ||
+        transaction.paymentMethod ||
+        transaction.payment?.method ||
+        ''
+    ).toLowerCase();
+
+    if (effectivePaymentMethod === 'subscription') {
+        transaction.paymentMethod = undefined;
+        transaction.payment = {
+            status: transaction.payment?.status || 'paid',
+            amountDue: Number(transaction.payment?.amountDue ?? 0) || 0,
+        };
+        transaction.pricing = {
+            subtotal: Number(transaction.pricing?.subtotal || 0) || 0,
+            tax: Number(transaction.pricing?.tax || 0) || 0,
+            deliveryFee: Number(transaction.pricing?.deliveryFee || 0) || 0,
+            platformFee: Number(transaction.pricing?.platformFee || 0) || 0,
+            restaurantCommission: Number(transaction.pricing?.restaurantCommission || 0) || 0,
+            discount: Number(transaction.pricing?.discount || 0) || 0,
+            total: Number(transaction.pricing?.total || 0) || 0,
+            currency: String(transaction.pricing?.currency || transaction.currency || 'INR'),
+        };
+        transaction.amounts = {
+            totalCustomerPaid: Number(transaction.amounts?.totalCustomerPaid || 0) || 0,
+            subscriptionAllocationAmount: Number(transaction.amounts?.subscriptionAllocationAmount || 0) || 0,
+            subscriptionDeliveryFeeAmount: Number(transaction.amounts?.subscriptionDeliveryFeeAmount || 0) || 0,
+            subscriptionPlatformFeeAmount: Number(transaction.amounts?.subscriptionPlatformFeeAmount || 0) || 0,
+            subscriptionGstAmount: Number(transaction.amounts?.subscriptionGstAmount || 0) || 0,
+            subscriptionCouponDiscountAmount: Number(transaction.amounts?.subscriptionCouponDiscountAmount || 0) || 0,
+            subscriptionTotalAllocatedAmount: Number(transaction.amounts?.subscriptionTotalAllocatedAmount || 0) || 0,
+            restaurantShare: Number(transaction.amounts?.restaurantShare || 0) || 0,
+            restaurantCommission: Number(transaction.amounts?.restaurantCommission || 0) || 0,
+            riderShare: Number(transaction.amounts?.riderShare || 0) || 0,
+            platformNetProfit: Number(transaction.amounts?.platformNetProfit || 0) || 0,
+        };
+        transaction.gateway = undefined;
+    }
+
     transaction.history.push({
         kind,
         amount:
+            transaction.amounts.subscriptionTotalAllocatedAmount ||
             transaction.amounts.subscriptionAllocationAmount ||
             transaction.amounts.totalCustomerPaid,
         at: new Date(),

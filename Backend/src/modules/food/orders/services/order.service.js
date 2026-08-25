@@ -232,13 +232,7 @@ export async function createOrder(userId, dto) {
   }
 
   let riderEarning = await getRiderEarning(distanceKm);
-  
-  // Apply delivery bonus from fee settings
-  const feeSettings = await FoodFeeSettings.findOne({ isActive: true }).lean();
-  const deliveryBonusAmount = Number(feeSettings?.deliveryBonusAmount || 0);
-  if (deliveryBonusAmount > 0) {
-    riderEarning += deliveryBonusAmount;
-  }
+  const deliveryBonusAmount = 0;
   
   // Calculate restaurant commission and taxes from subtotal
   const commissionSnapshot = await foodTransactionService.getRestaurantCommissionSnapshot({
