@@ -198,6 +198,9 @@ export async function tryAutoAssign(orderId, options = {}) {
     logger.info(
       `[DeliveryDispatchDebug] shortlist order=${order._id} attempt=${attempt} maxKm=${maxKm} found=${partners.length} ids=${partners.map((p) => String(p.partnerId)).join(',')}`,
     );
+    console.log(
+      `[VPS_DISPATCH_TEST] shortlist order=${order._id} attempt=${attempt} maxKm=${maxKm} found=${partners.length} ids=${partners.map((p) => String(p.partnerId)).join(',')}`,
+    );
     
     // TIERED ALERT LOGIC
     // Phase 2: Broadcast to all (Attempt 4+)
@@ -294,6 +297,9 @@ export async function tryAutoAssign(orderId, options = {}) {
           logger.info(
             `[DeliveryOrderPopupServer] source=socket phase=phase2 order=${order._id} partner=${String(p.partnerId)} room=${roomName} emitted=true event=new_order_available`,
           );
+          console.log(
+            `[VPS_DISPATCH_TEST] source=socket phase=phase2 order=${order._id} partner=${String(p.partnerId)} room=${roomName} emitted=true event=new_order_available`,
+          );
           io.to(roomName).emit('new_order_available', eventPayload);
         }
       }
@@ -309,6 +315,9 @@ export async function tryAutoAssign(orderId, options = {}) {
         );
         logger.info(
           `[DeliveryOrderPopupServer] source=push phase=phase2 order=${order._id} riders=${phase2NotifyList.map((item) => String(item.ownerId)).join(',')} emitted=${phase2NotifyList.length > 0}`,
+        );
+        console.log(
+          `[VPS_DISPATCH_TEST] source=push phase=phase2 order=${order._id} riders=${phase2NotifyList.map((item) => String(item.ownerId)).join(',')} emitted=${phase2NotifyList.length > 0}`,
         );
         await notifyOwnersSafely(
           phase2NotifyList,
@@ -339,6 +348,9 @@ export async function tryAutoAssign(orderId, options = {}) {
           logger.info(
             `[DeliveryOrderPopupServer] source=socket phase=phase1 order=${order._id} partner=${String(p.partnerId)} room=${roomName} emitted=true event=new_order_available`,
           );
+          console.log(
+            `[VPS_DISPATCH_TEST] source=socket phase=phase1 order=${order._id} partner=${String(p.partnerId)} room=${roomName} emitted=true event=new_order_available`,
+          );
           io.to(roomName).emit('new_order_available', eventPayload);
         }
       }
@@ -355,6 +367,9 @@ export async function tryAutoAssign(orderId, options = {}) {
         );
         logger.info(
           `[DeliveryOrderPopupServer] source=push phase=phase1 order=${order._id} riders=${notifyList.map((item) => String(item.ownerId)).join(',')} emitted=${notifyList.length > 0}`,
+        );
+        console.log(
+          `[VPS_DISPATCH_TEST] source=push phase=phase1 order=${order._id} riders=${notifyList.map((item) => String(item.ownerId)).join(',')} emitted=${notifyList.length > 0}`,
         );
         await notifyOwnersSafely(
           notifyList,
