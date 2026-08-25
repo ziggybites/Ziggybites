@@ -2,6 +2,7 @@ import {
   AUTH_MODULES,
   getAccessTokenLegacyKey,
   getAuthenticatedKey,
+  getPersistentAccessTokenKey,
   getRefreshTokenLegacyKey,
   getSessionAccessTokenKey,
   getUserKey,
@@ -90,6 +91,7 @@ export const setAccessToken = (moduleName, token) => {
     accessTokenStore.delete(safeModule);
     try {
       window.sessionStorage?.removeItem(getSessionAccessTokenKey(safeModule));
+      window.localStorage?.removeItem(getPersistentAccessTokenKey(safeModule));
     } catch {
     }
     return;
@@ -98,6 +100,7 @@ export const setAccessToken = (moduleName, token) => {
   accessTokenStore.set(safeModule, normalizedToken);
   try {
     window.sessionStorage?.setItem(getSessionAccessTokenKey(safeModule), normalizedToken);
+    window.localStorage?.setItem(getPersistentAccessTokenKey(safeModule), normalizedToken);
   } catch {
   }
 };
@@ -117,6 +120,19 @@ export const getAccessToken = (moduleName) => {
   } catch {
   }
 
+  try {
+    const persistedToken = window.localStorage?.getItem(getPersistentAccessTokenKey(safeModule)) || null;
+    if (persistedToken) {
+      accessTokenStore.set(safeModule, persistedToken);
+      try {
+        window.sessionStorage?.setItem(getSessionAccessTokenKey(safeModule), persistedToken);
+      } catch {
+      }
+      return persistedToken;
+    }
+  } catch {
+  }
+
   return null;
 };
 
@@ -126,6 +142,7 @@ export const clearAccessToken = (moduleName) => {
   accessTokenStore.delete(safeModule);
   try {
     window.sessionStorage?.removeItem(getSessionAccessTokenKey(safeModule));
+    window.localStorage?.removeItem(getPersistentAccessTokenKey(safeModule));
   } catch {
   }
 };
@@ -137,6 +154,7 @@ export const clearAllAccessTokens = () => {
   try {
     modules.forEach((moduleName) => {
       window.sessionStorage?.removeItem(getSessionAccessTokenKey(moduleName));
+      window.localStorage?.removeItem(getPersistentAccessTokenKey(moduleName));
     });
   } catch {
   }
@@ -174,9 +192,15 @@ export const bootstrapTokenStore = () => {
 
   try {
     AUTH_MODULES.forEach((moduleName) => {
-      const token = window.sessionStorage.getItem(getSessionAccessTokenKey(moduleName));
+      const token =
+        window.sessionStorage.getItem(getSessionAccessTokenKey(moduleName)) ||
+        window.localStorage?.getItem(getPersistentAccessTokenKey(moduleName));
       if (token) {
         accessTokenStore.set(moduleName, token);
+        try {
+          window.sessionStorage.setItem(getSessionAccessTokenKey(moduleName), token);
+        } catch {
+        }
       }
     });
   } catch {
