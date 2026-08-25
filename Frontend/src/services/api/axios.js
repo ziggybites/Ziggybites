@@ -297,7 +297,7 @@ apiClient.interceptors.response.use(
     const hasSession = hasStoredSession(moduleName);
 
     const shouldAttemptRefresh =
-      (status === 401 || status === 403) &&
+      status === 401 &&
       hasSession &&
       !requestConfig._retry &&
       moduleName !== 'public';
@@ -338,14 +338,7 @@ apiClient.interceptors.response.use(
       }
     }
 
-    if ((status === 401 || status === 403) && hasSession && !token) {
-      clearStaleSessionForModule(moduleName);
-    } else if (
-      status === 403 &&
-      moduleName === 'user' &&
-      hasSession &&
-      isUserAuthCriticalRequest(requestConfig)
-    ) {
+    if (status === 401 && hasSession && !token) {
       clearStaleSessionForModule(moduleName);
     } else if (status === 403 && typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('accessDenied', { detail: { module: moduleName } }));
