@@ -978,7 +978,7 @@ export async function confirmReachedDropDelivery(orderId, deliveryPartnerId) {
       await order.save();
     }
     // Rider explicitly requested OTP again at drop, re-emit same OTP without regenerating.
-    emitDeliveryDropOtpToUser(order, existingOtp);
+    await emitDeliveryDropOtpToUser(order, existingOtp);
     return sanitizeOrderForExternal(order);
   }
 
@@ -1014,7 +1014,7 @@ export async function confirmReachedDropDelivery(orderId, deliveryPartnerId) {
 
   await order.save();
 
-  emitDeliveryDropOtpToUser(order, String(order.deliveryOtp || '').trim());
+  await emitDeliveryDropOtpToUser(order, String(order.deliveryOtp || '').trim());
   emitOrderUpdate(order, deliveryPartnerId);
   enqueueOrderEvent('reached_drop', {
     orderMongoId: order._id?.toString?.(),

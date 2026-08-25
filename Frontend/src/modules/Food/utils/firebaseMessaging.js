@@ -45,6 +45,21 @@ function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function isDeliveryOtpNotificationPayload(payload = {}) {
+  const type = String(payload?.data?.type || "").toLowerCase();
+  const title = String(payload?.notification?.title || payload?.data?.title || "").toLowerCase();
+  const body = String(payload?.notification?.body || payload?.data?.body || payload?.data?.message || "").toLowerCase();
+
+  return (
+    type.includes("otp") ||
+    type.includes("handover") ||
+    title.includes("otp") ||
+    title.includes("handover") ||
+    body.includes("otp") ||
+    body.includes("handover")
+  );
+}
+
 function getPushSoundSources(moduleName = normalizeModuleFromPath()) {
   if (moduleName === "delivery") {
     return [fallbackNotificationSound];
@@ -585,6 +600,9 @@ function showForegroundNotification(payload = {}, options = {}) {
   }
 
   const currentModule = normalizeModuleFromPath();
+  if (currentModule === "delivery" && isDeliveryOtpNotificationPayload(payload)) {
+    return;
+  }
   const pushOrderId =
     payload?.data?.orderId ||
     payload?.data?.orderMongoId ||

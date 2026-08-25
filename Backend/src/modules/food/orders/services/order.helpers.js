@@ -59,17 +59,53 @@ export function sanitizeOrderForExternal(orderDoc) {
   return o;
 }
 
-export function emitDeliveryDropOtpToUser(order, plainOtp) {
+export async function emitDeliveryDropOtpToUser(order, plainOtp) {
   try {
     const io = getIO();
-    if (!io || !plainOtp || !order?.userId) return;
-    io.to(rooms.user(order.userId)).emit("delivery_drop_otp", {
-      orderMongoId: order._id?.toString?.(),
-      orderId: order.order_id || order._id?.toString?.(),
-      otp: plainOtp,
+    const orderMongoId = order._id?.toString?.();
+    const orderId = order.order_id || orderMongoId;
+    const otp = String(plainOtp || '').trim();
+    if (!otp || !orderId || !orderMongoId) return;
+
+    const userPayload = {
+      orderMongoId,
+      orderId,
+      otp,
       message:
         "Share this OTP with your delivery partner to hand over the order.",
-    });
+    };
+
+    if (io && order?.userId) {
+      io.to(rooms.user(order.userId)).emit("delivery_drop_otp", userPayload);
+    }
+
+    if (io && order?.restaurantId) {
+      io.to(rooms.restaurant(order.restaurantId)).emit("delivery_drop_otp", {
+        ...userPayload,
+        message: "Customer handover OTP is ready. Keep this code visible on the order card.",
+      });
+    }
+
+    const targets = [];
+    if (order?.userId) {
+      targets.push({ ownerType: 'USER', ownerId: order.userId });
+    }
+    if (order?.restaurantId) {
+      targets.push({ ownerType: 'RESTAURANT', ownerId: order.restaurantId });
+    }
+
+    if (targets.length) {
+      await notifyOwnersSafely(targets, {
+        title: `Handover OTP for Order #${orderId}`,
+        body: `OTP: ${otp}. Share this code only with the delivery partner at handover.`,
+        data: {
+          type: 'delivery_drop_otp',
+          orderId: String(orderId),
+          orderMongoId: String(orderMongoId),
+          otp,
+        },
+      });
+    }
   } catch (e) {
     logger.warn(`emitDeliveryDropOtpToUser failed: ${e?.message || e}`);
   }
