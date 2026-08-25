@@ -195,6 +195,9 @@ export async function tryAutoAssign(orderId, options = {}) {
       allowOverLimitFallback: true,
     };
     const { partners } = await listNearbyOnlineDeliveryPartners(order.restaurantId, searchOptions);
+    logger.info(
+      `[DeliveryDispatchDebug] shortlist order=${order._id} attempt=${attempt} maxKm=${maxKm} found=${partners.length} ids=${partners.map((p) => String(p.partnerId)).join(',')}`,
+    );
     
     // TIERED ALERT LOGIC
     // Phase 2: Broadcast to all (Attempt 4+)
@@ -233,6 +236,9 @@ export async function tryAutoAssign(orderId, options = {}) {
         const payload = buildDeliverySocketPayload(order, order.restaurantId);
         for (const p of partners) {
           const roomName = rooms.delivery(p.partnerId);
+          logger.info(
+            `[DeliveryDispatchDebug] re-broadcast socket order=${order._id} partner=${String(p.partnerId)} room=${roomName} pickupDistanceKm=${Number(p.distanceKm || 0).toFixed(2)}`,
+          );
           io.to(roomName).emit('new_order_available', { ...payload, pickupDistanceKm: p.distanceKm });
         }
         
@@ -242,6 +248,9 @@ export async function tryAutoAssign(orderId, options = {}) {
           ownerId: p.partnerId,
         }));
         try {
+          logger.info(
+            `[DeliveryDispatchDebug] re-broadcast push order=${order._id} riders=${reNotifyList.map((item) => String(item.ownerId)).join(',')}`,
+          );
           await notifyOwnersSafely(
             reNotifyList,
             {
@@ -279,6 +288,9 @@ export async function tryAutoAssign(orderId, options = {}) {
         const roomName = rooms.delivery(p.partnerId);
         if (io) {
           const eventPayload = { ...payload, pickupDistanceKm: p.distanceKm };
+          logger.info(
+            `[DeliveryDispatchDebug] phase2 socket order=${order._id} partner=${String(p.partnerId)} room=${roomName} pickupDistanceKm=${Number(p.distanceKm || 0).toFixed(2)}`,
+          );
           io.to(roomName).emit('new_order_available', eventPayload);
         }
       }
@@ -289,6 +301,9 @@ export async function tryAutoAssign(orderId, options = {}) {
         ownerId: p.partnerId,
       }));
       try {
+        logger.info(
+          `[DeliveryDispatchDebug] phase2 push order=${order._id} riders=${phase2NotifyList.map((item) => String(item.ownerId)).join(',')}`,
+        );
         await notifyOwnersSafely(
           phase2NotifyList,
           {
@@ -312,6 +327,9 @@ export async function tryAutoAssign(orderId, options = {}) {
         const roomName = rooms.delivery(p.partnerId);
         if (io) {
           const eventPayload = { ...payload, pickupDistanceKm: p.distanceKm };
+          logger.info(
+            `[DeliveryDispatchDebug] phase1 socket order=${order._id} partner=${String(p.partnerId)} room=${roomName} pickupDistanceKm=${Number(p.distanceKm || 0).toFixed(2)}`,
+          );
           io.to(roomName).emit('new_order_available', eventPayload);
         }
       }
@@ -323,6 +341,9 @@ export async function tryAutoAssign(orderId, options = {}) {
         ownerId: p.partnerId,
       }));
       try {
+        logger.info(
+          `[DeliveryDispatchDebug] phase1 push order=${order._id} riders=${notifyList.map((item) => String(item.ownerId)).join(',')}`,
+        );
         await notifyOwnersSafely(
           notifyList,
           {
@@ -490,12 +511,18 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
     requiredAmount,
     allowOverLimitFallback: true,
   });
+  logger.info(
+    `[DeliveryDispatchDebug] resend shortlist order=${order._id} maxKm=${maxKm} found=${nearbyPartners.length} ids=${nearbyPartners.map((p) => String(p.partnerId)).join(',')}`,
+  );
 
   const io = getIO();
   const payload = buildDeliverySocketPayload(order, order.restaurantId);
   for (const partner of nearbyPartners) {
     const roomName = rooms.delivery(partner.partnerId);
     if (io) {
+      logger.info(
+        `[DeliveryDispatchDebug] resend socket order=${order._id} partner=${String(partner.partnerId)} room=${roomName} pickupDistanceKm=${Number(partner.distanceKm || 0).toFixed(2)}`,
+      );
       io.to(roomName).emit('new_order_available', {
         ...payload,
         pickupDistanceKm: partner.distanceKm,
@@ -505,6 +532,9 @@ export async function resendDeliveryNotificationRestaurant(orderId, restaurantId
 
   if (nearbyPartners.length > 0) {
     try {
+      logger.info(
+        `[DeliveryDispatchDebug] resend push order=${order._id} riders=${nearbyPartners.map((item) => String(item.partnerId)).join(',')}`,
+      );
       await notifyOwnersSafely(
         nearbyPartners.map((partner) => ({
           ownerType: 'DELIVERY_PARTNER',

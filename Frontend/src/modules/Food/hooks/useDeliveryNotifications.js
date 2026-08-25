@@ -599,9 +599,16 @@ export const useDeliveryNotifications = () => {
     const handleDeliveryPushOrderReceived = async (event) => {
       const detail = event?.detail || {};
       debugLog('Delivery push order received', detail);
+      console.log('[DeliveryOrderPopup] push event received', {
+        timestamp: new Date().toISOString(),
+        detail,
+        isOnline: isRiderOnline(),
+        visibility: typeof document !== 'undefined' ? document.visibilityState : 'unknown',
+      });
 
       if (!isRiderOnline()) {
         debugLog('Ignored delivery push order - rider is offline');
+        console.log('[DeliveryOrderPopup] push ignored because rider is offline');
         return;
       }
 
@@ -642,6 +649,10 @@ export const useDeliveryNotifications = () => {
       };
 
       setNewOrder((prev) => mergeOfferData(prev, normalizedOrder));
+      console.log('[DeliveryOrderPopup] setNewOrder from push', {
+        orderId: normalizedOrder?.orderId || normalizedOrder?.orderMongoId,
+        normalizedOrder,
+      });
       handleIncomingOrderAlert(normalizedOrder);
 
       try {
@@ -666,6 +677,10 @@ export const useDeliveryNotifications = () => {
 
         if (matchedOrder) {
           setNewOrder((prev) => mergeOfferData(prev, matchedOrder));
+          console.log('[DeliveryOrderPopup] hydrated push order with API data', {
+            orderId: matchedOrder?.orderId || matchedOrder?._id || matchedOrder?.orderMongoId,
+            matchedOrder,
+          });
           return;
         }
       } catch (error) {
@@ -917,11 +932,21 @@ export const useDeliveryNotifications = () => {
         orderId: orderData?.orderId || orderData?.orderMongoId || orderData?._id,
         dispatchStatus: orderData?.dispatch?.status,
       });
+      console.log('[DeliveryOrderPopup] socket new_order received', {
+        timestamp: new Date().toISOString(),
+        orderId: orderData?.orderId || orderData?.orderMongoId || orderData?._id,
+        orderData,
+        isOnline: isRiderOnline(),
+      });
       if (!isRiderOnline()) {
         debugLog('?? Ignored new_order - rider is offline');
+        console.log('[DeliveryOrderPopup] socket new_order ignored because rider is offline');
         return;
       }
       setNewOrder(orderData);
+      console.log('[DeliveryOrderPopup] setNewOrder from socket new_order', {
+        orderId: orderData?.orderId || orderData?.orderMongoId || orderData?._id,
+      });
       handleIncomingOrderAlert(orderData);
     });
 
@@ -932,12 +957,22 @@ export const useDeliveryNotifications = () => {
         phase: orderData?.phase || 'unknown',
         dispatchStatus: orderData?.dispatch?.status,
       });
+      console.log('[DeliveryOrderPopup] socket new_order_available received', {
+        timestamp: new Date().toISOString(),
+        orderId: orderData?.orderId || orderData?.orderMongoId || orderData?._id,
+        orderData,
+        isOnline: isRiderOnline(),
+      });
       if (!isRiderOnline()) {
         debugLog('?? Ignored new_order_available - rider is offline');
+        console.log('[DeliveryOrderPopup] socket new_order_available ignored because rider is offline');
         return;
       }
       // Treat it the same as new_order for now - delivery boy can accept it
       setNewOrder(orderData);
+      console.log('[DeliveryOrderPopup] setNewOrder from socket new_order_available', {
+        orderId: orderData?.orderId || orderData?.orderMongoId || orderData?._id,
+      });
       handleIncomingOrderAlert(orderData);
     });
 

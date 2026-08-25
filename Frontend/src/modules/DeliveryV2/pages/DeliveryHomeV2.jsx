@@ -635,8 +635,23 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
 
   useEffect(() => {
     if (newOrder === undefined) return;
+    console.log('[DeliveryOrderPopup] DeliveryHomeV2 newOrder changed', {
+      timestamp: new Date().toISOString(),
+      newOrder,
+      currentIncomingOrder: incomingOrder,
+    });
     setIncomingOrder((prev) => mergeIncomingOrderData(prev, newOrder));
   }, [newOrder]);
+
+  useEffect(() => {
+    console.log('[DeliveryOrderPopup] DeliveryHomeV2 incomingOrder changed', {
+      timestamp: new Date().toISOString(),
+      incomingOrder,
+      activeOrder,
+      showVerification,
+      tripStatus,
+    });
+  }, [incomingOrder, activeOrder, showVerification, tripStatus]);
 
   useEffect(() => {
     if (activeOrder && incomingOrder) {
