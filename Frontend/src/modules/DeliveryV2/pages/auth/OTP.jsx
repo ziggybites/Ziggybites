@@ -5,7 +5,7 @@ import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Input } from "@food/components/ui/input"
 import { Button } from "@food/components/ui/button"
 import { deliveryAPI } from "@food/api"
-import { setAuthData as storeAuthData, getModuleToken } from "@food/utils/auth"
+import { setAuthData as storeAuthData, isModuleAuthenticated } from "@food/utils/auth"
 import {
   DELIVERY_AUTH_FLOW_KEY,
   DELIVERY_NEEDS_REGISTRATION_KEY,
@@ -34,8 +34,14 @@ export default function DeliveryOTP() {
   const [deviceToken, setDeviceToken] = useState(null)
   const [activePlatform, setActivePlatform] = useState("web")
   const inputRefs = useRef([])
+  const submittingRef = useRef(false)
 
   useEffect(() => {
+    if (isModuleAuthenticated("delivery")) {
+      navigate("/food/delivery", { replace: true })
+      return
+    }
+
     const stored =
       sessionStorage.getItem(DELIVERY_AUTH_FLOW_KEY) ||
       localStorage.getItem(DELIVERY_AUTH_FLOW_KEY)
@@ -45,26 +51,6 @@ export default function DeliveryOTP() {
       localStorage.removeItem(DELIVERY_AUTH_FLOW_KEY)
       setAuthData(data)
     } else {
-      // No active OTP flow: if already authenticated, go to delivery home
-      const token = getModuleToken("delivery")
-      const authenticated = localStorage.getItem("delivery_authenticated") === "true"
-      if (token && authenticated) {
-        try {
-          const parts = token.split('.')
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
-            const now = Math.floor(Date.now() / 1000)
-            if (payload.exp && payload.exp > now) {
-              navigate("/food/delivery", { replace: true })
-              return
-            }
-          }
-        } catch (e) {
-          // Ignore token parse errors and continue to sign-in redirect
-        }
-      }
-
-      // No auth data, redirect to sign in
       navigate("/food/delivery/login", { replace: true })
       return
     }
@@ -177,9 +163,9 @@ export default function DeliveryOTP() {
 
   const handleVerify = async (otpValue = null) => {
     if (showNameInput) {
-      // In name collection step, ignore OTP auto-submit
       return
     }
+    if (submittingRef.current) return
 
     const code = otpValue || otp.join("")
 
@@ -187,6 +173,7 @@ export default function DeliveryOTP() {
       return
     }
 
+    submittingRef.current = true
     setIsLoading(true)
     setError("")
 
@@ -267,7 +254,7 @@ export default function DeliveryOTP() {
       }
 
       const accessToken = data.accessToken
-      const refreshToken = data.refreshToken || null
+      const refreshToken = data.refreshToken ?? null
       const user = data.user
 
       if (!accessToken || !user) {
@@ -305,6 +292,8 @@ export default function DeliveryOTP() {
         "Failed to verify OTP. Please try again."
       setError(message)
       setIsLoading(false)
+    } finally {
+      submittingRef.current = false
     }
   }
 
@@ -337,7 +326,7 @@ export default function DeliveryOTP() {
       const data = response?.data?.data || response?.data || {}
 
       const accessToken = data.accessToken
-      const refreshToken = data.refreshToken || null
+      const refreshToken = data.refreshToken ?? null
       const user = data.user
 
       if (!accessToken || !user) {
