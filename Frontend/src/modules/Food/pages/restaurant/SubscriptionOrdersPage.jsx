@@ -566,29 +566,21 @@ function SubscriptionOrdersPage() {
 
                           {showInlinePickupOtp && (
                             <div className="mt-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4 shadow-sm">
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <p className="text-xs font-black uppercase tracking-widest text-emerald-700">
-                                    Pickup OTP requested
-                                  </p>
-                                  <p className="mt-1 text-sm text-emerald-900">
-                                    Delivery boy asked for the pickup OTP for Order #{meal?.order?.order_id || meal?.order?._id || ""}
-                                  </p>
-                                  <div className="mt-3 inline-flex rounded-2xl border border-emerald-200 bg-white px-4 py-3">
-                                    <span className="text-3xl font-black tracking-[0.3em] text-emerald-800">
-                                      {activePickupOtpReveal?.otp}
-                                    </span>
-                                  </div>
-                                  <p className="mt-3 text-xs font-medium text-emerald-800">
-                                    Share this OTP with the delivery boy to complete pickup.
-                                  </p>
+                              <div>
+                                <p className="text-xs font-black uppercase tracking-widest text-emerald-700">
+                                  Pickup OTP requested
+                                </p>
+                                <p className="mt-1 text-sm text-emerald-900">
+                                  Delivery boy asked for the pickup OTP for Order #{meal?.order?.order_id || meal?.order?._id || ""}
+                                </p>
+                                <div className="mt-3 inline-flex rounded-2xl border border-emerald-200 bg-white px-4 py-3">
+                                  <span className="text-3xl font-black tracking-[0.3em] text-emerald-800">
+                                    {activePickupOtpReveal?.otp}
+                                  </span>
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={clearPickupOtpReveal}
-                                  className="shrink-0 rounded-full bg-white px-3 py-1 text-xs font-bold text-emerald-700 shadow-sm">
-                                  Hide
-                                </button>
+                                <p className="mt-3 text-xs font-medium text-emerald-800">
+                                  Share this OTP with the delivery boy to complete pickup.
+                                </p>
                               </div>
                             </div>
                           )}

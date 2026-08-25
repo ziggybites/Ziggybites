@@ -65,6 +65,63 @@ function BottomPopup({ isOpen, onClose, title, children }) {
 const resolveIncomingOrderId = (order) =>
   order?.orderId || order?._id || order?.orderMongoId || order?.order_id || null;
 
+const pickDefinedValue = (...values) =>
+  values.find((value) => value !== undefined && value !== null);
+
+const pickNonEmptyValue = (...values) =>
+  values.find((value) => {
+    if (value === undefined || value === null) return false;
+    if (typeof value === "string") return value.trim().length > 0;
+    return true;
+  });
+
+const pickNumericValue = (...values) =>
+  values.find((value) => {
+    if (value === undefined || value === null || value === "") return false;
+    return Number.isFinite(Number(value));
+  });
+
+const areIncomingOrdersEquivalent = (leftOrder, rightOrder) => {
+  if (leftOrder === rightOrder) return true;
+  if (!leftOrder || !rightOrder) return false;
+
+  return [
+    "orderId",
+    "_id",
+    "orderMongoId",
+    "order_id",
+    "restaurantName",
+    "restaurantAddress",
+    "customerAddress",
+    "paymentMethod",
+    "pickupDistanceKm",
+    "distanceKm",
+    "distance",
+    "estimatedTime",
+    "eta",
+    "riderEarning",
+    "deliveryEarning",
+    "earningAmount",
+    "earnings",
+    "amount",
+    "orderStatus",
+    "status",
+    "note",
+    "total",
+    "createdAt",
+    "updatedAt",
+  ].every((key) => leftOrder?.[key] === rightOrder?.[key]) &&
+    leftOrder?.pricing === rightOrder?.pricing &&
+    leftOrder?.payment === rightOrder?.payment &&
+    leftOrder?.amounts === rightOrder?.amounts &&
+    leftOrder?.dispatch === rightOrder?.dispatch &&
+    leftOrder?.deliveryAddress === rightOrder?.deliveryAddress &&
+    leftOrder?.restaurantLocation === rightOrder?.restaurantLocation &&
+    leftOrder?.customerLocation === rightOrder?.customerLocation &&
+    leftOrder?.restaurantId === rightOrder?.restaurantId &&
+    leftOrder?.items === rightOrder?.items;
+};
+
 const mergeIncomingOrderData = (previousOrder, nextOrder) => {
   if (!previousOrder) return nextOrder;
   if (!nextOrder) return previousOrder;
@@ -75,7 +132,7 @@ const mergeIncomingOrderData = (previousOrder, nextOrder) => {
     return nextOrder;
   }
 
-  return {
+  const mergedOrder = {
     ...previousOrder,
     ...nextOrder,
     pricing: nextOrder.pricing || previousOrder.pricing,
@@ -86,11 +143,35 @@ const mergeIncomingOrderData = (previousOrder, nextOrder) => {
     restaurantLocation: nextOrder.restaurantLocation || previousOrder.restaurantLocation,
     customerLocation: nextOrder.customerLocation || previousOrder.customerLocation,
     restaurantId: nextOrder.restaurantId || previousOrder.restaurantId,
+    restaurantName: pickNonEmptyValue(nextOrder.restaurantName, previousOrder.restaurantName),
+    restaurantAddress: pickNonEmptyValue(nextOrder.restaurantAddress, previousOrder.restaurantAddress),
+    customerAddress: pickNonEmptyValue(nextOrder.customerAddress, previousOrder.customerAddress),
+    paymentMethod: pickNonEmptyValue(nextOrder.paymentMethod, previousOrder.paymentMethod),
+    pickupDistanceKm: pickNumericValue(nextOrder.pickupDistanceKm, previousOrder.pickupDistanceKm),
+    distanceKm: pickNumericValue(nextOrder.distanceKm, previousOrder.distanceKm),
+    distance: pickNumericValue(nextOrder.distance, previousOrder.distance),
+    estimatedTime: pickNumericValue(nextOrder.estimatedTime, previousOrder.estimatedTime),
+    eta: pickNumericValue(nextOrder.eta, previousOrder.eta),
+    riderEarning: pickNumericValue(nextOrder.riderEarning, previousOrder.riderEarning),
+    deliveryEarning: pickNumericValue(nextOrder.deliveryEarning, previousOrder.deliveryEarning),
+    earningAmount: pickNumericValue(nextOrder.earningAmount, previousOrder.earningAmount),
+    earnings: pickNumericValue(nextOrder.earnings, previousOrder.earnings),
+    amount: pickNumericValue(nextOrder.amount, previousOrder.amount),
+    orderStatus: pickNonEmptyValue(nextOrder.orderStatus, previousOrder.orderStatus),
+    status: pickNonEmptyValue(nextOrder.status, previousOrder.status),
+    note: pickNonEmptyValue(nextOrder.note, previousOrder.note),
+    total: pickNumericValue(nextOrder.total, previousOrder.total),
+    createdAt: pickDefinedValue(nextOrder.createdAt, previousOrder.createdAt),
+    updatedAt: pickDefinedValue(nextOrder.updatedAt, previousOrder.updatedAt),
     items:
       Array.isArray(nextOrder.items) && nextOrder.items.length > 0
         ? nextOrder.items
         : previousOrder.items,
   };
+
+  return areIncomingOrdersEquivalent(previousOrder, mergedOrder)
+    ? previousOrder
+    : mergedOrder;
 };
 
 /**
@@ -1139,11 +1220,24 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                   />
                 )}
                 {(tripStatus === 'PICKED_UP' || tripStatus === 'REACHED_DROP') && (
-                  <div className="absolute inset-x-0 z-[120] px-4" style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+                  <div className="fixed inset-0 z-[260] flex items-end justify-center p-0 sm:p-4">
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute inset-0 bg-black/40"
+                    />
+                    <motion.div
+                      initial={{ y: '100%' }}
+                      animate={{ y: 0 }}
+                      exit={{ y: '100%' }}
+                      transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+                      className="relative w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-10 max-h-[84vh] overflow-y-auto"
+                    >
                     {tripStatus === 'PICKED_UP' ? (
-                      <div className="bg-white rounded-[3rem] p-8 shadow-[0_-20px_80px_rgba(0,0,0,0.4)] border border-gray-100 flex flex-col items-center">
+                      <div className="flex flex-col items-center">
                         {/* Handle / Minimize */}
-                        <div className="w-full flex justify-center pb-4 pt-0 -mt-2">
+                        <div className="w-full flex justify-center pb-4 pt-1">
                           <button onClick={() => setIsModalMinimized(true)} className="p-1 hover:bg-gray-100 active:scale-95 transition-all rounded-full flex flex-col items-center">
                              <ChevronDown className="w-6 h-6 text-gray-400 stroke-[3]" />
                           </button>
@@ -1216,16 +1310,23 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                         <ActionSlider label="Slide to Arrive" successLabel="Arrived ✓" disabled={!isWithinRange} onConfirm={reachDrop} color="bg-blue-600" />
                       </div>
                     ) : (
-                      <button 
-                        onClick={() => setShowVerification(true)} 
-                        className="w-full text-white rounded-2xl py-4 sm:py-5 px-4 font-bold text-xs sm:text-sm tracking-[0.14em] transform transition-all active:scale-95 flex items-center justify-center gap-2.5 sm:gap-3 border border-white/20"
-                        style={{
-                          background: 'linear-gradient(33deg, #15498b 0%, #000000 100%)',
-                          boxShadow: '0 14px 34px rgba(21, 73, 139, 0.42)',
-                        }}
-                      >
-                        <CheckCircle2 className="w-6 h-6" /> VERIFY & COMPLETE
-                      </button>
+                      <div className="flex flex-col items-center">
+                        <div className="w-full flex justify-center pb-4 pt-1">
+                          <button onClick={() => setIsModalMinimized(true)} className="p-1 hover:bg-gray-100 active:scale-95 transition-all rounded-full flex flex-col items-center">
+                             <ChevronDown className="w-6 h-6 text-gray-400 stroke-[3]" />
+                          </button>
+                        </div>
+                        <button 
+                          onClick={() => setShowVerification(true)} 
+                          className="w-full text-white rounded-2xl py-4 sm:py-5 px-4 font-bold text-xs sm:text-sm tracking-[0.14em] transform transition-all active:scale-95 flex items-center justify-center gap-2.5 sm:gap-3 border border-white/20"
+                          style={{
+                            background: 'linear-gradient(33deg, #15498b 0%, #000000 100%)',
+                            boxShadow: '0 14px 34px rgba(21, 73, 139, 0.42)',
+                          }}
+                        >
+                          <CheckCircle2 className="w-6 h-6" /> VERIFY & COMPLETE
+                        </button>
+                      </div>
                     )}
 
                     <button
@@ -1247,6 +1348,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                     >
                       Report Issue / Cancel Delivery
                     </button>
+                    </motion.div>
                   </div>
                 )}
                 {showVerification && tripStatus !== 'COMPLETED' && (

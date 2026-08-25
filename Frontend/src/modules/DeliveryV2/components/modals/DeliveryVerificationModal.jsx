@@ -122,57 +122,61 @@ const OtpModal = ({ order, onVerified, onClose }) => {
   const isAlreadyVerified = order?.deliveryVerification?.dropOtp?.verified;
 
   return (
-    <div className="fixed inset-0 z-120 p-0 sm:p-4 flex items-end justify-center pointer-events-none">
+    <div className="fixed inset-0 z-[420] p-0 sm:p-4 flex items-end justify-center pointer-events-none">
       <Backdrop onClose={onClose} />
       <motion.div
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
-        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-12 pointer-events-auto max-h-[84vh] overflow-y-auto"
+        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-10 pointer-events-auto max-h-[84vh] overflow-hidden flex flex-col"
       >
-        <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isOtpVerified ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
-              <ShieldCheck className="w-7 h-7" />
+        <div className="overflow-y-auto pr-1">
+          <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
+          <div className="flex justify-between items-center mb-6">
+            <div className="flex items-center gap-3">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${isOtpVerified ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-500'}`}>
+                <ShieldCheck className="w-7 h-7" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Handover Code</h2>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Delivery verification</p>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900">Handover Code</h2>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Delivery verification</p>
-            </div>
+            <button onClick={onClose} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-600">
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button onClick={onClose} className="p-2 bg-gray-50 rounded-full text-gray-400 hover:text-gray-600">
-            <X className="w-5 h-5" />
-          </button>
+
+          <DeliveryInstructionsPanel note={order?.note} />
+
+          <div className="flex justify-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+            {otp.map((digit, i) => (
+              <input
+                key={i}
+                ref={inputRefs[i]}
+                type="number"
+                disabled={isOtpVerified}
+                value={digit}
+                onChange={(e) => handleOtpChange(i, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(i, e)}
+                className={`w-12 sm:w-14 h-16 sm:h-18 bg-gray-50 border-2 rounded-2xl text-center text-2xl sm:text-3xl font-bold transition-all ${
+                  isOtpVerified ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 focus:border-green-600 text-gray-700'
+                }`}
+              />
+            ))}
+          </div>
         </div>
 
-        <DeliveryInstructionsPanel note={order?.note} />
-
-        <div className="flex justify-center gap-2.5 sm:gap-3 mb-6 sm:mb-8">
-          {otp.map((digit, i) => (
-            <input
-              key={i}
-              ref={inputRefs[i]}
-              type="number"
-              disabled={isOtpVerified}
-              value={digit}
-              onChange={(e) => handleOtpChange(i, e.target.value)}
-              onKeyDown={(e) => handleKeyDown(i, e)}
-              className={`w-12 sm:w-14 h-16 sm:h-18 bg-gray-50 border-2 rounded-2xl text-center text-2xl sm:text-3xl font-bold transition-all ${
-                isOtpVerified ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 focus:border-green-600 text-gray-700'
-              }`}
-            />
-          ))}
+        <div className="pt-4 mt-2 border-t border-gray-100 bg-white">
+          <ActionSlider
+            key="action-otp"
+            label={isVerifyingOtp ? 'Verifying...' : isAlreadyVerified ? 'Code already verified' : 'Slide to Verify OTP'}
+            successLabel="Verified!"
+            disabled={otp.some((d) => !d) || isVerifyingOtp || isOtpVerified || isAlreadyVerified}
+            onConfirm={verifyOtp}
+            color="bg-gray-900"
+          />
         </div>
-
-        <ActionSlider
-          key="action-otp"
-          label={isVerifyingOtp ? 'Verifying...' : isAlreadyVerified ? 'Code already verified' : 'Slide to Verify OTP'}
-          successLabel="Verified!"
-          disabled={otp.some((d) => !d) || isVerifyingOtp || isOtpVerified || isAlreadyVerified}
-          onConfirm={verifyOtp}
-          color="bg-gray-900"
-        />
       </motion.div>
     </div>
   );
@@ -209,34 +213,38 @@ export const DeliveryVerificationModal = ({ order, onComplete, onClose }) => {
         />
       )}
       {step === 'complete' && (
-        <div className="fixed inset-0 z-120 p-0 sm:p-4 flex items-end justify-center pointer-events-none">
+        <div className="fixed inset-0 z-[420] p-0 sm:p-4 flex items-end justify-center pointer-events-none">
           <Backdrop onClose={onClose || (() => {})} />
           <motion.div
             key="complete-modal"
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
-            className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-12 pointer-events-auto max-h-[84vh] overflow-y-auto"
+            className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-10 pointer-events-auto max-h-[84vh] overflow-hidden flex flex-col"
           >
-            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
-            <div className="flex items-center gap-3 mb-8">
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-green-100 text-green-600">
-                <CheckCircle2 className="w-7 h-7" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">OTP Verified</h2>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-green-600">Ready To Complete Delivery</p>
+            <div className="overflow-y-auto pr-1">
+              <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center bg-green-100 text-green-600">
+                  <CheckCircle2 className="w-7 h-7" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">OTP Verified</h2>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-green-600">Ready To Complete Delivery</p>
+                </div>
               </div>
             </div>
-            <ActionSlider
-              key="action-complete"
-              label="Slide to Complete Delivery"
-              successLabel="Delivered!"
-              onConfirm={async () => {
-                await onComplete(verifiedOtp);
-              }}
-              color="bg-green-600"
-            />
+            <div className="pt-4 mt-2 border-t border-gray-100 bg-white">
+              <ActionSlider
+                key="action-complete"
+                label="Slide to Complete Delivery"
+                successLabel="Delivered!"
+                onConfirm={async () => {
+                  await onComplete(verifiedOtp);
+                }}
+                color="bg-green-600"
+              />
+            </div>
           </motion.div>
         </div>
       )}

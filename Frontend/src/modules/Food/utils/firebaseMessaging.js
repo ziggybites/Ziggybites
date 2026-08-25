@@ -266,8 +266,8 @@ async function playPushSound(payload = {}) {
       moduleName,
     });
 
-    if (moduleName !== "delivery") {
-      pushDebugLog(PUSH_DEBUG_PREFIX, "Skipping push sound for non-delivery module", { moduleName });
+    if (moduleName === "delivery") {
+      pushDebugLog(PUSH_DEBUG_PREFIX, "Skipping push sound for delivery module", { moduleName });
       return;
     }
 
@@ -653,8 +653,8 @@ function showForegroundNotification(payload = {}, options = {}) {
               tag: notificationKey || undefined,
               data: payload?.data || {},
               requireInteraction: true,
-              silent: !isDeliveryModule,
-              vibrate: isDeliveryModule ? [200, 100, 200, 100, 300] : []
+              silent: true,
+              vibrate: []
             });
           } else {
             new Notification(title, {
@@ -663,7 +663,7 @@ function showForegroundNotification(payload = {}, options = {}) {
               image,
               tag: notificationKey || undefined,
               requireInteraction: true,
-              silent: !isDeliveryModule
+              silent: true
             });
           }
         }).catch(() => {
@@ -672,7 +672,7 @@ function showForegroundNotification(payload = {}, options = {}) {
             icon: "/logo.png",
             image,
             tag: notificationKey || undefined,
-            silent: !isDeliveryModule,
+            silent: true,
           });
         });
       } else {
@@ -681,7 +681,7 @@ function showForegroundNotification(payload = {}, options = {}) {
           icon: "/logo.png",
           image,
           tag: notificationKey || undefined,
-          silent: !isDeliveryModule,
+          silent: true,
         });
       }
     } catch (error) {

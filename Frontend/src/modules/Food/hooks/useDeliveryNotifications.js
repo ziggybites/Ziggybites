@@ -115,6 +115,66 @@ const resolveOfferId = (orderLike = {}) =>
   orderLike?.id ||
   null;
 
+const pickDefinedOfferValue = (...values) =>
+  values.find((value) => value !== undefined && value !== null);
+
+const pickNonEmptyOfferValue = (...values) =>
+  values.find((value) => {
+    if (value === undefined || value === null) return false;
+    if (typeof value === 'string') return value.trim().length > 0;
+    return true;
+  });
+
+const pickNumericOfferValue = (...values) =>
+  values.find((value) => {
+    if (value === undefined || value === null || value === '') return false;
+    return Number.isFinite(Number(value));
+  });
+
+const areOffersEquivalent = (leftOffer, rightOffer) => {
+  if (leftOffer === rightOffer) return true;
+  if (!leftOffer || !rightOffer) return false;
+
+  return [
+    'orderId',
+    'orderMongoId',
+    'order_id',
+    'order_mongo_id',
+    '_id',
+    'id',
+    'restaurantName',
+    'restaurantAddress',
+    'customerAddress',
+    'paymentMethod',
+    'pickupDistanceKm',
+    'distanceKm',
+    'distance',
+    'estimatedTime',
+    'eta',
+    'riderEarning',
+    'deliveryEarning',
+    'earningAmount',
+    'earnings',
+    'amount',
+    'orderStatus',
+    'status',
+    'note',
+    'total',
+    'createdAt',
+    'updatedAt',
+    'source',
+  ].every((key) => leftOffer?.[key] === rightOffer?.[key]) &&
+    leftOffer?.pricing === rightOffer?.pricing &&
+    leftOffer?.payment === rightOffer?.payment &&
+    leftOffer?.amounts === rightOffer?.amounts &&
+    leftOffer?.dispatch === rightOffer?.dispatch &&
+    leftOffer?.deliveryAddress === rightOffer?.deliveryAddress &&
+    leftOffer?.restaurantLocation === rightOffer?.restaurantLocation &&
+    leftOffer?.customerLocation === rightOffer?.customerLocation &&
+    leftOffer?.restaurantId === rightOffer?.restaurantId &&
+    leftOffer?.items === rightOffer?.items;
+};
+
 const mergeOfferData = (previousOffer, nextOffer) => {
   if (!previousOffer) return nextOffer;
   if (!nextOffer) return previousOffer;
@@ -125,7 +185,7 @@ const mergeOfferData = (previousOffer, nextOffer) => {
     return nextOffer;
   }
 
-  return {
+  const mergedOffer = {
     ...previousOffer,
     ...nextOffer,
     pricing: nextOffer.pricing || previousOffer.pricing,
@@ -136,11 +196,35 @@ const mergeOfferData = (previousOffer, nextOffer) => {
     restaurantLocation: nextOffer.restaurantLocation || previousOffer.restaurantLocation,
     customerLocation: nextOffer.customerLocation || previousOffer.customerLocation,
     restaurantId: nextOffer.restaurantId || previousOffer.restaurantId,
+    restaurantName: pickNonEmptyOfferValue(nextOffer.restaurantName, previousOffer.restaurantName),
+    restaurantAddress: pickNonEmptyOfferValue(nextOffer.restaurantAddress, previousOffer.restaurantAddress),
+    customerAddress: pickNonEmptyOfferValue(nextOffer.customerAddress, previousOffer.customerAddress),
+    paymentMethod: pickNonEmptyOfferValue(nextOffer.paymentMethod, previousOffer.paymentMethod),
+    pickupDistanceKm: pickNumericOfferValue(nextOffer.pickupDistanceKm, previousOffer.pickupDistanceKm),
+    distanceKm: pickNumericOfferValue(nextOffer.distanceKm, previousOffer.distanceKm),
+    distance: pickNumericOfferValue(nextOffer.distance, previousOffer.distance),
+    estimatedTime: pickNumericOfferValue(nextOffer.estimatedTime, previousOffer.estimatedTime),
+    eta: pickNumericOfferValue(nextOffer.eta, previousOffer.eta),
+    riderEarning: pickNumericOfferValue(nextOffer.riderEarning, previousOffer.riderEarning),
+    deliveryEarning: pickNumericOfferValue(nextOffer.deliveryEarning, previousOffer.deliveryEarning),
+    earningAmount: pickNumericOfferValue(nextOffer.earningAmount, previousOffer.earningAmount),
+    earnings: pickNumericOfferValue(nextOffer.earnings, previousOffer.earnings),
+    amount: pickNumericOfferValue(nextOffer.amount, previousOffer.amount),
+    orderStatus: pickNonEmptyOfferValue(nextOffer.orderStatus, previousOffer.orderStatus),
+    status: pickNonEmptyOfferValue(nextOffer.status, previousOffer.status),
+    note: pickNonEmptyOfferValue(nextOffer.note, previousOffer.note),
+    total: pickNumericOfferValue(nextOffer.total, previousOffer.total),
+    createdAt: pickDefinedOfferValue(nextOffer.createdAt, previousOffer.createdAt),
+    updatedAt: pickDefinedOfferValue(nextOffer.updatedAt, previousOffer.updatedAt),
     items:
       Array.isArray(nextOffer.items) && nextOffer.items.length > 0
         ? nextOffer.items
         : previousOffer.items,
   };
+
+  return areOffersEquivalent(previousOffer, mergedOffer)
+    ? previousOffer
+    : mergedOffer;
 };
 
 const buildDeliveryOrderNotification = (orderData = {}) => {
@@ -342,12 +426,19 @@ export const useDeliveryNotifications = () => {
         deliveryAPI.getCurrentDelivery(),
       ]);
 
-      const currentTrip =
+      const currentTripPayload =
         currentTripResult.status === 'fulfilled'
           ? currentTripResult.value?.data?.data ??
             currentTripResult.value?.data ??
             null
           : null;
+      const currentTrip =
+        currentTripPayload?.activeOrder &&
+        (currentTripPayload.activeOrder?._id || currentTripPayload.activeOrder?.orderId)
+          ? currentTripPayload.activeOrder
+          : currentTripPayload?._id || currentTripPayload?.orderId
+            ? currentTripPayload
+            : null;
 
       if (currentTrip) {
         debugLog('Recovered current delivery trip after reconnect/focus:', currentTrip);

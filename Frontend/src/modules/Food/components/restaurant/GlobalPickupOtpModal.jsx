@@ -1,9 +1,16 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation } from 'react-router-dom';
 import { useRestaurantNotifications } from '@food/hooks/useRestaurantNotifications';
 
 export default function GlobalPickupOtpModal() {
   const { pickupOtpReveal, clearPickupOtpReveal } = useRestaurantNotifications();
+  const location = useLocation();
+  const isSubscriptionDetailRoute = String(location?.pathname || '').startsWith('/food/restaurant/subscriptions/');
+
+  if (isSubscriptionDetailRoute) {
+    return null;
+  }
 
   return (
     <AnimatePresence>
