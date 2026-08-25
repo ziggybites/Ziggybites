@@ -139,11 +139,17 @@ function createModuleClient(moduleName) {
 
       try {
         const refreshUrl = baseURL ? `${baseURL}/food/auth/refresh-token` : '/api/v1/food/auth/refresh-token';
-        const { data } = await axios.post(refreshUrl, {}, { timeout: 10000, withCredentials: true });
+        const storedRefreshToken = getRefreshToken(moduleName);
+        const refreshPayload = storedRefreshToken ? { refreshToken: storedRefreshToken } : {};
+        const { data } = await axios.post(refreshUrl, refreshPayload, { timeout: 10000, withCredentials: true });
         const newAccessToken = data?.data?.accessToken || data?.accessToken;
+        const newRefreshToken = data?.data?.refreshToken || data?.refreshToken || storedRefreshToken;
 
         if (newAccessToken) {
           setAccessToken(moduleName, newAccessToken);
+          if (newRefreshToken) {
+            setRefreshToken(moduleName, newRefreshToken);
+          }
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('authRefreshed', {
               detail: { module: moduleName, token: newAccessToken },
