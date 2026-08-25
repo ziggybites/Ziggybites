@@ -19,7 +19,7 @@ import { API_BASE_URL } from "@food/api/config"
 import { toast } from "sonner"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import { hasStoredSession } from "../../../../core/auth/tokenStore"
+import { hasStoredSession } from "../../../../../core/auth/tokenStore.js"
 
 const defaultFormData = {
   name: "",
