@@ -44,10 +44,11 @@ const installStoragePatch = () => {
   localStorageRef.getItem = (key) => {
     if (isAccessTokenKey(key)) {
       const moduleName = getModuleFromStorageKey(key);
-      return accessTokenStore.get(moduleName) || null;
+      return accessTokenStore.get(moduleName) || originalGetItem(key);
     }
     if (isRefreshTokenKey(key)) {
-      return null;
+      const moduleName = getModuleFromStorageKey(key);
+      return refreshTokenStore.get(moduleName) || originalGetItem(key);
     }
     return originalGetItem(key);
   };
@@ -57,10 +58,13 @@ const installStoragePatch = () => {
       const moduleName = getModuleFromStorageKey(key);
       if (value) accessTokenStore.set(moduleName, String(value));
       else accessTokenStore.delete(moduleName);
-      return;
+      return originalSetItem(key, value);
     }
     if (isRefreshTokenKey(key)) {
-      return;
+      const moduleName = getModuleFromStorageKey(key);
+      if (value) refreshTokenStore.set(moduleName, String(value));
+      else refreshTokenStore.delete(moduleName);
+      return originalSetItem(key, value);
     }
     return originalSetItem(key, value);
   };
@@ -68,10 +72,11 @@ const installStoragePatch = () => {
   localStorageRef.removeItem = (key) => {
     if (isAccessTokenKey(key)) {
       accessTokenStore.delete(getModuleFromStorageKey(key));
-      return;
+      return originalRemoveItem(key);
     }
     if (isRefreshTokenKey(key)) {
-      return;
+      refreshTokenStore.delete(getModuleFromStorageKey(key));
+      return originalRemoveItem(key);
     }
     return originalRemoveItem(key);
   };
