@@ -225,9 +225,38 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const simInitializedRef = useRef(false);
 
   const isLoggingOut = useRef(false);
+
+  useEffect(() => {
+    try {
+      const accessPersist = localStorage.getItem('delivery_accessToken_persist');
+      const accessSession = sessionStorage.getItem('delivery_accessToken_session');
+      const refreshPersist = localStorage.getItem('delivery_refreshToken_persist');
+      const authenticated = localStorage.getItem('delivery_authenticated');
+      const deliveryUser = localStorage.getItem('delivery_user');
+
+      console.log('[DeliveryAuthDebug] DeliveryHome startup storage snapshot', {
+        path: window.location.pathname,
+        accessPersistPresent: Boolean(accessPersist),
+        accessSessionPresent: Boolean(accessSession),
+        refreshPersistPresent: Boolean(refreshPersist),
+        authenticated,
+        deliveryUserPresent: Boolean(deliveryUser),
+        accessPersistPreview: accessPersist ? `${String(accessPersist).slice(0, 12)}...` : null,
+        accessSessionPreview: accessSession ? `${String(accessSession).slice(0, 12)}...` : null,
+      });
+    } catch (error) {
+      console.warn('[DeliveryAuthDebug] DeliveryHome startup snapshot failed', error);
+    }
+  }, []);
+
   const handleLogout = useCallback(() => {
     if (isLoggingOut.current) return;
     isLoggingOut.current = true;
+
+    console.log('[DeliveryAuthDebug] handleLogout invoked', {
+      path: window.location.pathname,
+      accessTokenPresent: Boolean(getAccessToken('delivery')),
+    });
     
     // 1. Clear tokens and state
     clearModuleAuth('delivery');
@@ -247,6 +276,11 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   useEffect(() => {
     const onAuthFailure = (e) => {
       if (e.detail?.module === 'delivery') {
+        console.log('[DeliveryAuthDebug] authRefreshFailed event received', {
+          detail: e.detail,
+          path: window.location.pathname,
+          accessTokenPresent: Boolean(getAccessToken('delivery')),
+        });
         handleLogout();
       }
     };

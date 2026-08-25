@@ -276,6 +276,16 @@ export const bootstrapTokenStore = () => {
         refreshTokenStore.set(moduleName, refreshToken);
       }
     });
+
+    console.log('[DeliveryAuthDebug] tokenStore bootstrap snapshot', {
+      delivery: {
+        sessionAccessPresent: Boolean(window.sessionStorage.getItem(getSessionAccessTokenKey('delivery'))),
+        persistentAccessPresent: Boolean(window.localStorage?.getItem(getPersistentAccessTokenKey('delivery'))),
+        persistentRefreshPresent: Boolean(window.localStorage?.getItem(getPersistentRefreshTokenKey('delivery'))),
+        authenticated: window.localStorage?.getItem(getAuthenticatedKey('delivery')),
+        userPresent: Boolean(window.localStorage?.getItem(getUserKey('delivery'))),
+      },
+    });
   } catch {
   }
 };
