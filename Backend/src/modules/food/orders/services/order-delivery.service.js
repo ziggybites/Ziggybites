@@ -298,7 +298,7 @@ export async function getCurrentTripDelivery(deliveryPartnerId) {
   })
     .populate({
       path: 'restaurantId',
-      select: 'restaurantName name phone location addressLine1 area city state profileImage',
+      select: 'restaurantName name phone location profileImage',
     })
     .populate({ path: 'userId', select: 'name phone' })
     .sort({ updatedAt: -1 })

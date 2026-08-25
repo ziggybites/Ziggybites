@@ -8,7 +8,7 @@ export const getPublicGourmetRestaurants = async () => {
 
     const restaurantIds = docs.map((d) => d.restaurantId);
     const restaurants = await FoodRestaurant.find({ _id: { $in: restaurantIds } })
-        .select('restaurantName area city profileImage rating cuisines slug pureVegRestaurant location estimatedDeliveryTime zoneId')
+        .select('restaurantName profileImage rating cuisines slug pureVegRestaurant location estimatedDeliveryTime zoneId')
         .lean();
 
     const restaurantMap = new Map(restaurants.map((r) => [r._id.toString(), r]));
@@ -23,8 +23,8 @@ export const getPublicGourmetRestaurants = async () => {
                 restaurantName: r.restaurantName,
                 rating: r.rating || 0,
                 profileImage: r.profileImage ? { url: r.profileImage } : null,
-                area: r.area,
-                city: r.city,
+                area: r.location?.area || '',
+                city: r.location?.city || '',
                 cuisines: r.cuisines || [],
                 slug: r.slug,
                 pureVegRestaurant: r.pureVegRestaurant,

@@ -104,14 +104,7 @@ const toRestaurantProfile = (doc) => {
             loc?.city ||
             loc?.state ||
             loc?.pincode ||
-            loc?.landmark ||
-            doc.addressLine1 ||
-            doc.addressLine2 ||
-            doc.area ||
-            doc.city ||
-            doc.state ||
-            doc.pincode ||
-            doc.landmark)
+            loc?.landmark)
             ? {
                 type: loc?.type || 'Point',
                 coordinates: Array.isArray(loc?.coordinates) ? loc.coordinates : undefined,
@@ -119,13 +112,13 @@ const toRestaurantProfile = (doc) => {
                 longitude: typeof loc?.longitude === 'number' ? loc.longitude : (Array.isArray(loc?.coordinates) ? loc.coordinates[0] : undefined),
                 formattedAddress: loc?.formattedAddress || loc?.address || '',
                 address: loc?.address || loc?.formattedAddress || '',
-                addressLine1: loc?.addressLine1 || doc.addressLine1 || '',
-                addressLine2: loc?.addressLine2 || doc.addressLine2 || '',
-                area: loc?.area || doc.area || '',
-                city: loc?.city || doc.city || '',
-                state: loc?.state || doc.state || '',
-                pincode: loc?.pincode || doc.pincode || '',
-                landmark: loc?.landmark || doc.landmark || ''
+                addressLine1: loc?.addressLine1 || '',
+                addressLine2: loc?.addressLine2 || '',
+                area: loc?.area || '',
+                city: loc?.city || '',
+                state: loc?.state || '',
+                pincode: loc?.pincode || '',
+                landmark: loc?.landmark || ''
             }
             : null;
 
@@ -202,6 +195,64 @@ const toFiniteNumber = (value) => {
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const normalizeCuisine = (value) => String(value || '').trim().slice(0, 80);
+
+const LEGACY_ADDRESS_FIELD_NAMES = [
+    'addressLine1',
+    'addressLine2',
+    'area',
+    'city',
+    'state',
+    'pincode',
+    'landmark'
+];
+
+const LEGACY_ADDRESS_UNSET = Object.fromEntries(
+    LEGACY_ADDRESS_FIELD_NAMES.map((fieldName) => [fieldName, 1])
+);
+
+const RESTAURANT_PROFILE_PROJECTION = [
+    'restaurantName',
+    'zoneId',
+    'cuisines',
+    'location',
+    'ownerName',
+    'ownerEmail',
+    'ownerPhone',
+    'primaryContactNumber',
+    'accountNumber',
+    'ifscCode',
+    'accountHolderName',
+    'accountType',
+    'upiId',
+    'upiQrImage',
+    'panNumber',
+    'nameOnPan',
+    'panImage',
+    'gstRegistered',
+    'gstNumber',
+    'gstLegalName',
+    'gstAddress',
+    'gstImage',
+    'fssaiNumber',
+    'fssaiExpiry',
+    'fssaiImage',
+    'pureVegRestaurant',
+    'profileImage',
+    'coverImages',
+    'menuImages',
+    'openingTime',
+    'closingTime',
+    'openDays',
+    'estimatedDeliveryTime',
+    'estimatedDeliveryTimeMinutes',
+    'diningSettings',
+    'isAcceptingOrders',
+    'status',
+    'approvedAt',
+    'pendingUpdateReason',
+    'createdAt',
+    'updatedAt'
+].join(' ');
 
 const parseSortBy = (value) => {
     const v = String(value || '').trim();
@@ -457,58 +508,7 @@ export const registerRestaurant = async (payload, files) => {
 export const getCurrentRestaurantProfile = async (restaurantId) => {
     if (!restaurantId) return null;
     const doc = await FoodRestaurant.findById(restaurantId)
-        .select(
-            [
-                'restaurantName',
-                'zoneId',
-                'cuisines',
-                'location',
-                'addressLine1',
-                'addressLine2',
-                'area',
-                'city',
-                'state',
-                'pincode',
-                'landmark',
-                'ownerName',
-                'ownerEmail',
-                'ownerPhone',
-                'primaryContactNumber',
-                'accountNumber',
-                'ifscCode',
-                'accountHolderName',
-                'accountType',
-                'upiId',
-                'upiQrImage',
-                'panNumber',
-                'nameOnPan',
-                'panImage',
-                'gstRegistered',
-                'gstNumber',
-                'gstLegalName',
-                'gstAddress',
-                'gstImage',
-                'fssaiNumber',
-                'fssaiExpiry',
-                'fssaiImage',
-                'pureVegRestaurant',
-                'profileImage',
-                'coverImages',
-                'menuImages',
-                'openingTime',
-                'closingTime',
-                'openDays',
-                'estimatedDeliveryTime',
-                'estimatedDeliveryTimeMinutes',
-                'diningSettings',
-                'isAcceptingOrders',
-                'status',
-                'approvedAt',
-                'pendingUpdateReason',
-                'createdAt',
-                'updatedAt'
-            ].join(' ')
-        )
+        .select(RESTAURANT_PROFILE_PROJECTION)
         .lean();
     return toRestaurantProfile(doc);
 };
@@ -524,54 +524,7 @@ export const updateRestaurantAcceptingOrders = async (restaurantId, isAcceptingO
         {
             new: true,
             runValidators: true,
-            projection: [
-                'restaurantName',
-                'zoneId',
-                'cuisines',
-                'location',
-                'addressLine1',
-                'addressLine2',
-                'area',
-                'city',
-                'state',
-                'pincode',
-                'landmark',
-                'ownerName',
-                'ownerEmail',
-                'ownerPhone',
-                'primaryContactNumber',
-                'accountNumber',
-                'ifscCode',
-                'accountHolderName',
-                'accountType',
-                'upiId',
-                'upiQrImage',
-                'panNumber',
-                'nameOnPan',
-                'panImage',
-                'gstRegistered',
-                'gstNumber',
-                'gstLegalName',
-                'gstAddress',
-                'gstImage',
-                'fssaiNumber',
-                'fssaiExpiry',
-                'fssaiImage',
-                'pureVegRestaurant',
-                'profileImage',
-                'coverImages',
-                'menuImages',
-                'openingTime',
-                'closingTime',
-                'openDays',
-                'diningSettings',
-                'isAcceptingOrders',
-                'status',
-                'approvedAt',
-                'pendingUpdateReason',
-                'createdAt',
-                'updatedAt'
-            ].join(' ')
+            projection: RESTAURANT_PROFILE_PROJECTION
         }
     ).lean();
     return toRestaurantProfile(doc);
@@ -640,44 +593,7 @@ export const updateCurrentRestaurantDiningSettings = async (restaurantId, body =
         {
             new: true,
             runValidators: true,
-            projection: [
-                'restaurantName',
-                'cuisines',
-                'location',
-                'addressLine1',
-                'addressLine2',
-                'area',
-                'city',
-                'state',
-                'pincode',
-                'landmark',
-                'ownerName',
-                'ownerEmail',
-                'ownerPhone',
-                'primaryContactNumber',
-                'accountNumber',
-                'ifscCode',
-                'accountHolderName',
-                'accountType',
-                'upiId',
-                'upiQrImage',
-                'pureVegRestaurant',
-                'profileImage',
-                'coverImages',
-                'menuImages',
-                'openingTime',
-                'closingTime',
-                'openDays',
-                'estimatedDeliveryTime',
-                'estimatedDeliveryTimeMinutes',
-                'diningSettings',
-                'isAcceptingOrders',
-                'status',
-                'approvedAt',
-                'pendingUpdateReason',
-                'createdAt',
-                'updatedAt'
-            ].join(' ')
+            projection: RESTAURANT_PROFILE_PROJECTION
         }
     ).lean();
 
@@ -845,13 +761,6 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         }
         const toStr = (v) => (v != null ? String(v).trim() : '');
         const formattedAddress = toStr(loc.formattedAddress || loc.address);
-        update.addressLine1 = toStr(loc.addressLine1);
-        update.addressLine2 = toStr(loc.addressLine2);
-        update.area = toStr(loc.area);
-        update.city = toStr(loc.city);
-        update.state = toStr(loc.state);
-        update.pincode = toStr(loc.pincode);
-        update.landmark = toStr(loc.landmark);
 
         // Optional geo coords for server-side distance filtering.
         const lat = toFiniteNumber(loc.latitude);
@@ -1002,7 +911,7 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         reason = 'Financial Details Update';
     } else if (updatedFields.some(f => ['panNumber', 'nameOnPan', 'panImage', 'gstNumber', 'fssaiNumber', 'fssaiExpiry'].includes(f))) {
         reason = 'Regulatory Documents Update';
-    } else if (updatedFields.some(f => ['addressLine1', 'area', 'city', 'pincode'].includes(f))) {
+    } else if (updatedFields.includes('location')) {
         reason = 'Location/Address Update';
     } else if (updatedFields.some(f => ['menuImages', 'menuPdf'].includes(f))) {
         reason = 'Menu Update';
@@ -1028,59 +937,14 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
                 $set: update,
                 $unset: {
                     rejectedAt: 1,
-                    rejectionReason: 1
+                    rejectionReason: 1,
+                    ...LEGACY_ADDRESS_UNSET
                 }
             },
             {
                 new: true,
                 runValidators: true,
-                projection: [
-                    'restaurantName',
-                    'cuisines',
-                    'location',
-                    'addressLine1',
-                    'addressLine2',
-                    'area',
-                    'city',
-                    'state',
-                    'pincode',
-                    'landmark',
-                    'ownerName',
-                    'ownerEmail',
-                    'ownerPhone',
-                    'primaryContactNumber',
-                'pureVegRestaurant',
-                'profileImage',
-                'coverImages',
-                'menuImages',
-                    'openingTime',
-                    'closingTime',
-                    'openDays',
-                    'status',
-                    'createdAt',
-                    'updatedAt',
-                    'panNumber',
-                    'nameOnPan',
-                    'panImage',
-                    'gstRegistered',
-                    'gstNumber',
-                    'gstLegalName',
-                    'gstAddress',
-                    'gstImage',
-                    'fssaiNumber',
-                    'fssaiExpiry',
-                    'fssaiImage',
-                    'accountNumber',
-                    'ifscCode',
-                    'accountHolderName',
-                    'accountType',
-                    'upiId',
-                    'upiQrImage',
-                    'estimatedDeliveryTime',
-                    'estimatedDeliveryTimeMinutes',
-                    'zoneId',
-                    'previousZoneId'
-                ].join(' ')
+                projection: `${RESTAURANT_PROFILE_PROJECTION} previousZoneId`
             }
         ).lean();
 
@@ -1118,10 +982,11 @@ export const uploadRestaurantProfileImage = async (restaurantId, file) => {
             },
             $unset: {
                 rejectedAt: 1,
-                rejectionReason: 1
+                rejectionReason: 1,
+                ...LEGACY_ADDRESS_UNSET
             }
         },
-        { new: true, projection: 'profileImage coverImages restaurantName cuisines location menuImages addressLine1 addressLine2 area city state pincode landmark ownerName ownerEmail ownerPhone primaryContactNumber pureVegRestaurant openingTime closingTime openDays status approvedAt pendingUpdateReason createdAt updatedAt' }
+        { new: true, projection: RESTAURANT_PROFILE_PROJECTION }
     ).lean();
 
     if (!doc) throw new ValidationError('Restaurant not found');
@@ -1260,12 +1125,12 @@ export const listApprovedRestaurants = async (query = {}) => {
     if (query.city && String(query.city).trim()) {
         const city = String(query.city).trim().slice(0, 80);
         const rx = { $regex: escapeRegex(city), $options: 'i' };
-        filter.$and = [...(filter.$and || []), { $or: [{ 'location.city': rx }, { city: rx }] }];
+        filter.$and = [...(filter.$and || []), { 'location.city': rx }];
     }
     if (query.area && String(query.area).trim()) {
         const area = String(query.area).trim().slice(0, 80);
         const rx = { $regex: escapeRegex(area), $options: 'i' };
-        filter.$and = [...(filter.$and || []), { $or: [{ 'location.area': rx }, { area: rx }] }];
+        filter.$and = [...(filter.$and || []), { 'location.area': rx }];
     }
     if (query.cuisine && String(query.cuisine).trim()) {
         const cuisine = normalizeCuisine(query.cuisine);
@@ -1302,8 +1167,6 @@ export const listApprovedRestaurants = async (query = {}) => {
                 {
                     $or: [
                         { restaurantName: { $regex: term, $options: 'i' } },
-                        { area: { $regex: term, $options: 'i' } },
-                        { city: { $regex: term, $options: 'i' } },
                         { 'location.area': { $regex: term, $options: 'i' } },
                         { 'location.city': { $regex: term, $options: 'i' } },
                         { cuisines: { $in: [new RegExp(term, 'i')] } }
@@ -1333,8 +1196,6 @@ export const listApprovedRestaurants = async (query = {}) => {
 
     const projection = {
         restaurantName: 1,
-        area: 1,
-        city: 1,
         cuisines: 1,
         profileImage: 1,
         coverImages: 1,

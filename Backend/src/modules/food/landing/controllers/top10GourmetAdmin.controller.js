@@ -8,7 +8,7 @@ export const listGourmetAdmin = async (req, res, next) => {
         const docs = await FoodGourmetRestaurant.find({}).sort({ priority: 1, createdAt: -1 }).lean();
         const restaurantIds = [...new Set(docs.map((d) => d.restaurantId))];
         const restaurants = await FoodRestaurant.find({ _id: { $in: restaurantIds } })
-            .select('restaurantName area city profileImage rating')
+            .select('restaurantName location profileImage rating')
             .lean();
         const restaurantMap = new Map(restaurants.map((r) => [r._id.toString(), r]));
         const list = docs.map((d) => {
@@ -24,8 +24,8 @@ export const listGourmetAdmin = async (req, res, next) => {
                     name: r.restaurantName,
                     rating: r.rating || 0,
                     profileImage: r.profileImage ? { url: r.profileImage } : null,
-                    area: r.area,
-                    city: r.city
+                    area: r.location?.area || '',
+                    city: r.location?.city || ''
                 } : null
             };
         });

@@ -69,14 +69,20 @@ export async function getRestaurantFinance(restaurantId, query = {}) {
 
     // Fetch restaurant profile for header display.
     const restaurant = await FoodRestaurant.findById(rid)
-        .select('restaurantName addressLine1 addressLine2 area city state pincode location')
+        .select('restaurantName location')
         .lean();
 
     const address =
         restaurant?.location?.formattedAddress ||
-        (restaurant?.addressLine1
-            ? [restaurant.addressLine1, restaurant.addressLine2, restaurant.area].filter(Boolean).join(', ')
-            : restaurant?.addressLine1 || '');
+        restaurant?.location?.address ||
+        [
+            restaurant?.location?.addressLine1,
+            restaurant?.location?.addressLine2,
+            restaurant?.location?.area,
+            restaurant?.location?.city,
+            restaurant?.location?.state,
+            restaurant?.location?.pincode
+        ].filter(Boolean).join(', ');
 
     const nowWindow = getFixedCurrentCycleWindow(new Date());
 

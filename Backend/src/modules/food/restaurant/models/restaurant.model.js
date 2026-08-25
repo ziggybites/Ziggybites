@@ -83,27 +83,6 @@ const restaurantSchema = new mongoose.Schema(
       required: true,
       default: false,
     },
-    addressLine1: {
-      type: String,
-    },
-    addressLine2: {
-      type: String,
-    },
-    area: {
-      type: String,
-    },
-    city: {
-      type: String,
-    },
-    state: {
-      type: String,
-    },
-    pincode: {
-      type: String,
-    },
-    landmark: {
-      type: String,
-    },
     cuisines: {
       type: [String],
       default: [],
@@ -304,46 +283,6 @@ restaurantSchema.pre("validate", function normalizeDerivedFields(next) {
   this.ownerPhoneDigits = digits || undefined;
   this.ownerPhoneLast10 = digits ? digits.slice(-10) : undefined;
 
-  // Keep `location` in sync when flat address fields exist (backward-compatible migration).
-  // Prefer explicit location.* fields if provided.
-  const hasAnyFlatAddress =
-    this.addressLine1 ||
-    this.addressLine2 ||
-    this.area ||
-    this.city ||
-    this.state ||
-    this.pincode ||
-    this.landmark;
-  if (this.location) {
-    // If a location object exists but has no usable geo coordinates,
-    // keep flat address fields only and drop location to avoid 2dsphere write errors.
-    const hasCoordinates =
-      Array.isArray(this.location.coordinates) &&
-      this.location.coordinates.length === 2 &&
-      this.location.coordinates.every(
-        (n) => typeof n === "number" && Number.isFinite(n),
-      );
-    const hasLatLng =
-      typeof this.location.latitude === "number" &&
-      Number.isFinite(this.location.latitude) &&
-      typeof this.location.longitude === "number" &&
-      Number.isFinite(this.location.longitude);
-    if (!hasCoordinates && !hasLatLng) {
-      if (!this.addressLine1 && this.location.addressLine1)
-        this.addressLine1 = this.location.addressLine1;
-      if (!this.addressLine2 && this.location.addressLine2)
-        this.addressLine2 = this.location.addressLine2;
-      if (!this.area && this.location.area) this.area = this.location.area;
-      if (!this.city && this.location.city) this.city = this.location.city;
-      if (!this.state && this.location.state) this.state = this.location.state;
-      if (!this.pincode && this.location.pincode)
-        this.pincode = this.location.pincode;
-      if (!this.landmark && this.location.landmark)
-        this.landmark = this.location.landmark;
-      this.location = undefined;
-    }
-  }
-
   if (this.location) {
     // Sync coords <-> lat/lng
     const lat =
@@ -372,19 +311,31 @@ restaurantSchema.pre("validate", function normalizeDerivedFields(next) {
         this.location.longitude = clng;
     }
 
-    // Sync flat -> location for address fields if location fields are empty.
-    if (hasAnyFlatAddress) {
-      if (!this.location.addressLine1 && this.addressLine1)
-        this.location.addressLine1 = this.addressLine1;
-      if (!this.location.addressLine2 && this.addressLine2)
-        this.location.addressLine2 = this.addressLine2;
-      if (!this.location.area && this.area) this.location.area = this.area;
-      if (!this.location.city && this.city) this.location.city = this.city;
-      if (!this.location.state && this.state) this.location.state = this.state;
-      if (!this.location.pincode && this.pincode)
-        this.location.pincode = this.pincode;
-      if (!this.location.landmark && this.landmark)
-        this.location.landmark = this.landmark;
+    const hasAddressContent = [
+      this.location.formattedAddress,
+      this.location.address,
+      this.location.addressLine1,
+      this.location.addressLine2,
+      this.location.area,
+      this.location.city,
+      this.location.state,
+      this.location.pincode,
+      this.location.landmark,
+    ].some((value) => String(value || "").trim());
+    const hasCoordinates =
+      Array.isArray(this.location.coordinates) &&
+      this.location.coordinates.length === 2 &&
+      this.location.coordinates.every(
+        (n) => typeof n === "number" && Number.isFinite(n),
+      );
+    const hasLatLng =
+      typeof this.location.latitude === "number" &&
+      Number.isFinite(this.location.latitude) &&
+      typeof this.location.longitude === "number" &&
+      Number.isFinite(this.location.longitude);
+
+    if (!hasAddressContent && !hasCoordinates && !hasLatLng) {
+      this.location = undefined;
     }
   }
 
@@ -412,9 +363,8 @@ restaurantSchema.pre("validate", function normalizeDerivedFields(next) {
 restaurantSchema.index({ ownerPhone: 1 });
 restaurantSchema.index({ restaurantName: 1 });
 restaurantSchema.index({ restaurantNameNormalized: 1 });
-restaurantSchema.index({ city: 1 });
 restaurantSchema.index({ "location.city": 1 });
-restaurantSchema.index({ location: "2dsphere" });
+restaurantSchema.index({ "location.coordinates": "2dsphere" });
 restaurantSchema.index({ restaurantName: 1, ownerPhone: 1 });
 // Enforce uniqueness at the database level to avoid race conditions in registration.
 // Uses partial filter to avoid blocking older documents that may not yet have normalized fields.
