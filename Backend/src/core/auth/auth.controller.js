@@ -32,7 +32,9 @@ import {
   attachRefreshTokenCookie,
   clearRefreshTokenCookie,
   getRefreshTokenFromRequest,
+  REFRESH_TOKEN_COOKIE_NAME,
 } from "./auth.cookies.js";
+import { logger } from "../../utils/logger.js";
 
 export const requestUserOtpController = async (req, res, next) => {
   try {
@@ -80,13 +82,27 @@ export const adminLoginController = async (req, res, next) => {
 
 export const refreshTokenController = async (req, res, next) => {
   try {
+    const bodyRefreshToken =
+      typeof req?.body?.refreshToken === "string" ? req.body.refreshToken.trim() : "";
+    const cookieHeader = String(req?.headers?.cookie || "");
+    const cookieTokenPresent = cookieHeader.includes(`${REFRESH_TOKEN_COOKIE_NAME}=`);
+    const resolvedRefreshToken = getRefreshTokenFromRequest(req);
+
+    logger.info(
+      `[RefreshDebug] incoming bodyToken=${Boolean(bodyRefreshToken)} cookieToken=${cookieTokenPresent} resolvedToken=${Boolean(resolvedRefreshToken)} ua=${String(req?.headers?.["user-agent"] || "").slice(0, 120)}`,
+    );
+
     const { refreshToken } = validateRefreshTokenDto({
-      refreshToken: getRefreshTokenFromRequest(req),
+      refreshToken: resolvedRefreshToken,
     });
     const result = await refreshAccessToken(refreshToken);
+    logger.info(
+      `[RefreshDebug] success user=${String(result?.accessToken ? "access-issued" : "no-access")} refreshReturned=${Boolean(result?.refreshToken)}`,
+    );
     attachRefreshTokenCookie(req, res, result.refreshToken);
     return sendResponse(res, 200, "Access token refreshed", result);
   } catch (error) {
+    logger.warn(`[RefreshDebug] failed reason=${error?.message || error}`);
     next(error);
   }
 };
