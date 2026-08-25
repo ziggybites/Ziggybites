@@ -3,7 +3,14 @@
  */
 
 import axios from 'axios';
-import { bootstrapTokenStore, getAccessToken, hasStoredSession, setAccessToken } from '../../core/auth/tokenStore.js';
+import {
+  bootstrapTokenStore,
+  getAccessToken,
+  getRefreshToken,
+  hasStoredSession,
+  setAccessToken,
+  setRefreshToken,
+} from '../../core/auth/tokenStore.js';
 import { clearModuleAuth } from '../../modules/Food/utils/auth.js';
 
 bootstrapTokenStore();
@@ -173,6 +180,60 @@ const apiClient = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+const apiRefreshState = new Map();
+
+function getRefreshState(moduleName) {
+  const key = String(moduleName || 'user');
+  if (!apiRefreshState.has(key)) {
+    apiRefreshState.set(key, {
+      isRefreshing: false,
+      subscribers: [],
+    });
+  }
+  return apiRefreshState.get(key);
+}
+
+function subscribeToApiRefresh(moduleName, cb) {
+  const state = getRefreshState(moduleName);
+  state.subscribers.push(cb);
+}
+
+function publishApiRefreshSuccess(moduleName, newToken) {
+  const state = getRefreshState(moduleName);
+  state.subscribers.forEach((cb) => cb(newToken));
+  state.subscribers = [];
+}
+
+function publishApiRefreshFailure(moduleName) {
+  const state = getRefreshState(moduleName);
+  state.subscribers.forEach((cb) => cb(null));
+  state.subscribers = [];
+}
+
+async function tryRefreshForModule(moduleName) {
+  const refreshUrl = baseURL ? `${baseURL}/food/auth/refresh-token` : '/api/v1/food/auth/refresh-token';
+  const storedRefreshToken = getRefreshToken(moduleName);
+  const refreshPayload = storedRefreshToken ? { refreshToken: storedRefreshToken } : {};
+  const { data } = await axios.post(refreshUrl, refreshPayload, { timeout: 10000, withCredentials: true });
+  const newAccessToken = data?.data?.accessToken || data?.accessToken;
+  const newRefreshToken = data?.data?.refreshToken || data?.refreshToken || storedRefreshToken;
+
+  if (!newAccessToken) {
+    throw new Error(`Refresh token flow did not return access token for module ${moduleName}`);
+  }
+
+  setAccessToken(moduleName, newAccessToken);
+  if (newRefreshToken) {
+    setRefreshToken(moduleName, newRefreshToken);
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('authRefreshed', {
+      detail: { module: moduleName, token: newAccessToken },
+    }));
+  }
+  return newAccessToken;
+}
+
 function getModuleFromUrl(url = '') {
   const u = typeof url === 'string' ? url : url?.url || '';
   if (!u) return 'user';
@@ -234,6 +295,48 @@ apiClient.interceptors.response.use(
     const moduleName = requestConfig.contextModule || getModuleFromUrl(requestConfig.url);
     const token = getAccessToken(moduleName);
     const hasSession = hasStoredSession(moduleName);
+
+    const shouldAttemptRefresh =
+      (status === 401 || status === 403) &&
+      hasSession &&
+      !requestConfig._retry &&
+      moduleName !== 'public';
+
+    if (shouldAttemptRefresh) {
+      const refreshState = getRefreshState(moduleName);
+
+      if (refreshState.isRefreshing) {
+        return new Promise((resolve, reject) => {
+          subscribeToApiRefresh(moduleName, (newToken) => {
+            if (newToken) {
+              requestConfig._retry = true;
+              requestConfig.headers = requestConfig.headers || {};
+              requestConfig.headers.Authorization = `Bearer ${newToken}`;
+              resolve(apiClient(requestConfig));
+            } else {
+              reject(err);
+            }
+          });
+        });
+      }
+
+      refreshState.isRefreshing = true;
+      requestConfig._retry = true;
+
+      try {
+        const newToken = await tryRefreshForModule(moduleName);
+        publishApiRefreshSuccess(moduleName, newToken);
+        requestConfig.headers = requestConfig.headers || {};
+        requestConfig.headers.Authorization = `Bearer ${newToken}`;
+        return apiClient(requestConfig);
+      } catch (refreshError) {
+        publishApiRefreshFailure(moduleName);
+        clearStaleSessionForModule(moduleName);
+        return Promise.reject(refreshError);
+      } finally {
+        refreshState.isRefreshing = false;
+      }
+    }
 
     if ((status === 401 || status === 403) && hasSession && !token) {
       clearStaleSessionForModule(moduleName);

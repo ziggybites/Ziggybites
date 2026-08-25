@@ -2,10 +2,14 @@ import {
   bootstrapTokenStore,
   clearAccessToken,
   clearAllAccessTokens,
+  clearAllRefreshTokens,
+  clearRefreshToken,
   getAccessToken,
+  getRefreshToken,
   hasStoredSession,
   removeLegacyStoredTokens,
   setAccessToken,
+  setRefreshToken,
 } from '../../../core/auth/tokenStore.js';
 import {
   clearUserProfileStorage,
@@ -65,7 +69,7 @@ export function getModuleToken(module) {
 }
 
 export function getModuleRefreshToken(_module) {
-  return null;
+  return getRefreshToken(_module);
 }
 
 export function getCurrentUserRole(module = null) {
@@ -157,6 +161,7 @@ export function clearRestaurantPendingPhone() {
 
 export function clearModuleAuth(module) {
   clearAccessToken(module);
+  clearRefreshToken(module);
   removeLegacyStoredTokens(module);
   localStorage.removeItem(getAuthenticatedKey(module));
   localStorage.removeItem(getUserKey(module));
@@ -180,12 +185,13 @@ export function clearModuleAuth(module) {
 export function clearAuthData() {
   ['admin', 'restaurant', 'delivery', 'user'].forEach((module) => clearModuleAuth(module));
   clearAllAccessTokens();
+  clearAllRefreshTokens();
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
   localStorage.removeItem('user');
 }
 
-export function setAuthData(module, token, user, _refreshToken = null) {
+export function setAuthData(module, token, user, refreshToken = null) {
   try {
     if (typeof Storage === 'undefined' || !localStorage) {
       throw new Error('localStorage is not available');
@@ -201,6 +207,7 @@ export function setAuthData(module, token, user, _refreshToken = null) {
 
     removeLegacyStoredTokens(module);
     setAccessToken(module, token);
+    setRefreshToken(module, refreshToken);
     localStorage.setItem(getAuthenticatedKey(module), 'true');
     if (user) {
       localStorage.setItem(userKey, JSON.stringify(user));

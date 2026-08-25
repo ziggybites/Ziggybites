@@ -1189,7 +1189,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed inset-x-0 top-0 bottom-[92px] z-[300] pointer-events-none flex items-end"
+              className="fixed inset-x-0 top-0 bottom-[92px] z-[1000] pointer-events-none flex items-end"
             >
               <div className="w-full pointer-events-auto relative">
                 {incomingOrder && (

@@ -2,6 +2,7 @@ export const AUTH_MODULES = ["user", "restaurant", "delivery", "admin"];
 
 export const SESSION_ACCESS_TOKEN_SUFFIX = "_accessToken_session";
 export const PERSISTENT_ACCESS_TOKEN_SUFFIX = "_accessToken_persist";
+export const PERSISTENT_REFRESH_TOKEN_SUFFIX = "_refreshToken_persist";
 
 export const getAuthenticatedKey = (moduleName) =>
   `${String(moduleName || "user").trim() || "user"}_authenticated`;
@@ -20,6 +21,9 @@ export const getSessionAccessTokenKey = (moduleName) =>
 
 export const getPersistentAccessTokenKey = (moduleName) =>
   `${String(moduleName || "user").trim() || "user"}${PERSISTENT_ACCESS_TOKEN_SUFFIX}`;
+
+export const getPersistentRefreshTokenKey = (moduleName) =>
+  `${String(moduleName || "user").trim() || "user"}${PERSISTENT_REFRESH_TOKEN_SUFFIX}`;
 
 export const getFcmTokenKey = (moduleName) =>
   `fcm_web_registered_token_${String(moduleName || "user").trim() || "user"}`;
