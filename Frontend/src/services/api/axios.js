@@ -105,18 +105,34 @@ function createModuleClient(moduleName) {
     (response) => response,
     async (err) => {
       const original = err?.config;
+      const status = err?.response?.status;
 
-      if (err?.response?.status === 429) return Promise.reject(err);
-      if (err?.response?.status === 403) {
+      if (status === 429) return Promise.reject(err);
+      if (status === 403) {
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('accessDenied', { detail: { module: moduleName } }));
         }
         return Promise.reject(err);
       }
-      if (err?.response?.status !== 401 || !original || original._retry) {
+      if (status === 401) {
+        console.log('[DeliveryAuthDebug] moduleClient 401 received', {
+          moduleName,
+          url: original?.url,
+          method: original?.method,
+          hasStoredSession: hasStoredSession(moduleName),
+          accessTokenPresent: Boolean(getAccessToken(moduleName)),
+          refreshTokenPresent: Boolean(getRefreshToken(moduleName)),
+          retry: Boolean(original?._retry),
+        });
+      }
+      if (status !== 401 || !original || original._retry) {
         return Promise.reject(err);
       }
       if (!hasStoredSession(moduleName)) {
+        console.log('[DeliveryAuthDebug] moduleClient refresh skipped - no stored session', {
+          moduleName,
+          url: original?.url,
+        });
         onRefreshFailed();
         return Promise.reject(err);
       }
@@ -141,6 +157,12 @@ function createModuleClient(moduleName) {
         const refreshUrl = baseURL ? `${baseURL}/food/auth/refresh-token` : '/api/v1/food/auth/refresh-token';
         const storedRefreshToken = getRefreshToken(moduleName);
         const refreshPayload = storedRefreshToken ? { refreshToken: storedRefreshToken } : {};
+        console.log('[DeliveryAuthDebug] moduleClient refresh attempt', {
+          moduleName,
+          refreshUrl,
+          refreshTokenPresent: Boolean(storedRefreshToken),
+          failedRequestUrl: original?.url,
+        });
         const { data } = await axios.post(refreshUrl, refreshPayload, { timeout: 10000, withCredentials: true });
         const newAccessToken = data?.data?.accessToken || data?.accessToken;
         const newRefreshToken = data?.data?.refreshToken || data?.refreshToken || storedRefreshToken;
@@ -150,6 +172,12 @@ function createModuleClient(moduleName) {
           if (newRefreshToken) {
             setRefreshToken(moduleName, newRefreshToken);
           }
+          console.log('[DeliveryAuthDebug] moduleClient refresh success', {
+            moduleName,
+            failedRequestUrl: original?.url,
+            newAccessTokenPresent: Boolean(newAccessToken),
+            newRefreshTokenPresent: Boolean(newRefreshToken),
+          });
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('authRefreshed', {
               detail: { module: moduleName, token: newAccessToken },
@@ -159,7 +187,13 @@ function createModuleClient(moduleName) {
           original.headers.Authorization = `Bearer ${newAccessToken}`;
           return client(original);
         }
-      } catch {
+      } catch (refreshError) {
+        console.warn('[DeliveryAuthDebug] moduleClient refresh failed', {
+          moduleName,
+          failedRequestUrl: original?.url,
+          message: refreshError?.response?.data?.message || refreshError?.message || String(refreshError),
+          status: refreshError?.response?.status || null,
+        });
         onRefreshFailed();
         return Promise.reject(err);
       } finally {
@@ -308,6 +342,18 @@ apiClient.interceptors.response.use(
       !requestConfig._retry &&
       moduleName !== 'public';
 
+    if (status === 401) {
+      console.log('[DeliveryAuthDebug] apiClient 401 received', {
+        moduleName,
+        url: requestConfig?.url,
+        method: requestConfig?.method,
+        hasSession,
+        accessTokenPresent: Boolean(token),
+        refreshTokenPresent: Boolean(getRefreshToken(moduleName)),
+        retry: Boolean(requestConfig?._retry),
+      });
+    }
+
     if (shouldAttemptRefresh) {
       const refreshState = getRefreshState(moduleName);
 
@@ -330,12 +376,28 @@ apiClient.interceptors.response.use(
       requestConfig._retry = true;
 
       try {
+        console.log('[DeliveryAuthDebug] apiClient refresh attempt', {
+          moduleName,
+          failedRequestUrl: requestConfig?.url,
+          refreshTokenPresent: Boolean(getRefreshToken(moduleName)),
+        });
         const newToken = await tryRefreshForModule(moduleName);
+        console.log('[DeliveryAuthDebug] apiClient refresh success', {
+          moduleName,
+          failedRequestUrl: requestConfig?.url,
+          newAccessTokenPresent: Boolean(newToken),
+        });
         publishApiRefreshSuccess(moduleName, newToken);
         requestConfig.headers = requestConfig.headers || {};
         requestConfig.headers.Authorization = `Bearer ${newToken}`;
         return apiClient(requestConfig);
       } catch (refreshError) {
+        console.warn('[DeliveryAuthDebug] apiClient refresh failed', {
+          moduleName,
+          failedRequestUrl: requestConfig?.url,
+          message: refreshError?.response?.data?.message || refreshError?.message || String(refreshError),
+          status: refreshError?.response?.status || null,
+        });
         publishApiRefreshFailure(moduleName);
         clearStaleSessionForModule(moduleName);
         return Promise.reject(refreshError);
