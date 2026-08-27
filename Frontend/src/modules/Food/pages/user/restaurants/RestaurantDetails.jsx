@@ -22,7 +22,6 @@ import {
   Bookmark,
   Share2,
   Plus,
-  Minus,
   X,
   RotateCcw,
   Zap,
@@ -42,16 +41,13 @@ import { Button } from "@food/components/ui/button"
 import { Badge } from "@food/components/ui/badge"
 import { Checkbox } from "@food/components/ui/checkbox"
 import AnimatedPage from "@food/components/user/AnimatedPage"
-import { useCart } from "@food/context/CartContext"
 import { useProfile } from "@food/context/ProfileContext"
-import AddToCartAnimation from "@food/components/user/AddToCartAnimation"
 import { getCompanyNameAsync } from "@food/utils/businessSettings"
 import { isModuleAuthenticated } from "@food/utils/auth"
 import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 import { extractImages, normalizeImageUrl } from "@food/utils/common"
 import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import {
-  buildCartLineId,
   getDefaultFoodVariant,
   getFoodDisplayPrice,
   getFoodPriceLabel,
@@ -116,13 +112,11 @@ function RestaurantDetailsContent() {
   const showOnlyUnder250 = searchParams.get('under250') === 'true'
   const targetDishId = useMemo(() => String(searchParams.get('dish') || '').trim(), [searchParams])
   const BACKEND_ORIGIN = useMemo(() => API_BASE_URL.replace(/\/api\/?$/, ""), [])
-  const { addToCart, updateQuantity, removeFromCart, getCartItem, cart } = useCart()
   const { vegMode, vegModeOption, addDishFavorite, removeDishFavorite, isDishFavorite, getDishFavorites, getFavorites, addFavorite, removeFavorite, isFavorite } = useProfile()
   const { location: userLocation } = useLocation() // Get user's current location
   const { zoneId, zone, loading: loadingZone, isOutOfService } = useZone(userLocation) // Get user's zone for zone-based filtering
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [highlightIndex, setHighlightIndex] = useState(0)
-  const [quantities, setQuantities] = useState({})
   const [showManageCollections, setShowManageCollections] = useState(false)
   const [showItemDetail, setShowItemDetail] = useState(false)
   const [selectedItem, setSelectedItem] = useState(null)
@@ -141,7 +135,6 @@ function RestaurantDetailsContent() {
   const [showMenuOptionsSheet, setShowMenuOptionsSheet] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [sharePayload, setSharePayload] = useState(null)
-  const [expandedAddButtons, setExpandedAddButtons] = useState(new Set())
   const [expandedSections, setExpandedSections] = useState(new Set([0])) // Default: Recommended section is expanded
   const [highlightedDishId, setHighlightedDishId] = useState(null)
   const [loadingMenuItems, setLoadingMenuItems] = useState(true)
@@ -151,19 +144,10 @@ function RestaurantDetailsContent() {
   const dishCardRefs = useRef({})
   const [showScanAnimation, setShowScanAnimation] = useState(true)
 
-  const getLineItemIdForDish = (item, variant = null) =>
-    buildCartLineId(item?.id || item?._id || "", variant?.id || variant?._id || "")
-
   const getVariantForDish = (item, preferredVariantId = "") => {
     const variants = getFoodVariants(item)
     if (variants.length === 0) return null
     return variants.find((variant) => String(variant.id) === String(preferredVariantId || "")) || variants[0]
-  }
-
-  const getDishQuantity = (item, preferredVariantId = "") => {
-    const variant = getVariantForDish(item, preferredVariantId)
-    const lineItemId = getLineItemIdForDish(item, variant)
-    return quantities[lineItemId] || 0
   }
 
   // Initialize default filters
@@ -1150,20 +1134,6 @@ function RestaurantDetailsContent() {
     }
   }, [userLocation?.latitude, userLocation?.longitude, restaurantLat, restaurantLng])
 
-  // Sync quantities from cart on mount and when restaurant changes
-  useEffect(() => {
-    if (!restaurant || !restaurant.name) return
-
-    const cartQuantities = {}
-    cart.forEach((item) => {
-      if (item.restaurant === restaurant.name) {
-        cartQuantities[item.id] = item.quantity || 0
-      }
-    })
-    setQuantities(cartQuantities)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurant?.name, cart])
-
   useEffect(() => {
     if (!selectedItem) {
       setSelectedVariantId("")
@@ -1173,179 +1143,54 @@ function RestaurantDetailsContent() {
     setSelectedVariantId(defaultVariant?.id || "")
   }, [selectedItem])
 
-  // Helper function to update item quantity in both local state and cart
-  const updateItemQuantity = (item, newQuantity, event = null, preferredVariant = null) => {
-    // Check authentication
-    if (!isModuleAuthenticated('user')) {
-      toast.error("Please login to add items to cart")
-      navigate('/user/auth/login', { state: { from: location.pathname } })
+  const openMealSelectionForRestaurantItem = (item) => {
+    if (!item) return
+
+    const restaurantId = String(
+      restaurant?.restaurantId || restaurant?._id || restaurant?.id || item?.restaurantId || ""
+    ).trim()
+    const itemId = String(item?.itemId || item?.id || item?._id || "").trim()
+
+    if (!restaurantId || !itemId) {
+      toast.error("Unable to open subscription flow for this dish")
       return
     }
 
-    // CRITICAL: Check if user is in service zone or restaurant is available
-    if (isOutOfService) {
-      toast.error('You are outside the service zone. Please select a location within the service area.');
-      return;
+    const params = new URLSearchParams()
+    if (item.name) params.set("dish", item.name)
+    if (itemId) params.set("dishId", itemId)
+    if (restaurant?.name) params.set("restaurant", restaurant.name)
+    if (restaurantId) params.set("restaurantId", restaurantId)
+    if (item.categoryName || item.category) {
+      params.set("category", item.categoryName || item.category)
     }
 
-    const availability = getRestaurantAvailabilityStatus(restaurant)
-    if (!availability.isOpen) {
-      toast.error("Restaurant is currently offline. Please try again later.")
-      return
+    const variant = getVariantForDish(item, selectedVariantId)
+    const effectivePrice =
+      Number.isFinite(Number(variant?.price)) ? Number(variant.price) : Number(item.price)
+    if (Number.isFinite(effectivePrice)) {
+      params.set("price", String(effectivePrice))
     }
 
-    const resolvedVariant = preferredVariant || getDefaultFoodVariant(item)
-    const lineItemId = getLineItemIdForDish(item, resolvedVariant)
-
-    // Update local state
-    setQuantities((prev) => ({
-      ...prev,
-      [lineItemId]: newQuantity,
-    }))
-
-    // CRITICAL: Validate restaurant data before adding to cart
-    if (!restaurant || !restaurant.name) {
-      debugError('? Cannot add item to cart: Restaurant data is missing!');
-      toast.error('Restaurant information is missing. Please refresh the page.');
-      return;
-    }
-
-    // Ensure we have a valid restaurantId
-    const validRestaurantId = restaurant?.restaurantId || restaurant?._id || restaurant?.id;
-    if (!validRestaurantId) {
-      debugError('? Cannot add item to cart: Restaurant ID is missing!', {
-        restaurant: restaurant,
-        restaurantId: restaurant?.restaurantId,
-        _id: restaurant?._id,
-        id: restaurant?.id
-      });
-      toast.error('Restaurant ID is missing. Please refresh the page.');
-      return;
-    }
-
-    // Log for debugging
-    debugLog('? Adding item to cart:', {
-      itemName: item.name,
-      restaurantName: restaurant.name,
-      restaurantId: validRestaurantId,
-      restaurant_id: restaurant._id,
-      restaurant_restaurantId: restaurant.restaurantId
-    });
-
-    // Calculate the final discounted price for the cart
-    const basePrice = resolvedVariant?.price ?? item.price;
-    const priceNum = typeof basePrice === 'number' ? basePrice : parseFloat(String(basePrice).replace(/[^0-9.]/g, '')) || 0;
-    // Evaluate Item-Specific and Smart Rules Discounts
-    const { discountValue, isFlatDiscount } = calculateBestDiscount(item, priceNum);
-    const finalPrice = discountValue > 0 ? Math.round(isFlatDiscount ? Math.max(0, priceNum - discountValue) : priceNum * (1 - discountValue / 100)) : priceNum;
-
-    // Prepare cart item with all required properties
-    const cartItem = {
-      id: lineItemId,
-      lineItemId,
-      itemId: item.id,
-      name: item.name,
-      price: finalPrice, // Use discounted price
-      originalPrice: priceNum, // Store original base price
-      variantId: resolvedVariant?.id || "",
-      variantName: resolvedVariant?.name || "",
-      variantPrice: finalPrice, // Use discounted price for variant
-      image: item.image,
-      restaurant: restaurant.name, // Use restaurant.name directly (already validated)
-      restaurantId: validRestaurantId, // Use validated restaurantId
-      description: item.description,
-      isVeg: item.isVeg === true, // Use strict check
-      foodType: item.foodType, // Include foodType for robustness
-      preparationTime: item.preparationTime, // Add preparationTime property
-      priceOnOtherPlatforms: item.priceOnOtherPlatforms || null, // Include platform pricing for savings display
-      otherPlatformGst: item.otherPlatformGst ?? null,
-    }
-
-    // Get source position for animation from event target
-    // Prefer currentTarget (the button) over target (might be icon inside button)
-    let sourcePosition = null
-    if (event) {
-      // Use currentTarget (the button element) for accurate button position
-      // If currentTarget is not available, try to find the button element
-      let buttonElement = event.currentTarget
-      if (!buttonElement && event.target) {
-        // If we clicked on an icon inside, find the closest button
-        buttonElement = event.target.closest('button') || event.target
-      }
-
-      if (buttonElement) {
-        // Store button reference and current viewport position
-        // We'll recalculate position right before animation to account for scroll
-        const rect = buttonElement.getBoundingClientRect()
-        const scrollX = window.pageXOffset || window.scrollX || 0
-        const scrollY = window.pageYOffset || window.scrollY || 0
-
-        // Store both viewport position and scroll at capture time
-        // This allows us to adjust for scroll changes later
-        sourcePosition = {
-          // Viewport-relative position at capture time
-          viewportX: rect.left + rect.width / 2,
-          viewportY: rect.top + rect.height / 2,
-          // Scroll position at capture time
-          scrollX: scrollX,
-          scrollY: scrollY,
-          // Store button identifier to potentially find it again
-          itemId: lineItemId,
-        }
-      }
-    }
-
-    // Update cart context
-    if (newQuantity <= 0) {
-      // Pass sourcePosition and product info for removal animation
-      const productInfo = {
-        id: lineItemId,
-        name: item.name,
-        imageUrl: item.image,
-      }
-      removeFromCart(lineItemId, sourcePosition, productInfo)
-    } else {
-      const existingCartItem = getCartItem(lineItemId)
-      if (existingCartItem) {
-        // Prepare product info for animation
-        const productInfo = {
-          id: lineItemId,
-          name: item.name,
-          imageUrl: item.image,
-        }
-
-        // If incrementing quantity, trigger add animation with sourcePosition
-        if (newQuantity > existingCartItem.quantity && sourcePosition) {
-          const result = addToCart(cartItem, sourcePosition)
-          if (result?.ok === false) {
-            toast.error(result.error || 'Cannot add item from different restaurant. Please clear cart first.')
-            return
-          }
-          if (newQuantity > existingCartItem.quantity + 1) {
-            updateQuantity(lineItemId, newQuantity)
-          }
-        }
-        // If decreasing quantity, trigger removal animation with sourcePosition
-        else if (newQuantity < existingCartItem.quantity && sourcePosition) {
-          updateQuantity(lineItemId, newQuantity, sourcePosition, productInfo)
-        }
-        // Otherwise just update quantity without animation
-        else {
-          updateQuantity(lineItemId, newQuantity)
-        }
-      } else {
-        // Add to cart first (adds with quantity 1), then update to desired quantity
-        // Pass sourcePosition when adding a new item
-        const result = addToCart(cartItem, sourcePosition)
-        if (result?.ok === false) {
-          toast.error(result.error || 'Cannot add item from different restaurant. Please clear cart first.')
-          return
-        }
-        if (newQuantity > 1) {
-          updateQuantity(lineItemId, newQuantity)
-        }
-      }
-    }
+    navigate(
+      {
+        pathname: "/food/user/choose-meal",
+        search: params.toString() ? `?${params.toString()}` : "",
+      },
+      {
+        state: {
+          dish: {
+            ...item,
+            itemId,
+            restaurantId,
+            restaurantName: restaurant?.name || item?.restaurantName || "",
+            price: Number.isFinite(effectivePrice) ? effectivePrice : item.price,
+            selectedVariantId: variant?.id || "",
+            selectedVariant: variant || null,
+          },
+        },
+      },
+    )
   }
 
   const isRecommendedSection = (section) => {
@@ -2132,7 +1977,6 @@ function RestaurantDetailsContent() {
 
   // Render a single dish card with layout and performance optimizations
   const renderDishCard = (item, isRecommendedSection) => {
-    const quantity = getDishQuantity(item)
     const isVeg = item.foodType === "Veg"
     const isHighlighted = highlightedDishId === item.id
 
@@ -2271,60 +2115,25 @@ function RestaurantDetailsContent() {
             <DishImage src={item.image} alt={item.name} className="w-full h-full object-cover" />
           </div>
           {/* Button overlay - rendered outside of overflow-hidden image container to prevent clipping */}
-          {quantity > 0 ? (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={`absolute -bottom-3 sm:-bottom-4 left-1/2 -translate-x-1/2 rounded-full h-8 sm:h-9 md:h-10 px-3 sm:px-4 flex items-center justify-between gap-3 min-w-[90px] md:min-w-[100px] z-10 transition-all duration-300 ${
-                shouldShowGrayscale 
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-50 shadow-none border border-gray-300' 
-                  : 'shadow-[0_4px_14px_0_rgba(0,183,97,0.39)] bg-[#00B761] hover:bg-[#00A055] text-white'
-              }`}
-            >
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (!shouldShowGrayscale) {
-                    updateItemQuantity(item, Math.max(0, quantity - 1), e)
-                  }
-                }}
-                disabled={shouldShowGrayscale}
-                className={shouldShowGrayscale ? 'text-gray-500 cursor-not-allowed' : 'text-white hover:text-white/80 active:scale-90 transition-transform'}
-              >
-                <Minus size={16} className="stroke-[3px]" />
-              </button>
-              <span className="text-[13px] sm:text-[15px] font-black">{quantity}</span>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (!shouldShowGrayscale) {
-                    updateItemQuantity(item, quantity + 1, e)
-                  }
-                }}
-                disabled={shouldShowGrayscale}
-                className={shouldShowGrayscale ? 'text-gray-500 cursor-not-allowed' : 'text-white hover:text-white/80 active:scale-90 transition-transform'}
-              >
-                <Plus size={16} className="stroke-[3px]" />
-              </button>
-            </motion.div>
-          ) : (
-            <motion.button
-              whileTap={shouldShowGrayscale ? {} : { scale: 0.95 }}
-              onClick={(e) => {
-                e.stopPropagation()
-                if (!shouldShowGrayscale) {
-                  updateItemQuantity(item, 1, e)
-                }
-              }}
-              disabled={shouldShowGrayscale}
-              className={`absolute -bottom-3 sm:-bottom-4 left-1/2 -translate-x-1/2 rounded-full h-8 sm:h-9 md:h-10 px-5 sm:px-7 text-[12px] sm:text-[14px] md:text-[16px] font-black uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap min-w-[90px] md:min-w-[100px] z-10 ${shouldShowGrayscale
-                ? 'bg-gray-200 dark:bg-gray-800 text-gray-500 cursor-not-allowed opacity-50 shadow-none border border-gray-300'
-                : 'bg-[#E23744] hover:bg-[#D12B37] text-white shadow-[0_6px_16px_0_rgba(226,55,68,0.35)] hover:shadow-[0_8px_20px_rgba(226,55,68,0.45)] border border-[#E23744]/20'
-                }`}
-            >
-              ADD <span className="text-[16px] sm:text-[18px] md:text-[20px] font-medium leading-none mt-[-2px]">+</span>
-            </motion.button>
-          )}
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              if (!shouldShowGrayscale) {
+                openMealSelectionForRestaurantItem(item)
+              }
+            }}
+            disabled={shouldShowGrayscale}
+            aria-label={`Choose meal for ${item.name || "dish"}`}
+            className={`absolute -bottom-3 sm:-bottom-4 left-1/2 -translate-x-1/2 h-9 w-9 sm:h-10 sm:w-10 rounded-full flex items-center justify-center z-10 transition-all duration-300 ${
+              shouldShowGrayscale
+                ? "bg-gray-200 dark:bg-gray-800 text-gray-500 opacity-60 border border-gray-300 cursor-not-allowed"
+                : "bg-[#ef2b24] hover:bg-[#d9251d] text-white shadow-[0_10px_24px_rgba(239,43,36,0.38)]"
+            }`}
+          >
+            <Plus className="h-4 w-4 sm:h-5 sm:w-5" />
+          </button>
         </div>
       </>
     )
@@ -3614,77 +3423,45 @@ function RestaurantDetailsContent() {
                   {/* Bottom Action Bar */}
                   <div className="border-t border-gray-200 dark:border-gray-800 px-4 py-4 bg-white dark:bg-[#1a1a1a]">
                     <div className="flex items-center gap-4">
-                      {/* Quantity Selector */}
-                      <div className={`flex items-center gap-3 border-2 rounded-lg px-3 h-[44px] bg-white dark:bg-[#2a2a2a] ${shouldShowGrayscale
-                        ? 'border-gray-300 dark:border-gray-700 opacity-50'
-                        : 'border-gray-300 dark:border-gray-700'
-                        }`}>
-                        <button
-                          onClick={(e) => {
-                            if (!shouldShowGrayscale) {
-                              updateItemQuantity(
-                                selectedItem,
-                                Math.max(0, getDishQuantity(selectedItem, selectedVariantId) - 1),
-                                e,
-                                getVariantForDish(selectedItem, selectedVariantId),
-                              )
-                            }
-                          }}
-                          disabled={getDishQuantity(selectedItem, selectedVariantId) === 0 || shouldShowGrayscale}
-                          className={`${shouldShowGrayscale
-                            ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed'
-                            }`}
-                        >
-                          <Minus className="h-5 w-5" />
-                        </button>
-                        <span className={`text-lg font-semibold min-w-[2rem] text-center ${shouldShowGrayscale
-                          ? 'text-gray-400 dark:text-gray-600'
-                          : 'text-gray-900 dark:text-white'
-                          }`}>
-                          {getDishQuantity(selectedItem, selectedVariantId)}
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            if (!shouldShowGrayscale) {
-                              updateItemQuantity(
-                                selectedItem,
-                                getDishQuantity(selectedItem, selectedVariantId) + 1,
-                                e,
-                                getVariantForDish(selectedItem, selectedVariantId),
-                              )
-                            }
-                          }}
-                          disabled={shouldShowGrayscale}
-                          className={shouldShowGrayscale
-                            ? 'text-gray-300 dark:text-gray-600 cursor-not-allowed'
-                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                          }
-                        >
-                          <Plus className="h-5 w-5" />
-                        </button>
-                      </div>
-
-                      {/* Add Item Button */}
                       <Button
-                        className={`flex-1 h-[44px] rounded-lg font-semibold flex items-center justify-center gap-2 ${shouldShowGrayscale
-                          ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-600 cursor-not-allowed opacity-50'
-                          : 'bg-red-500 hover:bg-red-600 text-white'
-                          }`}
-                        onClick={(e) => {
+                        type="button"
+                        className={`flex-1 h-[44px] rounded-lg font-semibold flex items-center justify-center gap-2 ${
+                          shouldShowGrayscale
+                            ? "bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-600 cursor-not-allowed opacity-50"
+                            : "bg-red-500 hover:bg-red-600 text-white"
+                        }`}
+                        disabled={shouldShowGrayscale}
+                        onClick={() => {
                           if (!shouldShowGrayscale) {
-                            updateItemQuantity(
-                              selectedItem,
-                              getDishQuantity(selectedItem, selectedVariantId) + 1,
-                              e,
-                              getVariantForDish(selectedItem, selectedVariantId),
-                            )
+                            openMealSelectionForRestaurantItem({
+                              ...selectedItem,
+                              price:
+                                Number.isFinite(Number(getVariantForDish(selectedItem, selectedVariantId)?.price))
+                                  ? Number(getVariantForDish(selectedItem, selectedVariantId)?.price)
+                                  : selectedItem?.price,
+                            })
                             setShowItemDetail(false)
                           }
                         }}
-                        disabled={shouldShowGrayscale}
                       >
-                        <span>Add item</span>
+                        <Plus className="h-4 w-4" />
+                        <span>Choose meal</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="h-[44px] px-4 rounded-lg font-semibold"
+                        onClick={() => setShowItemDetail(false)}
+                      >
+                        Close
+                      </Button>
+                      <div
+                        className={`min-w-[150px] h-[44px] rounded-lg font-semibold flex items-center justify-center gap-2 border px-4 ${
+                          shouldShowGrayscale
+                            ? "bg-gray-100 dark:bg-[#232323] text-gray-500 border-gray-200 dark:border-gray-700"
+                            : "bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-300 border-red-200 dark:border-red-900/50"
+                        }`}
+                      >
                         <div className="flex items-center gap-1">
                           {(() => {
                             const variant = getVariantForDish(selectedItem, selectedVariantId);
@@ -3721,7 +3498,7 @@ function RestaurantDetailsContent() {
                             );
                           })()}
                         </div>
-                      </Button>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -4150,17 +3927,6 @@ function RestaurantDetailsContent() {
               </>
             )}
           </AnimatePresence>,
-          document.body
-        )}
-
-      {/* Add to Cart Animation Component - Rendered via Portal to prevent transform interference */}
-      {typeof window !== "undefined" &&
-        createPortal(
-          <AddToCartAnimation
-            bottomOffset={80}
-            linkTo="/food/user/cart"
-            hideOnPages={true}
-          />,
           document.body
         )}
     </AnimatedPage>

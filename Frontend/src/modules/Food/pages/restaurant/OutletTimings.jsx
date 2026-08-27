@@ -10,6 +10,7 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs"
 import dayjs from "dayjs"
 import { useCompanyName } from "@food/hooks/useCompanyName"
 import { restaurantAPI } from "@food/api"
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -51,6 +52,17 @@ const getDefaultDays = () => ({
   Sunday: { isOpen: true, openingTime: "09:00", closingTime: "22:00" },
 })
 
+const buildEffectiveStatusFromTimings = (outletTimings) =>
+  getRestaurantAvailabilityStatus(
+    {
+      isAcceptingOrders: true,
+      isActive: true,
+      outletTimings,
+    },
+    new Date(),
+    { ignoreOperationalStatus: true },
+  )
+
 export default function OutletTimings() {
   const companyName = useCompanyName()
   const navigate = useNavigate()
@@ -86,12 +98,39 @@ export default function OutletTimings() {
   useEffect(() => {
     if (loading) return
     if (!isInternalUpdate.current) return // Only save if the user made a change
+
+    const immediateAvailability = buildEffectiveStatusFromTimings(days)
+    window.dispatchEvent(
+      new CustomEvent("outletTimingsUpdated", {
+        detail: {
+          outletTimings: days,
+          isOnline: immediateAvailability.isOpen === true,
+          reason: immediateAvailability.reason,
+        },
+      }),
+    )
     
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(async () => {
       try {
-        await restaurantAPI.saveOutletTimings(days)
-        window.dispatchEvent(new Event("outletTimingsUpdated"))
+        const res = await restaurantAPI.saveOutletTimings(days)
+        const savedTimings =
+          res?.data?.data?.outletTimings ||
+          res?.data?.outletTimings ||
+          days
+        const effectiveOnline =
+          typeof res?.data?.data?.effectiveOnline === "boolean"
+            ? res.data.data.effectiveOnline
+            : buildEffectiveStatusFromTimings(savedTimings).isOpen === true
+
+        window.dispatchEvent(
+          new CustomEvent("outletTimingsUpdated", {
+            detail: {
+              outletTimings: savedTimings,
+              isOnline: effectiveOnline,
+            },
+          }),
+        )
       } catch (error) {
         debugError("Error saving outlet timings to backend:", error)
       }

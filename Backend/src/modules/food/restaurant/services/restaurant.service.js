@@ -6,7 +6,7 @@ import { FoodZone } from '../../admin/models/zone.model.js';
 import { FoodOffer } from '../../admin/models/offer.model.js';
 import { FoodDiningRestaurant } from '../../dining/models/diningRestaurant.model.js';
 import Promocode from '../../../../models/Promocode.js';
-import { upsertOutletTimingsForRestaurant } from './outletTimings.service.js';
+import { getOutletTimingsForRestaurant, upsertOutletTimingsForRestaurant } from './outletTimings.service.js';
 
 const normalizeName = (value) =>
     String(value || '')
@@ -166,6 +166,7 @@ const toRestaurantProfile = (doc) => {
         openingTime: normalizeRestaurantTime(doc.openingTime) || null,
         closingTime: normalizeRestaurantTime(doc.closingTime) || null,
         openDays: Array.isArray(doc.openDays) ? doc.openDays : [],
+        outletTimings: doc.outletTimings || null,
         estimatedDeliveryTime: doc.estimatedDeliveryTime || '',
         estimatedDeliveryTimeMinutes:
             Number.isFinite(Number(doc.estimatedDeliveryTimeMinutes))
@@ -510,7 +511,12 @@ export const getCurrentRestaurantProfile = async (restaurantId) => {
     const doc = await FoodRestaurant.findById(restaurantId)
         .select(RESTAURANT_PROFILE_PROJECTION)
         .lean();
-    return toRestaurantProfile(doc);
+    if (!doc) return null;
+    const outletTimingsData = await getOutletTimingsForRestaurant(restaurantId).catch(() => null);
+    return toRestaurantProfile({
+        ...doc,
+        outletTimings: outletTimingsData?.outletTimings || null
+    });
 };
 
 export const updateRestaurantAcceptingOrders = async (restaurantId, isAcceptingOrders) => {
@@ -527,7 +533,12 @@ export const updateRestaurantAcceptingOrders = async (restaurantId, isAcceptingO
             projection: RESTAURANT_PROFILE_PROJECTION
         }
     ).lean();
-    return toRestaurantProfile(doc);
+    if (!doc) return null;
+    const outletTimingsData = await getOutletTimingsForRestaurant(restaurantId).catch(() => null);
+    return toRestaurantProfile({
+        ...doc,
+        outletTimings: outletTimingsData?.outletTimings || null
+    });
 };
 
 export const updateCurrentRestaurantDiningSettings = async (restaurantId, body = {}) => {

@@ -41,6 +41,7 @@ import { PaymentWebhookEvent } from '../../../../core/payments/models/webhookEve
 import { FoodSubscriptionSchedule } from '../../subscription/models/subscriptionSchedule.model.js';
 import { FoodSubscription } from '../../subscription/models/subscription.model.js';
 import { PaymentSubscriptionTransaction } from '../../subscription/models/subscriptionTransaction.model.js';
+import { upsertOutletTimingsForRestaurant } from '../../restaurant/services/outletTimings.service.js';
 import {
     backfillLegacyCategoryWorkflow,
     categoryAllowsFoodType,
@@ -3093,6 +3094,27 @@ export async function createCategory(body) {
         createdByRestaurantId: undefined
     });
     await doc.save();
+
+    if (
+        body.openingTime !== undefined ||
+        body.closingTime !== undefined ||
+        body.openDays !== undefined
+    ) {
+        const openingTime = doc.openingTime || '09:00';
+        const closingTime = doc.closingTime || '22:00';
+        const openDays = Array.isArray(doc.openDays) ? doc.openDays : [];
+        const outletTimings = {
+            Monday: { isOpen: openDays.includes('Monday') || openDays.includes('Mon'), openingTime, closingTime },
+            Tuesday: { isOpen: openDays.includes('Tuesday') || openDays.includes('Tue'), openingTime, closingTime },
+            Wednesday: { isOpen: openDays.includes('Wednesday') || openDays.includes('Wed'), openingTime, closingTime },
+            Thursday: { isOpen: openDays.includes('Thursday') || openDays.includes('Thu'), openingTime, closingTime },
+            Friday: { isOpen: openDays.includes('Friday') || openDays.includes('Fri'), openingTime, closingTime },
+            Saturday: { isOpen: openDays.includes('Saturday') || openDays.includes('Sat'), openingTime, closingTime },
+            Sunday: { isOpen: openDays.includes('Sunday') || openDays.includes('Sun'), openingTime, closingTime },
+        };
+        await upsertOutletTimingsForRestaurant(doc._id, outletTimings);
+    }
+
     return doc.toObject();
 }
 
@@ -3809,6 +3831,21 @@ export async function createRestaurantByAdmin(body) {
     }
 
     const restaurant = await FoodRestaurant.create(doc);
+
+    const openingTime = doc.openingTime || '09:00';
+    const closingTime = doc.closingTime || '22:00';
+    const openDays = Array.isArray(doc.openDays) ? doc.openDays : [];
+    const outletTimings = {
+        Monday: { isOpen: openDays.includes('Monday') || openDays.includes('Mon'), openingTime, closingTime },
+        Tuesday: { isOpen: openDays.includes('Tuesday') || openDays.includes('Tue'), openingTime, closingTime },
+        Wednesday: { isOpen: openDays.includes('Wednesday') || openDays.includes('Wed'), openingTime, closingTime },
+        Thursday: { isOpen: openDays.includes('Thursday') || openDays.includes('Thu'), openingTime, closingTime },
+        Friday: { isOpen: openDays.includes('Friday') || openDays.includes('Fri'), openingTime, closingTime },
+        Saturday: { isOpen: openDays.includes('Saturday') || openDays.includes('Sat'), openingTime, closingTime },
+        Sunday: { isOpen: openDays.includes('Sunday') || openDays.includes('Sun'), openingTime, closingTime },
+    };
+    await upsertOutletTimingsForRestaurant(restaurant._id, outletTimings);
+
     return restaurant.toObject();
 }
 

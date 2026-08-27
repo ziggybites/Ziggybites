@@ -1292,7 +1292,11 @@ export const restaurantAPI = {
       "/food/restaurant/outlet-timings",
       { outletTimings: outletTimings || {} },
       { contextModule: "restaurant" },
-    ),
+    ).then((res) => {
+      restaurantCurrentCached = null;
+      restaurantCurrentCacheTime = 0;
+      return res;
+    }),
   /** Foods (restaurant) - stored in food_items collection */
   createFood: (body) =>
     apiClient.post("/food/restaurant/foods", body ?? {}, {

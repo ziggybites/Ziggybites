@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from "@food/components/ui/dialog"
 import { Button } from "@food/components/ui/button"
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -28,6 +29,15 @@ const persistRestaurantOnlineStatus = (isOnline) => {
     debugError("Error persisting restaurant online status:", error)
   }
 }
+
+const buildAvailabilitySnapshot = (restaurant, outletTimings, now = new Date()) =>
+  getRestaurantAvailabilityStatus(
+    {
+      ...(restaurant || {}),
+      outletTimings: outletTimings || restaurant?.outletTimings || null,
+    },
+    now,
+  )
 
 
 export default function RestaurantStatus() {
@@ -93,10 +103,18 @@ export default function RestaurantStatus() {
     loadOutletTimings()
 
     // Listen for outlet timings updates
-    window.addEventListener("outletTimingsUpdated", loadOutletTimings)
+    const handleOutletTimingsEvent = (event) => {
+      const nextTimings = event?.detail?.outletTimings
+      if (nextTimings && typeof nextTimings === "object") {
+        setOutletTimings(nextTimings)
+        return
+      }
+      loadOutletTimings()
+    }
+    window.addEventListener("outletTimingsUpdated", handleOutletTimingsEvent)
     
     return () => {
-      window.removeEventListener("outletTimingsUpdated", loadOutletTimings)
+      window.removeEventListener("outletTimingsUpdated", handleOutletTimingsEvent)
     }
   }, [])
 
@@ -154,7 +172,11 @@ export default function RestaurantStatus() {
     const interval = setInterval(checkIfOpen, 60000)
     
     // Listen for outlet timings updates
-    const handleOutletTimingsUpdate = () => {
+    const handleOutletTimingsUpdate = (event) => {
+      const nextTimings = event?.detail?.outletTimings
+      if (nextTimings && typeof nextTimings === "object") {
+        setOutletTimings(nextTimings)
+      }
       checkIfOpen()
     }
     window.addEventListener("outletTimingsUpdated", handleOutletTimingsUpdate)
@@ -169,6 +191,25 @@ export default function RestaurantStatus() {
   // We don't automatically set it based on timings anymore
   // The isWithinTimings is only used to show warning messages
 
+  useEffect(() => {
+    if (!restaurantData) return
+
+    const availability = buildAvailabilitySnapshot(restaurantData, outletTimings, currentDateTime)
+    const effectiveOnline = Boolean(availability.isOpen)
+
+    persistRestaurantOnlineStatus(effectiveOnline)
+    window.dispatchEvent(
+      new CustomEvent("restaurantStatusChanged", {
+        detail: {
+          isOnline: effectiveOnline,
+          isAcceptingOrders: restaurantData?.isAcceptingOrders === true,
+          isWithinTimings: availability.isWithinTimings === true,
+          reason: availability.reason,
+        },
+      }),
+    )
+  }, [restaurantData, outletTimings, currentDateTime])
+
   // Load delivery status from backend
   useEffect(() => {
     const loadDeliveryStatus = async () => {
@@ -177,23 +218,8 @@ export default function RestaurantStatus() {
         const restaurant = response?.data?.data?.restaurant || response?.data?.restaurant
         if (restaurant?.isAcceptingOrders !== undefined) {
           setDeliveryStatus(restaurant.isAcceptingOrders)
-          try {
-            localStorage.setItem('restaurant_online_status', JSON.stringify(Boolean(restaurant.isAcceptingOrders)))
-          } catch {}
-          persistRestaurantOnlineStatus(restaurant.isAcceptingOrders)
-          // Dispatch event to update navbar
-          window.dispatchEvent(new CustomEvent('restaurantStatusChanged', { 
-            detail: { isOnline: restaurant.isAcceptingOrders } 
-          }))
         } else {
           setDeliveryStatus(false)
-          try {
-            localStorage.setItem('restaurant_online_status', JSON.stringify(false))
-          } catch {}
-          persistRestaurantOnlineStatus(false)
-          window.dispatchEvent(new CustomEvent('restaurantStatusChanged', { 
-            detail: { isOnline: false } 
-          }))
         }
       } catch (error) {
         // Only log error if it's not a network/timeout error (backend might be down/slow)
@@ -201,13 +227,6 @@ export default function RestaurantStatus() {
           debugError("Error loading delivery status:", error)
         }
         setDeliveryStatus(false)
-        try {
-          localStorage.setItem('restaurant_online_status', JSON.stringify(false))
-        } catch {}
-        persistRestaurantOnlineStatus(false)
-        window.dispatchEvent(new CustomEvent('restaurantStatusChanged', { 
-          detail: { isOnline: false } 
-        }))
       }
     }
 
@@ -249,7 +268,7 @@ export default function RestaurantStatus() {
 
       // Dispatch custom event for navbar to listen
       window.dispatchEvent(new CustomEvent('restaurantStatusChanged', { 
-        detail: { isOnline: checked } 
+        detail: { isOnline: checked, isAcceptingOrders: checked } 
       }))
     } catch (error) {
       debugError("Error saving delivery status:", error)

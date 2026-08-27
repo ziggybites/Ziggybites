@@ -5,6 +5,7 @@ import { restaurantAPI } from "@food/api"
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings"
 import useNotificationInbox from "@food/hooks/useNotificationInbox"
 import { useRestaurantNotifications } from "@food/hooks/useRestaurantNotifications"
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability"
 import { Utensils } from "lucide-react"
 
 const debugLog = (...args) => {}
@@ -19,6 +20,9 @@ const extractRestaurantPayload = (response) =>
   response?.data?.data ||
   null
 
+const getEffectiveOnlineState = (restaurant) =>
+  getRestaurantAvailabilityStatus(restaurant || {}, new Date()).isOpen === true
+
 
 export default function RestaurantNavbar({
   restaurantName: propRestaurantName,
@@ -32,6 +36,7 @@ export default function RestaurantNavbar({
   const [searchValue, setSearchValue] = useState("")
   const [status, setStatus] = useState("Offline")
   const [restaurantData, setRestaurantData] = useState(null)
+  const [liveOutletTimings, setLiveOutletTimings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [companyName, setCompanyName] = useState("")
   const [logoUrl, setLogoUrl] = useState(null)
@@ -294,20 +299,18 @@ export default function RestaurantNavbar({
 
   // Load status from localStorage on mount and listen for changes
   useEffect(() => {
+    const availabilityPayload = {
+      ...(restaurantData || {}),
+      outletTimings: liveOutletTimings || restaurantData?.outletTimings || null,
+    }
+
     const updateStatus = () => {
       try {
-        const savedStatus = localStorage.getItem('restaurant_online_status')
-        if (savedStatus !== null) {
-          const isOnline = JSON.parse(savedStatus)
-          setStatus(isOnline ? "Online" : "Offline")
-        } else {
-          // If not stored yet, fallback to backend value (when available).
-          const isOnline = Boolean(restaurantData?.isAcceptingOrders)
-          setStatus(isOnline ? "Online" : "Offline")
-        }
+        const isOnline = getEffectiveOnlineState(availabilityPayload)
+        setStatus(isOnline ? "Online" : "Offline")
       } catch (error) {
         debugError("Error loading restaurant status:", error)
-        const isOnline = Boolean(restaurantData?.isAcceptingOrders)
+        const isOnline = getEffectiveOnlineState(availabilityPayload)
         setStatus(isOnline ? "Online" : "Offline")
       }
     }
@@ -316,15 +319,35 @@ export default function RestaurantNavbar({
     updateStatus()
 
     // Listen for status changes from RestaurantStatus page
-  const handleStatusChange = (event) => {
+    const handleStatusChange = (event) => {
       const isOnline = event.detail?.isOnline || false
       setStatus(isOnline ? "Online" : "Offline")
-  }
+    }
+
+    const handleOutletTimingsUpdate = (event) => {
+      const nextTimings = event?.detail?.outletTimings
+      if (nextTimings && typeof nextTimings === "object") {
+        setLiveOutletTimings(nextTimings)
+        const isOnline = getEffectiveOnlineState({
+          ...(restaurantData || {}),
+          outletTimings: nextTimings,
+        })
+        setStatus(isOnline ? "Online" : "Offline")
+      }
+    }
 
     window.addEventListener('restaurantStatusChanged', handleStatusChange)
+    window.addEventListener("outletTimingsUpdated", handleOutletTimingsUpdate)
     
     return () => {
       window.removeEventListener('restaurantStatusChanged', handleStatusChange)
+      window.removeEventListener("outletTimingsUpdated", handleOutletTimingsUpdate)
+    }
+  }, [restaurantData, liveOutletTimings])
+
+  useEffect(() => {
+    if (restaurantData?.outletTimings) {
+      setLiveOutletTimings(restaurantData.outletTimings)
     }
   }, [restaurantData])
 

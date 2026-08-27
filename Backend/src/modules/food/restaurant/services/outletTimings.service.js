@@ -34,6 +34,34 @@ const defaultTimings = () =>
         closingTime: '22:00'
     }));
 
+const timeToMinutes = (value) => {
+    const normalized = normalizeTime(value, '');
+    if (!normalized) return null;
+    const [hours, minutes] = normalized.split(':').map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+    return hours * 60 + minutes;
+};
+
+const isWithinTimeWindow = (nowMinutes, openingMinutes, closingMinutes) => {
+    if (openingMinutes === null || closingMinutes === null) return true;
+    if (openingMinutes === closingMinutes) return true;
+    if (closingMinutes > openingMinutes) {
+        return nowMinutes >= openingMinutes && nowMinutes <= closingMinutes;
+    }
+    return nowMinutes >= openingMinutes || nowMinutes <= closingMinutes;
+};
+
+const isRestaurantOpenByTimingsNow = (timingsMap, now = new Date()) => {
+    const dayName = DAY_NAMES[(now.getDay() + 6) % 7];
+    const today = timingsMap?.[dayName];
+    if (!today) return true;
+    if (today.isOpen === false) return false;
+    const openingMinutes = timeToMinutes(today.openingTime);
+    const closingMinutes = timeToMinutes(today.closingTime);
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    return isWithinTimeWindow(nowMinutes, openingMinutes, closingMinutes);
+};
+
 const toClientShape = (doc) => {
     const timings = Array.isArray(doc?.timings) ? doc.timings : [];
     const map = {};
@@ -106,6 +134,17 @@ export async function upsertOutletTimingsForRestaurant(restaurantId, outletTimin
         { upsert: true, new: true, setDefaultsOnInsert: true, projection: 'timings updatedAt' }
     ).lean();
 
-    return { outletTimings: toClientShape(doc) };
+    const outletTimingsMap = toClientShape(doc);
+    const isOpenNow = isRestaurantOpenByTimingsNow(outletTimingsMap);
+    if (!isOpenNow) {
+        const { FoodRestaurant } = await import('../models/restaurant.model.js');
+        await FoodRestaurant.findByIdAndUpdate(
+            restaurantId,
+            { $set: { isAcceptingOrders: false } },
+            { new: false }
+        );
+    }
+
+    return { outletTimings: outletTimingsMap, effectiveOnline: isOpenNow };
 }
 
