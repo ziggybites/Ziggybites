@@ -103,14 +103,14 @@ export default function AdminLogin() {
   }
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#fff1f2_0%,_#ffffff_42%,_#fff7f7_100%)] dark:bg-[#140809] flex flex-col relative overflow-hidden font-['Poppins']">
+    <div className="h-[100dvh] bg-[radial-gradient(circle_at_top,_#fff1f2_0%,_#ffffff_42%,_#fff7f7_100%)] dark:bg-[#140809] flex flex-col relative overflow-hidden font-['Poppins']">
       {/* Decorative Background Elements */}
       <div className="absolute top-0 left-0 w-full h-[600px] bg-gradient-to-b from-[#dc2626]/12 via-[#ef4444]/8 to-transparent pointer-events-none" />
       <div className="absolute top-[-100px] right-[-100px] w-[500px] h-[500px] bg-[#dc2626]/8 rounded-full blur-[120px] pointer-events-none animate-pulse" />
       <div className="absolute bottom-[-100px] left-[-100px] w-[400px] h-[400px] bg-[#b91c1c]/8 rounded-full blur-[120px] pointer-events-none" />
 
       {/* Main Content */}
-      <div className="absolute top-6 right-6 z-20">
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20">
         <Link to="/user/auth/support">
           <Button variant="ghost" className="text-gray-500 hover:text-[#dc2626] font-semibold flex items-center gap-2">
             <ShieldQuestion className="w-5 h-5" />
@@ -119,15 +119,15 @@ export default function AdminLogin() {
         </Link>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 relative z-10">
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-6 py-6 sm:py-8 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
-          className="w-full max-w-[440px]"
+          className="w-full max-w-[440px] max-h-full"
         >
           {/* Logo & Header */}
-          <div className="text-center mb-8">
+          <div className="text-center mb-6 sm:mb-8">
             <motion.div
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -138,11 +138,11 @@ export default function AdminLogin() {
                 <img
                   src={brand.logoUrl}
                   alt={`${brand.companyName || "Company"} Logo`}
-                  className="w-32 h-32 md:w-36 md:h-36 object-contain mx-auto"
+                  className="w-28 h-28 md:w-32 md:h-32 object-contain mx-auto"
                   onError={() => setBrand((prev) => ({ ...prev, logoUrl: null }))}
                 />
               ) : (
-                <div className="w-32 h-32 md:w-36 md:h-36 mx-auto rounded-full bg-[#dc2626]/10 text-[#b91c1c] flex items-center justify-center text-4xl md:text-5xl font-black">
+                <div className="w-28 h-28 md:w-32 md:h-32 mx-auto rounded-full bg-[#dc2626]/10 text-[#b91c1c] flex items-center justify-center text-4xl md:text-5xl font-black">
                   {(brand.companyName || "Z").trim().charAt(0).toUpperCase()}
                 </div>
               )}
@@ -159,10 +159,10 @@ export default function AdminLogin() {
           </div>
 
           {/* Login Card */}
-          <div className="bg-white/88 dark:bg-[#1f0a0b]/88 backdrop-blur-2xl rounded-[3rem] p-8 sm:p-12 shadow-[0_40px_80px_-20px_rgba(220,38,38,0.18)] dark:shadow-none border border-white/20 dark:border-gray-800 relative overflow-hidden">
+          <div className="bg-white/88 dark:bg-[#1f0a0b]/88 backdrop-blur-2xl rounded-[3rem] p-7 sm:p-10 shadow-[0_40px_80px_-20px_rgba(220,38,38,0.18)] dark:shadow-none border border-white/20 dark:border-gray-800 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-transparent via-[#dc2626]/30 to-transparent" />
 
-            <div className="mb-10 text-center sm:text-left">
+            <div className="mb-8 text-center sm:text-left">
               <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-2 font-['Outfit'] tracking-tight">
                 Admin Entry
               </h2>
@@ -172,8 +172,8 @@ export default function AdminLogin() {
               </p>
             </div>
 
-            <form onSubmit={handleLogin} className="space-y-6">
-              <div className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div className="space-y-3.5">
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black text-[#b91c1c] uppercase tracking-[0.2em] ml-1">Email Address</label>
                   <div className="relative">
@@ -187,7 +187,7 @@ export default function AdminLogin() {
                         setEmail(e.target.value)
                         if (error) setError("")
                       }}
-                      className="block w-full pl-12 pr-6 py-4 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white border-2 border-transparent focus:border-[#dc2626]/50 rounded-2xl outline-none transition-all placeholder:text-gray-300 font-bold"
+                      className="block w-full pl-12 pr-6 py-3.5 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white border-2 border-transparent focus:border-[#dc2626]/50 rounded-2xl outline-none transition-all placeholder:text-gray-300 font-bold"
                       placeholder="admin@ziggybites.com"
                     />
                   </div>
@@ -208,7 +208,7 @@ export default function AdminLogin() {
                         setPassword(e.target.value)
                         if (error) setError("")
                       }}
-                      className="block w-full pl-12 pr-12 py-4 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white border-2 border-transparent focus:border-[#dc2626]/50 rounded-2xl outline-none transition-all placeholder:text-gray-300 font-bold"
+                      className="block w-full pl-12 pr-12 py-3.5 bg-gray-50 dark:bg-gray-900/50 text-gray-900 dark:text-white border-2 border-transparent focus:border-[#dc2626]/50 rounded-2xl outline-none transition-all placeholder:text-gray-300 font-bold"
                       placeholder="********"
                     />
                     <button
@@ -231,7 +231,7 @@ export default function AdminLogin() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-4.5 bg-[#dc2626] hover:bg-[#b91c1c] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-2xl font-bold text-lg shadow-xl shadow-[#dc2626]/25 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group overflow-hidden relative"
+                className="w-full py-4 bg-[#dc2626] hover:bg-[#b91c1c] disabled:bg-gray-200 dark:disabled:bg-gray-800 disabled:text-gray-400 text-white rounded-2xl font-bold text-lg shadow-xl shadow-[#dc2626]/25 transition-all active:scale-[0.98] flex items-center justify-center gap-2 group overflow-hidden relative"
               >
                 {loading ? (
                   <Loader2 className="w-6 h-6 animate-spin" />
@@ -250,7 +250,7 @@ export default function AdminLogin() {
             </form>
           </div>
 
-          <div className="mt-12 flex justify-center items-center gap-6 opacity-30 grayscale hover:opacity-60 transition-opacity">
+          <div className="mt-8 sm:mt-10 flex justify-center items-center gap-6 opacity-30 grayscale hover:opacity-60 transition-opacity">
             <div className="flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4" />
               <span className="text-[10px] font-black uppercase tracking-widest">Secure Access</span>

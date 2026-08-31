@@ -375,9 +375,9 @@ export default function UnifiedOTPFastLogin() {
                         <Phone className="h-4 w-4" />
                       </span>
                     </div>
-                    <span className="absolute left-16 top-[33px] -translate-y-1/2 text-sm font-black leading-none text-[#202030]">
-                      +91
-                    </span>
+                    <div className="pointer-events-none absolute inset-y-0 left-16 flex items-center pt-4">
+                      <span className="text-sm font-black leading-none text-[#202030]">+91</span>
+                    </div>
                     <input
                       type="tel"
                       required
@@ -557,7 +557,7 @@ export default function UnifiedOTPFastLogin() {
                 >
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
-                      <span className="text-sm font-bold text-[#7e3866] border-r border-gray-200 dark:border-gray-800 pr-3">+91</span>
+                      <span className="flex h-full items-center text-sm font-bold text-[#7e3866] border-r border-gray-200 dark:border-gray-800 pr-3 leading-none">+91</span>
                     </div>
                     <input
                       type="tel"

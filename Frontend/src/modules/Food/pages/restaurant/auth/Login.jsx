@@ -130,9 +130,9 @@ export default function RestaurantLogin() {
                     <Phone className="h-4 w-4" />
                   </span>
                 </div>
-                <span className="absolute left-16 top-[33px] -translate-y-1/2 text-sm font-black leading-none text-[#202030]">
-                  +91
-                </span>
+                <div className="pointer-events-none absolute inset-y-0 left-16 flex items-center pt-4">
+                  <span className="text-sm font-black leading-none text-[#202030]">+91</span>
+                </div>
                 <input
                   type="tel"
                   required
