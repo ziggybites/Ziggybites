@@ -4,10 +4,13 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/integrity-guard.ps1 -Mode dev",
+    "dev:unsafe": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "integrity:check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/integrity-guard.ps1 -Mode verify",
+    "integrity:watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/integrity-guard.ps1 -Mode watch"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -1,0 +1,21 @@
+{
+  "watch": ["server.js", "src"],
+  "ignore": [
+    "cleanup-output/**",
+    "scripts/**",
+    "tests/**",
+    "node_modules/**",
+    "*.txt",
+    "check*.js",
+    "check*.cjs",
+    "scratch*.js",
+    "scratch*.cjs",
+    "test*.js",
+    "test*.cjs",
+    "get_admins.js",
+    "create_admin.js",
+    "sync_dining.js",
+    "update_delhi_restaurants.js"
+  ],
+  "ext": "js,mjs,cjs,json"
+}
