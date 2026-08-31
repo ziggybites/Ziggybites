@@ -26,7 +26,10 @@
     "reconcile:order-finance": "node scripts/reconcile-order-finance.js",
     "test": "node --test",
     "integrity:check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/integrity-guard.ps1 -Mode verify",
-    "integrity:watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/integrity-guard.ps1 -Mode watch"
+    "integrity:watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/integrity-guard.ps1 -Mode watch",
+    "security:scan": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\scripts\\repo-security-guard.ps1 -Mode scan -Scope Backend",
+    "security:audit": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\scripts\\repo-security-guard.ps1 -Mode process-audit -Scope Backend",
+    "security:block": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\scripts\\repo-security-guard.ps1 -Mode process-block -Scope Backend"
   },
   "keywords": [],
   "author": "",

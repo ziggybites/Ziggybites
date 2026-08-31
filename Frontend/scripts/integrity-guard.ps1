@@ -5,9 +5,18 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $PackageRoot = Split-Path -Parent $PSScriptRoot
+$RepoRoot = Split-Path -Parent $PackageRoot
+$RepoSecurityScript = Join-Path $RepoRoot 'scripts\repo-security-guard.ps1'
 $VerifyTargets = @('package.json', 'package-lock.json', 'vite.config.js', 'index.html', 'src', 'public', 'scripts')
 $StartupTargets = @('package.json', 'package-lock.json', 'vite.config.js', 'scripts/integrity-guard.ps1')
 $RuntimeProtectedFiles = @('package.json', 'package-lock.json', 'vite.config.js', 'scripts/integrity-guard.ps1')
+
+function Invoke-RepoSecurityPreflight {
+  & $RepoSecurityScript -Mode preflight -Scope Frontend
+  if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+  }
+}
 
 function Get-DirtyEntries {
   param([string[]]$Targets)
@@ -148,6 +157,7 @@ function Start-GuardedProcess {
     [string]$DisplayName
   )
 
+  Invoke-RepoSecurityPreflight
   Assert-Clean -Targets $StartupTargets -Label 'frontend startup-critical'
 
   $driftDetected = $false
@@ -184,6 +194,7 @@ function Start-GuardedProcess {
 
 switch ($Mode) {
   'verify' {
+    Invoke-RepoSecurityPreflight
     Assert-Clean -Targets $VerifyTargets -Label 'frontend'
     Write-Host '[Integrity Guard] Frontend tracked files match Git.' -ForegroundColor Green
   }

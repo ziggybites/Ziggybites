@@ -5,9 +5,18 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $PackageRoot = Split-Path -Parent $PSScriptRoot
+$RepoRoot = Split-Path -Parent $PackageRoot
+$RepoSecurityScript = Join-Path $RepoRoot 'scripts\repo-security-guard.ps1'
 $VerifyTargets = @('package.json', 'package-lock.json', 'server.js', 'src', 'scripts')
 $StartupTargets = @('package.json', 'package-lock.json', 'scripts/integrity-guard.ps1')
 $RuntimeProtectedFiles = @('package.json', 'package-lock.json', 'server.js', 'scripts/integrity-guard.ps1')
+
+function Invoke-RepoSecurityPreflight {
+  & $RepoSecurityScript -Mode preflight -Scope Backend
+  if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+  }
+}
 
 function Get-DirtyEntries {
   param([string[]]$Targets)
@@ -148,6 +157,7 @@ function Start-GuardedProcess {
     [string]$DisplayName
   )
 
+  Invoke-RepoSecurityPreflight
   Assert-Clean -Targets $StartupTargets -Label 'backend startup-critical'
 
   $driftDetected = $false
@@ -184,6 +194,7 @@ function Start-GuardedProcess {
 
 switch ($Mode) {
   'verify' {
+    Invoke-RepoSecurityPreflight
     Assert-Clean -Targets $VerifyTargets -Label 'backend'
     Write-Host '[Integrity Guard] Backend tracked files match Git.' -ForegroundColor Green
   }

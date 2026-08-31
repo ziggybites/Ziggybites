@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "integrity:check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/integrity-guard.ps1 -Mode verify",
-    "integrity:watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/integrity-guard.ps1 -Mode watch"
+    "integrity:watch": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/integrity-guard.ps1 -Mode watch",
+    "security:scan": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\scripts\\repo-security-guard.ps1 -Mode scan -Scope Frontend",
+    "security:audit": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\scripts\\repo-security-guard.ps1 -Mode process-audit -Scope Frontend",
+    "security:block": "powershell -NoProfile -ExecutionPolicy Bypass -File ..\\scripts\\repo-security-guard.ps1 -Mode process-block -Scope Frontend"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
