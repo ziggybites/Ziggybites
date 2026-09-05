@@ -214,7 +214,7 @@ export default function MealTimeManagement() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
         <form onSubmit={saveSlot} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-5 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">
@@ -333,7 +333,7 @@ export default function MealTimeManagement() {
           </button>
         </form>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className="min-w-0 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-5 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900">Configured Meals</h2>
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
@@ -351,33 +351,35 @@ export default function MealTimeManagement() {
               No meal slots yet
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,240px),1fr))] gap-4">
               {slots.map((slot) => (
                 <article
                   key={slot._id || slot.id}
-                  className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                  className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
                 >
                   <div
-                    className="relative h-40 p-4"
+                    className="flex flex-1 flex-col gap-3 p-4"
                     style={{ backgroundColor: slot.backgroundColor || "#fff7ed" }}
                   >
-                    <span
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-black shadow-sm"
-                      style={{ color: slot.accentColor || "#ef2b24" }}
-                    >
-                      <CalendarClock className="h-5 w-5" />
-                    </span>
-                    <span className="absolute right-3 top-3 rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-slate-600">
-                      {slot.isActive ? "Active" : "Hidden"}
-                    </span>
+                    <div className="flex items-center justify-between gap-2">
+                      <span
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white text-sm font-black shadow-sm"
+                        style={{ color: slot.accentColor || "#ef2b24" }}
+                      >
+                        <CalendarClock className="h-5 w-5" />
+                      </span>
+                      <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-slate-600">
+                        {slot.isActive ? "Active" : "Hidden"}
+                      </span>
+                    </div>
                     {slot.imageUrl ? (
-                      <img src={slot.imageUrl} alt={slot.title} className="absolute bottom-0 right-0 h-24 w-40 object-contain" />
+                      <img src={slot.imageUrl} alt={slot.title} className="h-24 w-full object-contain" />
                     ) : (
-                      <div className="absolute bottom-4 right-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/70 text-xl font-black text-slate-400">
+                      <div className="flex h-24 items-center justify-center text-xl font-black text-slate-400">
                         {String(slot.title || "M").slice(0, 1).toUpperCase()}
                       </div>
                     )}
-                    <div className="absolute bottom-4 left-4 max-w-[65%]">
+                    <div className="min-w-0 [overflow-wrap:anywhere]">
                       <p className="font-black text-slate-950">{slot.title}</p>
                       <p className="mt-1 text-[11px] font-black uppercase" style={{ color: slot.accentColor || "#ef2b24" }}>
                         {slot.timeLabel}
@@ -385,7 +387,7 @@ export default function MealTimeManagement() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 p-3">
                     <button type="button" onClick={() => editSlot(slot)} className="rounded-lg border border-slate-200 p-2 text-slate-600">
                       <Pencil className="h-4 w-4" />
                     </button>

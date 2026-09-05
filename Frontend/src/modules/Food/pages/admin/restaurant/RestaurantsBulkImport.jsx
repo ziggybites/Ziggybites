@@ -87,10 +87,14 @@ export default function RestaurantsBulkImport() {
                   <Download className="w-4 h-4" />
                   With Current Data
                 </button>
-                <button className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-all flex items-center gap-2">
+                <a
+                  href={`${import.meta.env.BASE_URL}templates/restaurants-import-template.xlsx`}
+                  download="restaurants-import-template.xlsx"
+                  className="px-4 py-2 text-sm font-medium rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-all flex items-center gap-2"
+                >
                   <Download className="w-4 h-4" />
                   Without Any Data
-                </button>
+                </a>
               </div>
             </div>
           </div>
