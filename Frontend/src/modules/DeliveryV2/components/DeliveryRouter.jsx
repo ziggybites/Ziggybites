@@ -35,8 +35,6 @@ const ViewSupportTicket = lazy(() => import("@food/pages/delivery/ViewSupportTic
 const ShowIdCard = lazy(() => import("@food/pages/delivery/ShowIdCard"))
 const ChangeLanguage = lazy(() => import("@food/pages/delivery/ChangeLanguage"))
 const SelectDropLocation = lazy(() => import("@food/pages/delivery/SelectDropLocation"))
-const ReferAndEarn = lazy(() => import("@food/pages/delivery/ReferAndEarn"))
-const YourReferrals = lazy(() => import("@food/pages/delivery/YourReferrals"))
 const Earnings = lazy(() => import("@food/pages/delivery/Earnings"))
 const TripHistory = lazy(() => import("@food/pages/delivery/TripHistory"))
 const TimeOnOrders = lazy(() => import("@food/pages/delivery/TimeOnOrders"))
@@ -131,26 +129,6 @@ export default function DeliveryRouter() {
             </ProtectedRoute>
           }
           path="select-drop-location"
-        />
-        <Route
-          element={
-            <ProtectedRoute>
-              <DeliveryLayout>
-                <ReferAndEarn />
-              </DeliveryLayout>
-            </ProtectedRoute>
-          }
-          path="refer-and-earn"
-        />
-        <Route
-          element={
-            <ProtectedRoute>
-              <DeliveryLayout>
-                <YourReferrals />
-              </DeliveryLayout>
-            </ProtectedRoute>
-          }
-          path="your-referrals"
         />
         <Route
           element={

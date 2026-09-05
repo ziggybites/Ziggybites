@@ -6,7 +6,6 @@ import {
   Bike,
   Ticket,
   ChevronRight,
-  Share2,
   LogOut,
   X,
   Loader2,
@@ -30,7 +29,6 @@ export const ProfileV2 = () => {
   const location = useLocation()
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [referralReward, setReferralReward] = useState(0)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [logoutSubmitting, setLogoutSubmitting] = useState(false)
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false)
@@ -63,30 +61,6 @@ export const ProfileV2 = () => {
     }
     fetchProfile()
   }, [])
-
-  useEffect(() => {
-    deliveryAPI.getReferralStats().then((res) => {
-      const reward = res?.data?.data?.stats?.rewardAmount
-      setReferralReward(Number(reward) || 0)
-    }).catch(() => {})
-  }, [])
-
-  const refId = profile?._id || profile?.id || profile?.referralCode || ""
-  const referralLink = refId ? `${window.location.origin}/food/delivery/signup?ref=${encodeURIComponent(String(refId))}` : ""
-
-  const handleShareReferral = async () => {
-    if (!referralLink) return
-    const rewardText = referralReward > 0 ? `₹${referralReward}` : "rewards"
-    const shareText = `Join as a delivery partner and earn ${rewardText}.`
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "Delivery referral", text: shareText, url: referralLink })
-      } else {
-        const fallbackUrl = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${referralLink}`)}`
-        window.open(fallbackUrl, "_blank", "noopener,noreferrer")
-      }
-    } catch (e) {}
-  }
 
   const handleLogout = async () => {
     if (logoutSubmitting) return
@@ -239,22 +213,6 @@ export const ProfileV2 = () => {
               </div>
             </div>
           )}
-          {/* Share & Earn */}
-          <div className="bg-white rounded-xl p-4 flex items-center justify-between gap-4">
-            <div className="min-w-0">
-              <h3 className="text-base font-bold text-gray-900 mb-1">
-                Share & Earn{referralReward > 0 ? ` ₹${referralReward}` : ""}
-              </h3>
-              <p className="text-gray-500 text-xs font-medium">Invite friends to join the delivery partner fleet.</p>
-            </div>
-            <button
-              onClick={handleShareReferral}
-              className="shrink-0 bg-black text-white px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest shadow-md"
-            >
-              Share
-            </button>
-          </div>
-
           {/* Support Section */}
           <div>
             <h3 className="text-gray-400 text-[10px] font-black uppercase tracking-[0.2em] mb-3 px-1">Support</h3>

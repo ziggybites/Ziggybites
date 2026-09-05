@@ -38,6 +38,7 @@ export default function AdminHome() {
   const [selectedPeriod, setSelectedPeriod] = useState("overall")
   const [isLoading, setIsLoading] = useState(true)
   const [dashboardData, setDashboardData] = useState(null)
+  const [dashboardError, setDashboardError] = useState("")
   const [zones, setZones] = useState([])
 
   // Fetch zone list for filter
@@ -56,32 +57,55 @@ export default function AdminHome() {
     fetchZones()
   }, [])
 
-  // Fetch dashboard stats from backend when filters change
+  // Keep the dashboard current while it is open, using the selected filters.
   useEffect(() => {
+    let disposed = false
+    let inFlight = false
+    setDashboardData(null)
+    setDashboardError("")
+    setIsLoading(true)
+
     const fetchDashboardStats = async () => {
+      if (disposed || inFlight) return
+      inFlight = true
       try {
-        setIsLoading(true)
         const params = {
           period: selectedPeriod,
           ...(selectedZone !== "all" ? { zoneId: selectedZone } : {}),
         }
         const response = await adminAPI.getDashboardStats(params)
+        if (disposed) return
         if (response.data?.success && response.data?.data) {
           setDashboardData(response.data.data)
+          setDashboardError("")
           debugLog("Dashboard stats fetched:", response.data.data)
         } else {
-          setDashboardData(null)
+          setDashboardError("Unable to update dashboard statistics. Retrying automatically.")
           debugError("Invalid dashboard response format:", response.data)
         }
       } catch (error) {
-        setDashboardData(null)
+        if (disposed) return
+        setDashboardError("Unable to update dashboard statistics. Retrying automatically.")
         debugError("Error fetching dashboard stats:", error)
       } finally {
-        setIsLoading(false)
+        inFlight = false
+        if (!disposed) setIsLoading(false)
       }
     }
 
     fetchDashboardStats()
+    const refreshWhenVisible = () => {
+      if (document.visibilityState !== "hidden") fetchDashboardStats()
+    }
+    const interval = window.setInterval(refreshWhenVisible, 15000)
+    window.addEventListener("focus", refreshWhenVisible)
+    document.addEventListener("visibilitychange", refreshWhenVisible)
+    return () => {
+      disposed = true
+      window.clearInterval(interval)
+      window.removeEventListener("focus", refreshWhenVisible)
+      document.removeEventListener("visibilitychange", refreshWhenVisible)
+    }
   }, [selectedZone, selectedPeriod])
 
   // Get order stats from real data
@@ -167,6 +191,11 @@ export default function AdminHome() {
 
   return (
     <div className="px-4 pb-10 lg:px-6 pt-4">
+      {dashboardError && (
+        <div role="alert" className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {dashboardError}
+        </div>
+      )}
       <div className="relative overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-[0_30px_120px_-60px_rgba(0,0,0,0.28)]">
         {isLoading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-white/70 backdrop-blur-sm">

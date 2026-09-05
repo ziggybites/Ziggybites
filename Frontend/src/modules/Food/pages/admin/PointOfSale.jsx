@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Search, TrendingUp, TrendingDown, DollarSign, ShoppingCart, XCircle, Star, Calendar, BarChart3, Users, Award, Package } from 'lucide-react'
 import { adminAPI } from '@food/api'
+import { formatRestaurantId, matchesRestaurantSearch } from '@food/utils/restaurantSearch'
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -283,15 +284,7 @@ export default function PointOfSale() {
     }
   }
 
-  const filteredRestaurants = restaurants.filter(restaurant => {
-    if (!searchQuery.trim()) return true
-    const query = searchQuery.toLowerCase()
-    return (
-      restaurant.name?.toLowerCase().includes(query) ||
-      restaurant.restaurantId?.toLowerCase().includes(query) ||
-      restaurant._id?.toLowerCase().includes(query)
-    )
-  })
+  const filteredRestaurants = restaurants.filter(restaurant => matchesRestaurantSearch(restaurant, searchQuery))
 
   // Handle restaurant selection from search
   const handleRestaurantSelect = (restaurantId) => {
@@ -381,7 +374,7 @@ export default function PointOfSale() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm font-medium text-[#334257]">{restaurant.name}</p>
-                            <p className="text-xs text-[#8a94aa]">ID: {restaurant.restaurantId || restaurant._id}</p>
+                            <p className="text-xs text-[#8a94aa]">ID: {formatRestaurantId(restaurant.restaurantId || restaurant._id)}</p>
                           </div>
                           {selectedRestaurant === restaurant._id && (
                             <div className="w-2 h-2 bg-[#006fbd] rounded-full"></div>
@@ -444,7 +437,7 @@ export default function PointOfSale() {
                 <div>
                   <h2 className="text-xl font-bold text-[#334257] mb-1">{getSelectedRestaurantName()}</h2>
                   <p className="text-sm text-[#8a94aa]">
-                    Restaurant ID: {restaurants.find(r => r._id === selectedRestaurant)?.restaurantId || selectedRestaurant}
+                    Restaurant ID: {formatRestaurantId(restaurants.find(r => r._id === selectedRestaurant)?.restaurantId || selectedRestaurant)}
                   </p>
                 </div>
                 <div className={`px-4 py-2 rounded-full text-sm font-semibold ${
