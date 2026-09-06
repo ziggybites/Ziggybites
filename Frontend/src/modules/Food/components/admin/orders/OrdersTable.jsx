@@ -324,32 +324,56 @@ export default function OrdersTable({
                     {(() => {
                       // Determine payment type display
                       let paymentTypeDisplay = order.paymentType;
-                      const paymentMethod = order.payment?.method || order.paymentMethod || order.payment?.paymentMethod;
-                      
-                      if (paymentMethod === 'razorpay_qr') {
+                      const rawPaymentMethod =
+                        order.payment?.method ||
+                        order.paymentMethod ||
+                        order.payment?.paymentMethod ||
+                        order.payment?.payment_method ||
+                        order.transactionId?.paymentMethod ||
+                        order.transactionId?.payment?.method ||
+                        order.transaction?.paymentMethod ||
+                        order.transaction?.payment?.method ||
+                        order.paymentMode ||
+                        order.payment_mode ||
+                        (order.subscriptionUsage?.billingMode === 'subscription_prepaid' ? 'subscription' : '') ||
+                        '';
+
+                      const method = String(rawPaymentMethod || "").trim().toLowerCase();
+                      const hasRazorpayId = !!(
+                        order.payment?.razorpay_payment_id ||
+                        order.payment?.razorpayPaymentId ||
+                        order.transactionId?.razorpayPaymentId ||
+                        order.transaction?.razorpayPaymentId
+                      );
+                      const isQrPayment = method === "razorpay_qr" || method === "qr" || ((method === "cod" || method === "cash") && hasRazorpayId);
+
+                      if (isQrPayment) {
                         paymentTypeDisplay = 'COD (QR)';
-                      } else if (!paymentTypeDisplay) {
-                        if (paymentMethod === 'cash' || paymentMethod === 'cod') {
-                          paymentTypeDisplay = 'Cash on Delivery';
-                        } else if (paymentMethod === 'wallet') {
-                          paymentTypeDisplay = 'Wallet';
-                        } else {
-                          paymentTypeDisplay = 'Online';
-                        }
-                      }
-                      
-                      // Override if payment method is wallet but paymentType is not set correctly
-                      if (paymentMethod === 'wallet' && paymentTypeDisplay !== 'Wallet') {
+                      } else if (method === 'cash' || method === 'cod' || method === 'cash on delivery') {
+                        paymentTypeDisplay = 'Cash on Delivery';
+                      } else if (method === 'wallet') {
                         paymentTypeDisplay = 'Wallet';
+                      } else if (method === 'subscription' || method === 'subscription_prepaid') {
+                        paymentTypeDisplay = 'Subscription';
+                      } else if (method === 'razorpay' || method === 'online' || method === 'upi' || method === 'card' || method === 'netbanking' || method) {
+                        paymentTypeDisplay = 'Online';
+                      } else if (!paymentTypeDisplay || paymentTypeDisplay === 'N/A') {
+                        if (hasRazorpayId) {
+                          paymentTypeDisplay = 'Online';
+                        } else {
+                          paymentTypeDisplay = 'Cash on Delivery';
+                        }
                       }
                       
                       const isCod = paymentTypeDisplay === 'Cash on Delivery' || paymentTypeDisplay === 'COD (QR)';
                       const isWallet = paymentTypeDisplay === 'Wallet';
+                      const isSubscription = paymentTypeDisplay === 'Subscription';
                       
                       return (
                         <span className={`text-sm font-medium ${
                           isCod ? 'text-amber-600' : 
                           isWallet ? 'text-purple-600' : 
+                          isSubscription ? 'text-indigo-600' :
                           'text-emerald-600'
                         }`}>
                           {paymentTypeDisplay}

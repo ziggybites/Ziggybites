@@ -255,26 +255,55 @@ export default function OrdersPage({ statusKey = "all" }) {
       const discountAmount = amountBreakdown.discount
       const totalAmount = amountBreakdown.total
 
-      const paymentMethod = order.payment?.method || order.paymentMethod || order.payment?.paymentMethod || ""
-      let paymentType = order.paymentType
-      if (!paymentType) {
-        if (paymentMethod === "cash" || paymentMethod === "cod" || paymentMethod === "cash on delivery") paymentType = "Cash on Delivery"
-        else if (paymentMethod === "wallet") paymentType = "Wallet"
-        else if (paymentMethod) paymentType = "Online"
-        else paymentType = "N/A"
+      const rawPaymentMethod =
+        order.payment?.method ||
+        order.paymentMethod ||
+        order.payment?.paymentMethod ||
+        order.payment?.payment_method ||
+        order.transactionId?.paymentMethod ||
+        order.transactionId?.payment?.method ||
+        order.transaction?.paymentMethod ||
+        order.transaction?.payment?.method ||
+        order.paymentMode ||
+        order.payment_mode ||
+        (order.subscriptionUsage?.billingMode === 'subscription_prepaid' ? 'subscription' : '') ||
+        "";
+
+      const method = String(rawPaymentMethod || "").toLowerCase().trim();
+      const hasRazorpayId = !!(
+        order.payment?.razorpay_payment_id ||
+        order.payment?.razorpayPaymentId ||
+        order.transactionId?.razorpayPaymentId ||
+        order.transaction?.razorpayPaymentId
+      );
+      const isQrPayment = method === "razorpay_qr" || method === "qr" || ((method === "cod" || method === "cash") && hasRazorpayId);
+
+      let paymentType = "";
+      if (isQrPayment) {
+        paymentType = "COD (QR)";
+      } else if (method === "cash" || method === "cod" || method === "cash on delivery") {
+        paymentType = "Cash on Delivery";
+      } else if (method === "wallet") {
+        paymentType = "Wallet";
+      } else if (method === "subscription" || method === "subscription_prepaid") {
+        paymentType = "Subscription";
+      } else if (method === "razorpay" || method === "online" || method === "upi" || method === "card" || method === "netbanking" || method) {
+        paymentType = "Online";
+      } else if (order.paymentType && order.paymentType !== "N/A") {
+        paymentType = order.paymentType;
+      } else if (hasRazorpayId) {
+        paymentType = "Online";
+      } else {
+        paymentType = "Cash on Delivery";
       }
 
       const backendStatus = String(order.orderStatus || "").toLowerCase()
-      const method = String(paymentMethod).toLowerCase();
-      const hasRazorpayId = !!(order.payment?.razorpay_payment_id || order.payment?.razorpayPaymentId);
-      const isQrPayment = method === "razorpay_qr" || method === "qr" || (method === "cod" && hasRazorpayId) || (method === "cash" && hasRazorpayId);
-      
       let paymentStatus = order.paymentStatus
-      const paymentStatusRaw = order.payment?.status || ""
+      const paymentStatusRaw = order.payment?.status || order.transactionId?.status || order.transaction?.status || ""
       if (!paymentStatus) {
         const s = String(paymentStatusRaw || "").toLowerCase()
         if (s === "refunded") paymentStatus = "Refunded"
-        else if (s === "paid" || s === "authorized" || s === "captured" || s === "settled" || isQrPayment) paymentStatus = "Paid"
+        else if (s === "paid" || s === "authorized" || s === "captured" || s === "settled" || isQrPayment || method === "wallet" || method === "subscription" || method === "subscription_prepaid") paymentStatus = "Paid"
         else if (s === "failed") paymentStatus = "Failed"
         else if (backendStatus === "delivered" && (method === "cash" || method === "cod" || method === "cash on delivery")) paymentStatus = "Paid"
         else paymentStatus = "Pending"
@@ -286,8 +315,18 @@ export default function OrdersPage({ statusKey = "all" }) {
         paymentMethodDetail = "COD/QR"
       } else if (method === "wallet") {
         paymentMethodDetail = "Wallet"
-      } else if (method !== "cash" && method !== "cod" && method !== "cash on delivery" && method !== "") {
+      } else if (method === "subscription" || method === "subscription_prepaid") {
+        paymentMethodDetail = "Subscription"
+      } else if (method === "cash" || method === "cod" || method === "cash on delivery") {
+        paymentMethodDetail = "COD"
+      } else if (method !== "") {
         paymentMethodDetail = "Online"
+      } else if (paymentType === "Online") {
+        paymentMethodDetail = "Online"
+      } else if (paymentType === "Wallet") {
+        paymentMethodDetail = "Wallet"
+      } else if (paymentType === "Subscription") {
+        paymentMethodDetail = "Subscription"
       }
 
 

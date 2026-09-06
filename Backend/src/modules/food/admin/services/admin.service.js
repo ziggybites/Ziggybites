@@ -2907,7 +2907,7 @@ export async function updateRestaurantStatus(id, body = {}) {
     const isActive = parseBooleanLike(raw, 'status');
     const status = isActive ? 'approved' : 'rejected';
 
-    return FoodRestaurant.findByIdAndUpdate(
+    const updated = await FoodRestaurant.findByIdAndUpdate(
         id,
         {
             $set: {
@@ -2919,6 +2919,69 @@ export async function updateRestaurantStatus(id, body = {}) {
         },
         { new: true, runValidators: false }
     ).lean();
+
+    if (updated) {
+        try {
+            const { notifyOwnersSafely } = await import('../../../../core/notifications/firebase.service.js');
+            const { createInboxNotifications } = await import('../../../../core/notifications/notification.service.js');
+
+            if (isActive) {
+                await notifyOwnersSafely(
+                    [{ ownerType: 'RESTAURANT', ownerId: updated._id }],
+                    {
+                        title: 'Congratulations! 🎉',
+                        body: `Your restaurant "${updated.restaurantName}" has been approved. You can now start receiving orders!`,
+                        image: updated.profileImage || 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                        data: {
+                            type: 'restaurant_approved',
+                            restaurantId: String(updated._id)
+                        }
+                    }
+                );
+
+                await createInboxNotifications({
+                    notifications: [{
+                        ownerType: 'RESTAURANT',
+                        ownerId: updated._id,
+                        title: 'Restaurant Approved! 🎉',
+                        message: `Your restaurant "${updated.restaurantName}" has been approved by admin. You can now start receiving orders!`,
+                        category: 'general',
+                        source: 'ADMIN_BROADCAST',
+                        metadata: { type: 'restaurant_approved', restaurantId: String(updated._id) }
+                    }]
+                });
+            } else {
+                await notifyOwnersSafely(
+                    [{ ownerType: 'RESTAURANT', ownerId: updated._id }],
+                    {
+                        title: 'Status Updated ⚠️',
+                        body: `Your restaurant "${updated.restaurantName}" status has been updated to inactive by admin.`,
+                        image: updated.profileImage || 'https://i.ibb.co/3m2Yh7r/Appzeto-Brand-Image.png',
+                        data: {
+                            type: 'restaurant_status_updated',
+                            restaurantId: String(updated._id)
+                        }
+                    }
+                );
+
+                await createInboxNotifications({
+                    notifications: [{
+                        ownerType: 'RESTAURANT',
+                        ownerId: updated._id,
+                        title: 'Status Updated ⚠️',
+                        message: `Your restaurant "${updated.restaurantName}" status has been updated to inactive by admin.`,
+                        category: 'general',
+                        source: 'ADMIN_BROADCAST',
+                        metadata: { type: 'restaurant_status_updated', restaurantId: String(updated._id) }
+                    }]
+                });
+            }
+        } catch (e) {
+            console.error('Failed to send restaurant status notification:', e);
+        }
+    }
+
+    return updated;
 }
 
 export async function updateRestaurantLocation(id, body = {}) {
@@ -3895,6 +3958,19 @@ export async function approveRestaurant(id) {
                     }
                 }
             );
+
+            const { createInboxNotifications } = await import('../../../../core/notifications/notification.service.js');
+            await createInboxNotifications({
+                notifications: [{
+                    ownerType: 'RESTAURANT',
+                    ownerId: updated._id,
+                    title: 'Restaurant Approved! 🎉',
+                    message: `Your restaurant "${updated.restaurantName}" has been approved by admin. You can now start receiving orders!`,
+                    category: 'general',
+                    source: 'ADMIN_BROADCAST',
+                    metadata: { type: 'restaurant_approved', restaurantId: String(updated._id) }
+                }]
+            });
         } catch (e) {
             console.error('Failed to send restaurant approval notification:', e);
         }
@@ -3937,6 +4013,19 @@ export async function rejectRestaurant(id, reason) {
                     }
                 }
             );
+
+            const { createInboxNotifications } = await import('../../../../core/notifications/notification.service.js');
+            await createInboxNotifications({
+                notifications: [{
+                    ownerType: 'RESTAURANT',
+                    ownerId: updated._id,
+                    title: 'Application Update 📋',
+                    message: `Your restaurant registration for "${updated.restaurantName}" has been rejected. Reason: ${reason || 'Incomplete documents'}.`,
+                    category: 'general',
+                    source: 'ADMIN_BROADCAST',
+                    metadata: { type: 'restaurant_rejected', restaurantId: String(updated._id), reason: reason || '' }
+                }]
+            });
         } catch (e) {
             console.error('Failed to send restaurant rejection notification:', e);
         }
