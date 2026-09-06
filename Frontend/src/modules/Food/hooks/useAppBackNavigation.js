@@ -98,7 +98,11 @@ const resolveBackPath = ({ pathname, search, state }) => {
   }
 
   if (normalizedPath === "/user/address-selector") {
-    return explicitBackPath || "/food/user"
+    return explicitBackPath || "/food/user/profile"
+  }
+
+  if (normalizedPath === "/user/help&support" || normalizedPath === "/user/help") {
+    return explicitBackPath || "/food/user/profile"
   }
 
   if (/^\/user\/collections\/[^/]+$/.test(normalizedPath)) {

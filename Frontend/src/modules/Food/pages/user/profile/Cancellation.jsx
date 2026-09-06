@@ -42,10 +42,8 @@ export default function Cancellation() {
         state: location.state?.originalState,
         replace: true 
       })
-    } else if (window.history.length > 2) {
-      goBack()
     } else {
-      navigate('/food/user')
+      goBack()
     }
   }
 

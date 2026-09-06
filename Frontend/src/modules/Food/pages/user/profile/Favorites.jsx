@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom"
+import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import { useState } from "react"
 
 import { Heart, Star, Clock, MapPin, ArrowRight, ArrowLeft, Bookmark } from "lucide-react"
@@ -10,6 +11,7 @@ import { useProfile } from "@food/context/ProfileContext"
 import { toast } from "sonner"
 
 export default function Favorites() {
+  const goBack = useAppBackNavigation()
   const { getFavorites, removeFavorite, getDishFavorites, removeDishFavorite } = useProfile()
   const restaurantFavorites = getFavorites()
   const dishFavorites = getDishFavorites()
@@ -41,11 +43,9 @@ export default function Favorites() {
         <div className="max-w-4xl mx-auto space-y-6">
           <ScrollReveal>
             <div className="flex items-center gap-3 sm:gap-4">
-              <Link to="/user/profile">
-                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 sm:h-10 sm:w-10">
-                  <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-                </Button>
-          </Link>
+              <Button variant="ghost" size="icon" onClick={goBack} className="rounded-full h-8 w-8 sm:h-10 sm:w-10">
+                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+              </Button>
           <h1 className="text-lg sm:text-xl md:text-2xl font-bold">My Favorites</h1>
         </div>
       </ScrollReveal>
@@ -71,11 +71,9 @@ export default function Favorites() {
         <ScrollReveal>
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3 sm:gap-4">
-              <Link to="/user/profile">
-                <Button variant="ghost" size="icon" className="rounded-full h-8 w-8 sm:h-10 sm:w-10">
-                  <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
-                </Button>
-              </Link>
+              <Button variant="ghost" size="icon" onClick={goBack} className="rounded-full h-8 w-8 sm:h-10 sm:w-10">
+                <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+              </Button>
               <div>
                 <h1 className="text-lg sm:text-xl md:text-2xl font-bold">My Favorites</h1>
                 <p className="text-gray-700 dark:text-gray-300 mt-1 text-sm font-semibold">

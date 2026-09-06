@@ -32,7 +32,7 @@ export default function Orders() {
   const backTarget =
     typeof location.state?.backTo === "string" && location.state.backTo.trim()
       ? location.state.backTo.trim()
-      : "/food/user"
+      : "/food/user/profile"
   const helpReturnState = { backTo: backTarget }
   // Track orders that have shown rating popup - persist in localStorage
   const [shownRatingForOrders, setShownRatingForOrders] = useState(() => {

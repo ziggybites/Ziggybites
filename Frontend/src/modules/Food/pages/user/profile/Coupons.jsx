@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom"
+import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import { useEffect, useMemo, useState } from "react"
 import { ArrowLeft, Copy, MapPin, TicketPercent } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
@@ -7,6 +8,7 @@ import { restaurantAPI } from "@food/api"
 import { toast } from "sonner"
 
 export default function Coupons() {
+  const goBack = useAppBackNavigation()
   const [loading, setLoading] = useState(true)
   const [offers, setOffers] = useState([])
 
@@ -55,11 +57,9 @@ export default function Coupons() {
       <div className="max-w-md mx-auto px-4 py-4">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">
-          <Link to="/user/profile">
-            <Button variant="ghost" size="icon" className="h-8 w-8 p-0">
-              <ArrowLeft className="h-5 w-5 text-black dark:text-white" />
-            </Button>
-          </Link>
+          <Button variant="ghost" size="icon" onClick={goBack} className="h-8 w-8 p-0">
+            <ArrowLeft className="h-5 w-5 text-black dark:text-white" />
+          </Button>
           <h1 className="text-xl font-bold text-black dark:text-white">Your coupons</h1>
         </div>
 

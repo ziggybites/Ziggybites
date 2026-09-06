@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom"
+import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import { ArrowLeft, Accessibility as AccessibilityIcon, Eye, Volume2, MousePointerClick } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Button } from "@food/components/ui/button"
@@ -8,6 +9,7 @@ import { Label } from "@food/components/ui/label"
 import { useState } from "react"
 
 export default function Accessibility() {
+  const goBack = useAppBackNavigation()
   const [largeText, setLargeText] = useState(false)
   const [highContrast, setHighContrast] = useState(false)
   const [screenReader, setScreenReader] = useState(false)
@@ -18,11 +20,9 @@ export default function Accessibility() {
       <div className="max-w-md md:max-w-2xl lg:max-w-3xl mx-auto px-4 md:px-6 lg:px-8 py-4 md:py-6 lg:py-8">
         {/* Header */}
         <div className="flex items-center gap-3 md:gap-4 mb-4 md:mb-6 lg:mb-8">
-          <Link to="/user/profile">
-            <Button variant="ghost" size="icon" className="h-8 w-8 md:h-10 md:w-10 p-0">
-              <ArrowLeft className="h-4 w-4 md:h-5 md:w-5 text-black dark:text-white" />
-            </Button>
-          </Link>
+          <Button variant="ghost" size="icon" onClick={goBack} className="h-8 w-8 md:h-10 md:w-10 p-0">
+            <ArrowLeft className="h-4 w-4 md:h-5 md:w-5 text-black dark:text-white" />
+          </Button>
           <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-black dark:text-white">Accessibility</h1>
         </div>
 

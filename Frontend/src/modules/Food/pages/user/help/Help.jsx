@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
+import useAppBackNavigation from "@food/hooks/useAppBackNavigation"
 import {
   ArrowLeft,
   Search,
@@ -192,6 +193,7 @@ const helpCategories = [
 ]
 
 export default function Help() {
+  const goBack = useAppBackNavigation()
   const [searchQuery, setSearchQuery] = useState("")
   const [expandedCategory, setExpandedCategory] = useState(null)
   const [expandedQuestion, setExpandedQuestion] = useState(null)
@@ -398,11 +400,9 @@ export default function Help() {
             <div className="absolute -left-10 bottom-0 h-28 w-28 rounded-full bg-orange-100/60 blur-2xl" />
             <div className="relative p-5 md:p-7 lg:p-9">
             <div className="flex items-center gap-3 md:gap-4 mb-6">
-              <Link to="/food/user">
-                <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full border border-slate-200 bg-white/80 p-0 text-slate-700 shadow-sm hover:bg-slate-50">
-                  <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
-                </Button>
-              </Link>
+              <Button variant="ghost" size="icon" onClick={goBack} className="h-10 w-10 rounded-full border border-slate-200 bg-white/80 p-0 text-slate-700 shadow-sm hover:bg-slate-50">
+                <ArrowLeft className="h-5 w-5 md:h-6 md:w-6" />
+              </Button>
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-orange-600">Customer Care</p>
                 <h1 className="text-3xl font-bold tracking-tight text-slate-950 md:text-4xl lg:text-5xl">Help & Support</h1>
