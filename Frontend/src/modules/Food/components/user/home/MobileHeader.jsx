@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { MapPin, ChevronDown, Search, Mic } from "lucide-react";
+import { MapPin, ChevronDown, Search, Mic, Bell } from "lucide-react";
 import { DEFAULT_APP_CUSTOMIZATION, loadAppCustomization } from "@food/utils/appCustomization";
+import useNotificationInbox from "@food/hooks/useNotificationInbox";
 
 export default function MobileHeader({ 
   effectiveLocation, 
@@ -13,6 +14,28 @@ export default function MobileHeader({
 }) {
   const navigate = useNavigate();
   const [appCustomization, setAppCustomization] = useState(DEFAULT_APP_CUSTOMIZATION);
+  const [localNotifs, setLocalNotifs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('food_user_notifications');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const { unreadCount: broadcastUnreadCount = 0 } = useNotificationInbox("user", { limit: 20 });
+
+  useEffect(() => {
+    const syncNotifications = () => {
+      try {
+        const saved = localStorage.getItem('food_user_notifications');
+        setLocalNotifs(saved ? JSON.parse(saved) : []);
+      } catch {}
+    };
+    window.addEventListener('notificationsUpdated', syncNotifications);
+    return () => window.removeEventListener('notificationsUpdated', syncNotifications);
+  }, []);
+
+  const unreadCount = (Array.isArray(localNotifs) ? localNotifs.filter(n => !n.read).length : 0) + (broadcastUnreadCount || 0);
 
   useEffect(() => {
     let mounted = true;
@@ -52,6 +75,17 @@ export default function MobileHeader({
               </div>
 
               <div className="relative z-10 ml-auto flex w-[34%] items-center justify-end gap-3 text-gray-900 dark:text-white">
+                <button
+                  type="button"
+                  onClick={() => navigate("/food/user/notifications")}
+                  className="relative p-1.5 rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition-colors flex items-center justify-center text-gray-800 dark:text-white"
+                  aria-label="Notifications"
+                >
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                  )}
+                </button>
               </div>
             </div>
 

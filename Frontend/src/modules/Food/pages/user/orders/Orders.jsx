@@ -914,16 +914,7 @@ Order again from this restaurant in the ${companyName} app.`
                     </div>
                   )}
 
-                  {/* Right Side: Reorder Button */}
-                  {isDelivered && !paymentFailed && (
-                    <button
-                      onClick={() => handleReorder(order)}
-                      className="bg-primary hover:bg-secondary text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-1 shadow-sm transition-colors"
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" />
-                      Reorder
-                    </button>
-                  )}
+
                 </div>
               </div>
             )

@@ -43,6 +43,7 @@ const PhoneNumbersPage = lazy(() => import("@food/pages/restaurant/PhoneNumbersP
 const DownloadReport = lazy(() => import("@food/pages/restaurant/DownloadReport"))
 
 const ManageOutlets = lazy(() => import("@food/pages/restaurant/ManageOutlets"))
+const Promocodes = lazy(() => import("@food/pages/restaurant/Promocodes"))
 const UpdateBankDetails = lazy(() => import("@food/pages/restaurant/UpdateBankDetails"))
 const ZoneSetup = lazy(() => import("@food/pages/restaurant/ZoneSetup"))
 const DiningReservations = lazy(() => import("@food/pages/restaurant/DiningReservations"))
@@ -109,6 +110,7 @@ export default function RestaurantRouter() {
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><UpdateBankDetails /></ProtectedRoute>} path="update-bank-details" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><DiningReservations /></ProtectedRoute>} path="reservations" />
         <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><ZoneSetup /></ProtectedRoute>} path="zone-setup" />
+        <Route element={<ProtectedRoute requiredRole="restaurant" loginPath="/food/restaurant/login"><Promocodes /></ProtectedRoute>} path="promocodes" />
           </Routes>
         </Suspense>
       </div>

@@ -32,8 +32,8 @@ export default function Promocodes() {
     try {
       setLoading(true);
       const res = await restaurantAPI.getPromocodes();
-      const list = res?.data?.data?.promocodeList || [];
-      setPromocodes(list);
+      const list = res?.data?.data?.promocodeList || res?.data?.promocodeList || [];
+      setPromocodes(Array.isArray(list) ? list : []);
     } catch (err) {
       console.error("Error fetching promocodes:", err);
       toast.error("Failed to load promo codes");
@@ -185,11 +185,11 @@ export default function Promocodes() {
                     )}
                     <div className="bg-gray-50 p-2 rounded-lg">
                       <p className="text-gray-500 mb-0.5">Expires</p>
-                      <p className="font-medium">{new Date(promo.expiryDate).toLocaleDateString()}</p>
+                      <p className="font-medium">{promo.expiryDate ? new Date(promo.expiryDate).toLocaleDateString() : "N/A"}</p>
                     </div>
                     <div className="bg-gray-50 p-2 rounded-lg">
                       <p className="text-gray-500 mb-0.5">Usage</p>
-                      <p className="font-medium">{promo.usageCount} {promo.usageLimit ? `/ ${promo.usageLimit}` : 'used'}</p>
+                      <p className="font-medium">{promo.usageCount ?? 0} {promo.usageLimit ? `/ ${promo.usageLimit}` : 'used'}</p>
                     </div>
                   </div>
 

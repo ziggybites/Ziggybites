@@ -1067,6 +1067,26 @@ export const restaurantAPI = {
     apiClient.get("/food/restaurant/withdrawals", {
       contextModule: "restaurant"
     }),
+  /** List promocodes for current restaurant. */
+  getPromocodes: () =>
+    apiClient.get("/food/promocodes", {
+      contextModule: "restaurant",
+    }),
+  /** Create a new promocode for current restaurant. */
+  createPromocode: (body) =>
+    apiClient.post("/food/promocodes", body ?? {}, {
+      contextModule: "restaurant",
+    }),
+  /** Toggle promocode status (active/inactive). */
+  togglePromocodeStatus: (id, isActive) =>
+    apiClient.patch(`/food/promocodes/${String(id)}`, { isActive: Boolean(isActive) }, {
+      contextModule: "restaurant",
+    }),
+  /** Delete a promocode. */
+  deletePromocode: (id) =>
+    apiClient.delete(`/food/promocodes/${String(id)}`, {
+      contextModule: "restaurant",
+    }),
   /** Update restaurant profile fields (name/cuisines/location/menuImages). */
   updateProfile: (body) =>
     apiClient

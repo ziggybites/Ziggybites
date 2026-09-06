@@ -60,18 +60,13 @@ export default function TaxReport() {
 
       const response = await adminAPI.getTaxReport(params)
 
-      if (response?.data?.success && response.data.data) {
-        setReports(response.data.data.reports || [])
-        setStats(response.data.data.stats || {
-          totalIncome: "₹0.00",
-          totalTax: "₹0.00"
-        })
-      } else {
-        setReports([])
-        if (response?.data?.message) {
-          toast.error(response.data.message)
-        }
-      }
+      const data = response?.data?.data || response?.data || {}
+      const reportsList = Array.isArray(data.reports) ? data.reports : []
+      setReports(reportsList)
+      setStats(data.stats || {
+        totalIncome: "₹0.00",
+        totalTax: "₹0.00"
+      })
     } catch (error) {
       debugError("Error fetching tax report:", error)
       toast.error("Failed to fetch tax report")

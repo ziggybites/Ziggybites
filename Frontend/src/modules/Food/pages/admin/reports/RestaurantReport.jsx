@@ -54,14 +54,11 @@ export default function RestaurantReport() {
 
         const response = await adminAPI.getRestaurantReport(params)
 
-        if (response?.data?.success && response.data.data) {
-          setRestaurants(response.data.data.restaurants || [])
-        } else {
-          setRestaurants([])
-          if (response?.data?.message) {
-            toast.error(response.data.message)
-          }
-        }
+        const list =
+          response?.data?.data?.restaurants ||
+          response?.data?.restaurants ||
+          (Array.isArray(response?.data?.data) ? response.data.data : [])
+        setRestaurants(Array.isArray(list) ? list : [])
       } catch (error) {
         debugError("Error fetching restaurant report:", error)
         toast.error("Failed to fetch restaurant report")
@@ -187,7 +184,7 @@ export default function RestaurantReport() {
                 >
                   <option value="All Zones">All Zones</option>
                   {zones.map(zone => (
-                    <option key={zone._id} value={zone.name}>{zone.name}</option>
+                    <option key={zone._id} value={zone._id}>{zone.name || zone.zoneName}</option>
                   ))}
                 </select>
                 <ChevronDown className="absolute right-2 bottom-2.5 w-4 h-4 text-slate-500 pointer-events-none" />
@@ -436,7 +433,7 @@ export default function RestaurantReport() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`text-sm font-medium ${
-                          restaurant.totalAdminCommission.startsWith('?-') || restaurant.totalAdminCommission.startsWith('-?')
+                          String(restaurant.totalAdminCommission || '').startsWith('?-') || String(restaurant.totalAdminCommission || '').startsWith('-?')
                             ? 'text-red-600'
                             : 'text-slate-900'
                         }`}>

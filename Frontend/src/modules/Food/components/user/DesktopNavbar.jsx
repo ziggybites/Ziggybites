@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useEffect, useState, useRef, useMemo } from "react"
-import { ChevronDown, Wallet, Search, Mic } from "lucide-react"
+import { ChevronDown, Wallet, Search, Mic, Bell } from "lucide-react"
+import useNotificationInbox from "@food/hooks/useNotificationInbox"
 import { Button } from "@food/components/ui/button"
 import { Input } from "@food/components/ui/input"
 import { Switch } from "@food/components/ui/switch"
@@ -36,6 +37,28 @@ export default function DesktopNavbar({ showLogo = true }) {
     const [appCustomization, setAppCustomization] = useState(DEFAULT_APP_CUSTOMIZATION)
     const navRef = useRef(null)
     const cartCount = getCartCount()
+    const [localNotifs, setLocalNotifs] = useState(() => {
+        try {
+            const saved = localStorage.getItem('food_user_notifications');
+            return saved ? JSON.parse(saved) : [];
+        } catch {
+            return [];
+        }
+    })
+    const { unreadCount: broadcastUnreadCount = 0 } = useNotificationInbox("user", { limit: 20 })
+
+    useEffect(() => {
+        const syncNotifications = () => {
+            try {
+                const saved = localStorage.getItem('food_user_notifications');
+                setLocalNotifs(saved ? JSON.parse(saved) : []);
+            } catch {}
+        };
+        window.addEventListener('notificationsUpdated', syncNotifications);
+        return () => window.removeEventListener('notificationsUpdated', syncNotifications);
+    }, [])
+
+    const unreadCount = (Array.isArray(localNotifs) ? localNotifs.filter(n => !n.read).length : 0) + (broadcastUnreadCount || 0)
 
 
     // Show area if available, otherwise show city
@@ -328,6 +351,20 @@ export default function DesktopNavbar({ showLogo = true }) {
 
                         {/* Right: Wallet and Cart Icons */}
                         <div className="flex items-center gap-2 lg:gap-3 flex-shrink-0">
+                            {/* Notification Bell Icon */}
+                            <Link to="/food/user/notifications">
+                                <Button
+                                    variant="ghost"
+                                    className="relative h-12 w-12 lg:h-14 lg:w-14 rounded-full p-0 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                    title="Notifications"
+                                >
+                                    <Bell className="!h-5 !w-5 lg:!h-6 lg:!w-6 text-gray-700 dark:text-gray-300" strokeWidth={2} />
+                                    {unreadCount > 0 && (
+                                        <span className="absolute top-3 right-3 h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                                    )}
+                                </Button>
+                            </Link>
+
                             {/* Wallet Icon */}
                             <Link to="/food/user/wallet">
                                 <Button

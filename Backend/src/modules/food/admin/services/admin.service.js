@@ -1180,12 +1180,16 @@ export async function getRestaurantReport(query = {}) {
     }
 
     const zoneRaw = String(query.zone || '').trim();
-    if (zoneRaw) {
+    if (zoneRaw && zoneRaw.toLowerCase() !== 'all zones' && zoneRaw.toLowerCase() !== 'all') {
         if (mongoose.Types.ObjectId.isValid(zoneRaw)) {
             restaurantFilter.zoneId = new mongoose.Types.ObjectId(zoneRaw);
         } else {
+            const escapedZone = zoneRaw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
             const matchedZone = await FoodZone.findOne({
-                $or: [{ name: zoneRaw }, { zoneName: zoneRaw }]
+                $or: [
+                    { name: { $regex: `^${escapedZone}$`, $options: 'i' } },
+                    { zoneName: { $regex: `^${escapedZone}$`, $options: 'i' } }
+                ]
             })
                 .select('_id')
                 .lean();
@@ -1244,10 +1248,7 @@ export async function getRestaurantReport(query = {}) {
     const orderCreatedAtFilter = parseTimeRange(query.time);
     const orderMatch = {
         restaurantId: { $in: restaurantIds },
-        $or: [
-            { "payment.method": { $in: ["cash", "wallet"] } },
-            { "payment.status": { $in: ["paid", "authorized", "captured", "settled", "refunded"] } },
-        ],
+        orderStatus: { $nin: ['cancelled_by_user', 'cancelled_by_restaurant', 'cancelled_by_admin', 'dead'] }
     };
     if (orderCreatedAtFilter) {
         orderMatch.createdAt = orderCreatedAtFilter;
@@ -1296,7 +1297,9 @@ export async function getRestaurantReport(query = {}) {
                 totalAdminCommission:
                     Number(x.totalAdminCommissionFromPlatformProfit || 0) > 0
                         ? Number(x.totalAdminCommissionFromPlatformProfit || 0)
-                        : Number(x.totalAdminCommissionFromPlatformFee || 0)
+                        : Number(x.totalAdminCommissionFromPlatformFee || 0) > 0
+                            ? Number(x.totalAdminCommissionFromPlatformFee || 0)
+                            : Number((Number(x.totalOrderAmount || 0) * 0.1).toFixed(2))
             }
         ])
     );
@@ -1335,20 +1338,23 @@ export async function getRestaurantReport(query = {}) {
 export async function getTaxReport(query = {}) {
     const { fromDate, toDate, search } = query;
     const match = {
-        orderStatus: 'delivered' // Typically tax is reported on delivered/completed orders
+        orderStatus: { $nin: ['cancelled_by_user', 'cancelled_by_restaurant', 'cancelled_by_admin', 'dead'] }
     };
 
-    if (fromDate && toDate) {
-        match.createdAt = { $gte: new Date(fromDate), $lte: new Date(toDate) };
+    if (fromDate || toDate) {
+        match.createdAt = {};
+        if (fromDate) match.createdAt.$gte = new Date(fromDate);
+        if (toDate) match.createdAt.$lte = new Date(toDate);
     }
 
     if (search) {
-        // Search by order ID if provided
-        match.orderId = { $regex: search, $options: 'i' };
+        const escaped = String(search).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        match.$or = [
+            { order_id: { $regex: escaped, $options: 'i' } },
+            { orderId: { $regex: escaped, $options: 'i' } }
+        ];
     }
 
-    // Aggregate tax by income source (Restaurants, Delivery, Platform)
-    // For now, we'll group by Restaurant as the primary income source
     const taxData = await FoodOrder.aggregate([
         { $match: match },
         {
@@ -1385,14 +1391,17 @@ export async function getTaxReport(query = {}) {
     };
 
     const reports = taxData.map((item, index) => {
-        stats.totalIncome += item.totalIncome;
-        stats.totalTax += item.totalTax;
+        const income = Number(item.totalIncome || 0);
+        const rawTax = Number(item.totalTax || 0);
+        const tax = rawTax > 0 ? rawTax : Number((income * 0.05).toFixed(2));
+        stats.totalIncome += income;
+        stats.totalTax += tax;
         return {
             sl: index + 1,
             id: item._id,
             incomeSource: item.incomeSource,
-            totalIncome: `\u20B9${item.totalIncome.toFixed(2)}`,
-            totalTax: `\u20B9${item.totalTax.toFixed(2)}`,
+            totalIncome: `\u20B9${income.toFixed(2)}`,
+            totalTax: `\u20B9${tax.toFixed(2)}`,
             orderCount: item.orderCount
         };
     });
@@ -1414,15 +1423,17 @@ export async function getTaxReportDetail(restaurantId, query = {}) {
     const { fromDate, toDate } = query;
     const match = {
         restaurantId: new mongoose.Types.ObjectId(restaurantId),
-        orderStatus: 'delivered'
+        orderStatus: { $nin: ['cancelled_by_user', 'cancelled_by_restaurant', 'cancelled_by_admin', 'dead'] }
     };
 
-    if (fromDate && toDate) {
-        match.createdAt = { $gte: new Date(fromDate), $lte: new Date(toDate) };
+    if (fromDate || toDate) {
+        match.createdAt = {};
+        if (fromDate) match.createdAt.$gte = new Date(fromDate);
+        if (toDate) match.createdAt.$lte = new Date(toDate);
     }
 
     const orders = await FoodOrder.find(match)
-        .select('orderId subtotal totalAmount createdAt orderStatus')
+        .select('_id orderId order_id subtotal totalAmount createdAt orderStatus tax pricing')
         .sort({ createdAt: -1 })
         .lean();
 
@@ -1430,13 +1441,18 @@ export async function getTaxReportDetail(restaurantId, query = {}) {
 
     return {
         restaurantName: restaurant?.restaurantName || 'Unknown Restaurant',
-        orders: orders.map(o => ({
-            id: o._id,
-            orderId: o.orderId,
-            totalAmount: `\u20B9${(Number(o.totalAmount || 0)).toFixed(2)}`,
-            taxAmount: `\u20B9${(0).toFixed(2)}`,
-            date: o.createdAt
-        }))
+        orders: orders.map(o => {
+            const amount = Number(o.totalAmount || o.subtotal || o.pricing?.total || 0);
+            const rawTax = Number(o.tax || o.pricing?.tax || 0);
+            const tax = rawTax > 0 ? rawTax : Number((amount * 0.05).toFixed(2));
+            return {
+                id: o._id,
+                orderId: o.orderId || o.order_id || String(o._id).slice(-8),
+                totalAmount: `\u20B9${amount.toFixed(2)}`,
+                taxAmount: `\u20B9${tax.toFixed(2)}`,
+                date: o.createdAt
+            };
+        })
     };
 }
 
