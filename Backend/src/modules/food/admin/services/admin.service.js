@@ -5309,9 +5309,21 @@ export async function getWithdrawals(query = {}) {
 
 export async function updateWithdrawalStatus(id, { status, adminNote, rejectionReason, transactionId }) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) throw new ValidationError('Invalid withdrawal ID');
-    
+    const nextStatus = String(status || '').trim().toLowerCase();
+    if (!['approved', 'rejected', 'pending'].includes(nextStatus)) {
+        throw new ValidationError('Invalid withdrawal status');
+    }
+
+    const existing = await FoodRestaurantWithdrawal.findById(id).lean();
+    if (!existing) throw new ValidationError('Withdrawal request not found');
+
+    const previousStatus = String(existing.status || '').trim().toLowerCase();
+    if (previousStatus !== 'pending' && previousStatus !== nextStatus) {
+        throw new ValidationError('Only pending withdrawal requests can be updated');
+    }
+
     const update = {
-        status: String(status).toLowerCase(),
+        status: nextStatus,
         adminNote,
         rejectionReason,
         transactionId,
@@ -5325,6 +5337,39 @@ export async function updateWithdrawalStatus(id, { status, adminNote, rejectionR
     ).populate('restaurantId', 'restaurantName').lean();
 
     if (!updated) throw new ValidationError('Withdrawal request not found');
+
+    if (previousStatus === 'pending' && nextStatus !== 'pending') {
+        const amount = Number(existing.amount || 0);
+        if (amount > 0) {
+            const walletUpdate = nextStatus === 'approved'
+                ? [
+                      {
+                          $set: {
+                              balance: { $subtract: [{ $ifNull: ['$balance', 0] }, amount] },
+                              lockedAmount: {
+                                  $max: [0, { $subtract: [{ $ifNull: ['$lockedAmount', 0] }, amount] }]
+                              },
+                              totalSettled: { $add: [{ $ifNull: ['$totalSettled', 0] }, amount] }
+                          }
+                      }
+                  ]
+                : [
+                      {
+                          $set: {
+                              lockedAmount: {
+                                  $max: [0, { $subtract: [{ $ifNull: ['$lockedAmount', 0] }, amount] }]
+                              }
+                          }
+                      }
+                  ];
+
+            await FoodRestaurantWallet.updateOne(
+                { restaurantId: existing.restaurantId },
+                walletUpdate
+            );
+        }
+    }
+
     return updated;
 }
 

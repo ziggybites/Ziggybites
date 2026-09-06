@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate } from "react-router-dom"
-import { Search, Menu, ChevronRight, MapPin, X, Bell, HelpCircle } from "lucide-react"
+import { Bell, MapPin, X } from "lucide-react"
 import { restaurantAPI } from "@food/api"
 import { getCachedSettings, loadBusinessSettings } from "@food/utils/businessSettings"
 import useNotificationInbox from "@food/hooks/useNotificationInbox"
@@ -27,81 +27,18 @@ const getEffectiveOnlineState = (restaurant) =>
 export default function RestaurantNavbar({
   restaurantName: propRestaurantName,
   location: propLocation,
-  showSearch = true,
   showOfflineOnlineTag = true,
   showNotifications = true,
 }) {
   const navigate = useNavigate()
-  const [isSearchActive, setIsSearchActive] = useState(false)
-  const [searchValue, setSearchValue] = useState("")
   const [status, setStatus] = useState("Offline")
   const [restaurantData, setRestaurantData] = useState(null)
   const [liveOutletTimings, setLiveOutletTimings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [companyName, setCompanyName] = useState("")
   const [logoUrl, setLogoUrl] = useState(null)
-  const searchTimeoutRef = useRef(null)
   const { unreadCount } = useNotificationInbox("restaurant", { limit: 20, pollMs: 5 * 60 * 1000 })
   const { newReservation, clearNewReservation } = useRestaurantNotifications();
-
-  // Global search effect
-  useEffect(() => {
-    // Clear previous timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current)
-    }
-
-    if (searchValue.trim() === "") {
-      // Dispatch empty search event
-      window.dispatchEvent(
-        new CustomEvent("restaurantSearchUpdated", {
-          detail: { query: "", results: [], isLoading: false },
-        }),
-      )
-      return
-    }
-
-    // Set loading state
-    window.dispatchEvent(
-      new CustomEvent("restaurantSearchUpdated", {
-        detail: { query: searchValue, results: [], isLoading: true },
-      }),
-    )
-
-    // Debounce search API call
-    searchTimeoutRef.current = setTimeout(async () => {
-      try {
-        const response = await restaurantAPI.getOrders({
-          page: 1,
-          limit: 100,
-          search: searchValue,
-        })
-        
-        if (response.data.success) {
-          window.dispatchEvent(
-            new CustomEvent("restaurantSearchUpdated", {
-              detail: {
-                query: searchValue,
-                results: response.data.data.orders || [],
-                isLoading: false,
-              },
-            }),
-          )
-        }
-      } catch (error) {
-        debugError("Search error:", error)
-        window.dispatchEvent(
-          new CustomEvent("restaurantSearchUpdated", {
-            detail: { query: searchValue, results: [], isLoading: false, error },
-          }),
-        )
-      }
-    }, 500)
-
-    return () => {
-      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current)
-    }
-  }, [searchValue])
 
   // Load business settings for branding
   useEffect(() => {
@@ -355,53 +292,12 @@ export default function RestaurantNavbar({
     navigate("/food/restaurant/status")
   }
 
-  const handleSearchClick = () => {
-    setIsSearchActive(true)
-  }
-
-  const handleSearchClose = () => {
-    setIsSearchActive(false)
-    setSearchValue("")
-  }
-
-  const handleSearchChange = (e) => {
-    setSearchValue(e.target.value)
-  }
-
-  const handleMenuClick = () => {
-    navigate("/food/restaurant/explore")
-  }
-
   const handleNotificationsClick = () => {
     navigate("/food/restaurant/notifications")
   }
 
   return (
     <div className="w-full bg-gradient-to-r from-[#B80B3D] to-[#66001D] rounded-b-[24px] shadow-lg px-4 pt-5 pb-5 flex items-center justify-between relative">
-      {/* Search Overlay */}
-      {isSearchActive && (
-        <div className="absolute inset-0 bg-white z-50 flex items-center px-4 gap-3">
-          <div className="flex-1 relative flex items-center">
-            <Search className="absolute left-0 w-5 h-5 text-gray-400" />
-            <input
-              type="text"
-              value={searchValue}
-              onChange={handleSearchChange}
-              placeholder="Search by order ID or dish name"
-              className="w-full pl-8 pr-4 py-2 text-gray-900 placeholder-gray-500 font-medium focus:outline-none"
-              autoFocus
-            />
-          </div>
-          <button
-            onClick={handleSearchClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition-colors shrink-0"
-            aria-label="Close search"
-          >
-            <X className="w-5 h-5 text-gray-700" />
-          </button>
-        </div>
-      )}
-
       {/* Left Side - Restaurant Info */}
       <div className="flex-1 min-w-0 pr-4 flex items-center gap-3">
         {logoUrl && (
@@ -449,17 +345,6 @@ export default function RestaurantNavbar({
             <span className="text-sm font-bold text-white tracking-wide">
               {status}
             </span>
-          </button>
-        )}
-
-        {/* Search Icon */}
-        {showSearch && (
-          <button
-            onClick={handleSearchClick}
-            className="p-2 ml-1 hover:bg-white/10 rounded-full transition-colors"
-            aria-label="Search"
-          >
-            <Search className="w-5 h-5 text-white" />
           </button>
         )}
 

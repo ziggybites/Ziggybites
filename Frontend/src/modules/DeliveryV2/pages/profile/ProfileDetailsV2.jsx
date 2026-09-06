@@ -13,6 +13,8 @@ import { deliveryAPI } from "@food/api"
 import { motion, AnimatePresence } from "framer-motion"
 import useDeliveryBackNavigation from "../../hooks/useDeliveryBackNavigation"
 
+const formatBankName = (value) => String(value || "").trim().replace(/\s+/g, " ").toUpperCase()
+
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -132,10 +134,10 @@ export const ProfileDetailsV2 = () => {
           setVehicleInput({ number: vNum, brand: vBrand, type: vType })
           // Set bank details
           setBankDetails({
-            accountHolderName: profileData?.documents?.bankDetails?.accountHolderName || "",
+            accountHolderName: formatBankName(profileData?.documents?.bankDetails?.accountHolderName),
             accountNumber: profileData?.documents?.bankDetails?.accountNumber || "",
             ifscCode: profileData?.documents?.bankDetails?.ifscCode || "",
-            bankName: profileData?.documents?.bankDetails?.bankName || "",
+            bankName: formatBankName(profileData?.documents?.bankDetails?.bankName),
             panNumber: profileData?.documents?.pan?.number || "",
             upiId: profileData?.documents?.bankDetails?.upiId || "",
             upiQrCode: profileData?.documents?.bankDetails?.upiQrCode || null
@@ -240,10 +242,10 @@ export const ProfileDetailsV2 = () => {
       setProfile(response.data.data.profile)
       const pd = response.data.data.profile
       setBankDetails({
-        accountHolderName: pd?.documents?.bankDetails?.accountHolderName || "",
+        accountHolderName: formatBankName(pd?.documents?.bankDetails?.accountHolderName),
         accountNumber: pd?.documents?.bankDetails?.accountNumber || "",
         ifscCode: pd?.documents?.bankDetails?.ifscCode || "",
-        bankName: pd?.documents?.bankDetails?.bankName || "",
+        bankName: formatBankName(pd?.documents?.bankDetails?.bankName),
         panNumber: pd?.documents?.pan?.number || "",
         upiId: pd?.documents?.bankDetails?.upiId || "",
         upiQrCode: pd?.documents?.bankDetails?.upiQrCode || null
@@ -400,10 +402,10 @@ export const ProfileDetailsV2 = () => {
 
       // Send as FormData to support optional QR upload
       const formData = new FormData()
-      formData.append("documents[bankDetails][accountHolderName]", (bankDetails.accountHolderName || "").trim())
+      formData.append("documents[bankDetails][accountHolderName]", formatBankName(bankDetails.accountHolderName))
       formData.append("documents[bankDetails][accountNumber]", (bankDetails.accountNumber || "").trim())
       formData.append("documents[bankDetails][ifscCode]", (bankDetails.ifscCode || "").trim().toUpperCase())
-      formData.append("documents[bankDetails][bankName]", (bankDetails.bankName || "").trim())
+      formData.append("documents[bankDetails][bankName]", formatBankName(bankDetails.bankName))
       formData.append("documents[bankDetails][upiId]", (bankDetails.upiId || "").trim())
       formData.append("documents[pan][number]", (bankDetails.panNumber || "").trim().toUpperCase())
 
@@ -582,10 +584,10 @@ export const ProfileDetailsV2 = () => {
                 onClick={() => {
                   // Reset state to current profile data when opening
                   setBankDetails({
-                    accountHolderName: profile?.documents?.bankDetails?.accountHolderName || "",
+                    accountHolderName: formatBankName(profile?.documents?.bankDetails?.accountHolderName),
                     accountNumber: profile?.documents?.bankDetails?.accountNumber || "",
                     ifscCode: profile?.documents?.bankDetails?.ifscCode || "",
-                    bankName: profile?.documents?.bankDetails?.bankName || "",
+                    bankName: formatBankName(profile?.documents?.bankDetails?.bankName),
                     panNumber: profile?.documents?.pan?.number || "",
                     upiId: profile?.documents?.bankDetails?.upiId || "",
                     upiQrCode: profile?.documents?.bankDetails?.upiQrCode || null
@@ -854,10 +856,10 @@ export const ProfileDetailsV2 = () => {
         <div className="space-y-5 pb-10">
           <div className="grid gap-4">
              {[
-               { label: "Account Holder", key: "accountHolderName", icon: User, maxLength: 60 },
+               { label: "Account Holder", key: "accountHolderName", icon: User, format: (v) => v.toUpperCase(), maxLength: 60 },
                { label: "Account Number", key: "accountNumber", icon: Banknote, maxLength: 20, isNumeric: true },
                { label: "IFSC Code", key: "ifscCode", icon: Shield, format: (v) => v.toUpperCase(), maxLength: 11 },
-               { label: "Bank Name", key: "bankName", icon: MapPin, maxLength: 60 },
+               { label: "Bank Name", key: "bankName", icon: MapPin, format: (v) => v.toUpperCase(), maxLength: 60 },
                { label: "PAN Number", key: "panNumber", icon: FileText, format: (v) => v.toUpperCase(), maxLength: 10 },
                { label: "UPI ID", key: "upiId", icon: Smartphone, maxLength: 60 }
              ].map((field) => (

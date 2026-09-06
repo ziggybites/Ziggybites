@@ -27,9 +27,31 @@ export default function BottomNavOrders() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
+  const [isTextInputFocused, setIsTextInputFocused] = useState(false)
 
   // Hide bottom nav when keyboard is open (standard mobile UX)
   useEffect(() => {
+    const isEditableElement = (element) => {
+      if (!element) return false
+      const tagName = element.tagName?.toLowerCase()
+      const inputType = element.getAttribute?.("type")?.toLowerCase()
+      return (
+        tagName === "textarea" ||
+        element.isContentEditable ||
+        (tagName === "input" && !["button", "checkbox", "file", "radio", "range", "reset", "submit"].includes(inputType))
+      )
+    }
+
+    const handleFocusIn = (event) => {
+      setIsTextInputFocused(isEditableElement(event.target))
+    }
+
+    const handleFocusOut = () => {
+      window.setTimeout(() => {
+        setIsTextInputFocused(isEditableElement(document.activeElement))
+      }, 0)
+    }
+
     const handleResize = () => {
       if (window.visualViewport) {
         // If the visual viewport is significantly smaller than innerHeight, keyboard is open
@@ -39,17 +61,29 @@ export default function BottomNavOrders() {
     }
 
     if (window.visualViewport) {
+      document.addEventListener("focusin", handleFocusIn)
+      document.addEventListener("focusout", handleFocusOut)
       window.visualViewport.addEventListener('resize', handleResize)
       // Initial check
       handleResize()
-      return () => window.visualViewport.removeEventListener('resize', handleResize)
+      return () => {
+        document.removeEventListener("focusin", handleFocusIn)
+        document.removeEventListener("focusout", handleFocusOut)
+        window.visualViewport.removeEventListener('resize', handleResize)
+      }
     } else {
       // Fallback for older browsers
       const handleWindowResize = () => {
         setIsKeyboardVisible(window.innerHeight < 550)
       }
+      document.addEventListener("focusin", handleFocusIn)
+      document.addEventListener("focusout", handleFocusOut)
       window.addEventListener('resize', handleWindowResize)
-      return () => window.removeEventListener('resize', handleWindowResize)
+      return () => {
+        document.removeEventListener("focusin", handleFocusIn)
+        document.removeEventListener("focusout", handleFocusOut)
+        window.removeEventListener('resize', handleWindowResize)
+      }
     }
   }, [])
 
@@ -65,15 +99,15 @@ export default function BottomNavOrders() {
 
   const tabs = useMemo(() => getOrdersTabs(basePath), [basePath])
 
-  const isInternalPage = pathname.includes("/create-offers")
-  if (isInternalPage || isKeyboardVisible) {
-    return null
-  }
-
   const activeTab = useMemo(() => {
     const match = findActiveTab(tabs, pathname)
     return match?.id || "orders"
   }, [tabs, pathname])
+
+  const isInternalPage = pathname.includes("/create-offers")
+  if (isInternalPage || isKeyboardVisible || isTextInputFocused) {
+    return null
+  }
 
   const handleTabClick = (tab) => {
     if (tab.route && tab.route !== pathname) {

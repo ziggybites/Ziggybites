@@ -1,23 +1,41 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import useRestaurantBackNavigation from "@food/hooks/useRestaurantBackNavigation"
-import { ArrowLeft, Star, ChevronRight } from "lucide-react"
-import { restaurantAPI } from "@food/api"
+import { ArrowLeft, Star, ChevronRight, Loader2, Upload, X } from "lucide-react"
+import { restaurantAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
 import { Input } from "@food/components/ui/input"
-import { Button } from "@food/components/ui/button"
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@food/components/ui/dialog"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
 import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
 
 const debugLog = (...args) => {}
 const debugError = (...args) => {}
+
+const UPI_ID_REGEX = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/
+
+const formatRating = (value) => {
+  const rating = Number(value)
+  return Number.isFinite(rating) && rating > 0 ? rating.toFixed(1) : "0.0"
+}
+
+const formatRatingCount = (value) => {
+  const count = Number(value)
+  return Number.isFinite(count) && count > 0 ? Math.round(count) : 0
+}
+
+const getDocumentUrl = (document) => {
+  if (!document) return ""
+  if (typeof document === "string") return document
+  return document.url || document.secure_url || document.path || ""
+}
+
+const isPdfDocument = (url) => /\.pdf($|\?)/i.test(String(url || ""))
 
 export default function OutletInfo() {
   const navigate = useNavigate()
@@ -35,14 +53,17 @@ export default function OutletInfo() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [imageType, setImageType] = useState(null)
   const [uploadingCount, setUploadingCount] = useState(0)
+  const [uploadingUpiQr, setUploadingUpiQr] = useState(false)
   
   const profileImageInputRef = useRef(null)
   const menuImageInputRef = useRef(null)
+  const upiQrInputRef = useRef(null)
   const [activePicker, setActivePicker] = useState(null)
   const [editModalOpen, setEditModalOpen] = useState(false)
   const [editSection, setEditSection] = useState(null)
   const [editFormData, setEditFormData] = useState({})
   const [savingEdit, setSavingEdit] = useState(false)
+  const [documentPreview, setDocumentPreview] = useState(null)
 
   // Fetch restaurant data on mount
   useEffect(() => {
@@ -189,6 +210,45 @@ export default function OutletInfo() {
     setEditModalOpen(true)
   }
 
+  const handleUpiQrUpload = async (file) => {
+    if (!file) return
+    try {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image size too large. Max 5MB allowed.")
+        return
+      }
+
+      setUploadingUpiQr(true)
+      const response = await uploadAPI.uploadMedia(file, { folder: "food/restaurants/upi-qr" })
+      const url =
+        response?.data?.data?.url ||
+        response?.data?.url ||
+        ""
+
+      if (!url) throw new Error("Upload failed")
+
+      setEditFormData((previous) => ({
+        ...previous,
+        upiQrImage: url,
+        upiImage: url,
+      }))
+      toast.success("UPI QR uploaded successfully")
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error?.message || "Failed to upload UPI QR image")
+    } finally {
+      setUploadingUpiQr(false)
+    }
+  }
+
+  const handleDocumentPreview = (title, document) => {
+    const url = getDocumentUrl(document)
+    if (!url) {
+      toast.error(`${title} is not uploaded yet.`)
+      return
+    }
+    setDocumentPreview({ title, url })
+  }
+
   const handleEditSave = async () => {
     try {
       setSavingEdit(true)
@@ -209,7 +269,13 @@ export default function OutletInfo() {
         payload.accountHolderName = editFormData.accountHolderName
         payload.accountNumber = editFormData.accountNumber
         payload.ifscCode = editFormData.ifscCode
-        payload.upiId = editFormData.upiId
+        const upiId = String(editFormData.upiId || "").trim()
+        if (upiId && !UPI_ID_REGEX.test(upiId)) {
+          toast.error("Enter a valid UPI ID, e.g. name@bank")
+          return
+        }
+        payload.upiId = upiId
+        payload.upiQrImage = getDocumentUrl(editFormData.upiQrImage || editFormData.upiImage)
       }
       
       await restaurantAPI.updateProfile(payload)
@@ -351,11 +417,11 @@ export default function OutletInfo() {
         {/* Ratings */}
         <div className="px-4 py-4 border-b border-gray-100 flex items-center gap-3.5">
           <div className="bg-[#E91E63] px-2 py-1 rounded-[6px] flex items-center gap-1 shadow-sm">
-            <span className="text-white font-black text-sm">{restaurantData?.rating?.toFixed(1) || "5.0"}</span>
+            <span className="text-white font-black text-sm">{formatRating(restaurantData?.rating)}</span>
             <Star className="w-3.5 h-3.5 text-white fill-white mb-[1px]" />
           </div>
-          <div className="flex items-center text-[#E91E63] font-black text-sm uppercase tracking-wide cursor-pointer hover:underline" onClick={() => navigate("/food/restaurant/feedback")}>
-            {restaurantData?.totalRatings || 1} DELIVERY REVIEWS
+          <div className="flex items-center text-[#E91E63] font-black text-sm uppercase tracking-wide cursor-pointer hover:underline" onClick={() => navigate("/food/restaurant/feedback?tab=reviews")}>
+            {formatRatingCount(restaurantData?.totalRatings)} USER REVIEWS
             <ChevronRight className="w-4 h-4 ml-0.5" />
           </div>
         </div>
@@ -446,14 +512,14 @@ export default function OutletInfo() {
               <div>
                 <p className="text-[13px] text-gray-500 font-medium mb-0.5">FSSAI document</p>
                 <div className="flex gap-4 mt-1.5">
-                  <button className="text-[#2563EB] text-[15px] font-bold hover:underline tracking-tight" onClick={() => window.open(restaurantData?.fssaiImage?.url || restaurantData?.fssaiImage, "_blank")}>View image</button>
+                  <button className="text-[#2563EB] text-[15px] font-bold hover:underline tracking-tight" onClick={() => handleDocumentPreview("FSSAI document", restaurantData?.fssaiImage)}>View image</button>
                   <button className="text-[#2563EB] text-[15px] font-bold hover:underline tracking-tight">Upload</button>
                 </div>
               </div>
               <div>
                 <p className="text-[13px] text-gray-500 font-medium mb-0.5">PAN document</p>
                 <div className="flex gap-4 mt-1.5">
-                  <button className="text-[#2563EB] text-[15px] font-bold hover:underline tracking-tight" onClick={() => window.open(restaurantData?.panImage?.url || restaurantData?.panImage, "_blank")}>View image</button>
+                  <button className="text-[#2563EB] text-[15px] font-bold hover:underline tracking-tight" onClick={() => handleDocumentPreview("PAN document", restaurantData?.panImage)}>View image</button>
                   <button className="text-[#2563EB] text-[15px] font-bold hover:underline tracking-tight">Upload</button>
                 </div>
               </div>
@@ -493,7 +559,7 @@ export default function OutletInfo() {
               </div>
               <div>
                 <p className="text-[13px] text-gray-500 font-medium mb-0.5">UPI QR image</p>
-                <p className="text-[15px] font-bold text-gray-900">{restaurantData?.upiImage ? "Uploaded" : "Not uploaded"}</p>
+                <p className="text-[15px] font-bold text-gray-900">{getDocumentUrl(restaurantData?.upiQrImage || restaurantData?.upiImage) ? "Uploaded" : "Not uploaded"}</p>
               </div>
             </div>
           </div>
@@ -572,7 +638,53 @@ export default function OutletInfo() {
                 </div>
                 <div>
                   <label className="text-[13px] font-bold text-gray-700 mb-1.5 block tracking-wide">UPI ID</label>
-                  <Input className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white focus:ring-2 focus:ring-[#E91E63]/20 focus:border-[#E91E63] transition-all text-base px-4" value={editFormData.upiId || ''} onChange={e => setEditFormData({...editFormData, upiId: e.target.value})} placeholder="Enter UPI ID (optional)" />
+                  <Input className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white focus:ring-2 focus:ring-[#E91E63]/20 focus:border-[#E91E63] transition-all text-base px-4" value={editFormData.upiId || ''} onChange={e => setEditFormData({...editFormData, upiId: e.target.value.trim()})} placeholder="name@bank" inputMode="email" pattern="[a-zA-Z0-9.\\-_]{2,256}@[a-zA-Z]{2,64}" />
+                  <p className="mt-1 text-xs font-medium text-gray-500">Format: name@bank, for example rahul@okicici</p>
+                </div>
+                <div>
+                  <label className="text-[13px] font-bold text-gray-700 mb-1.5 block tracking-wide">UPI QR Image</label>
+                  <div className="flex items-center gap-3">
+                    {getDocumentUrl(editFormData.upiQrImage || editFormData.upiImage) ? (
+                      <img
+                        src={getDocumentUrl(editFormData.upiQrImage || editFormData.upiImage)}
+                        alt="UPI QR"
+                        className="h-24 w-24 rounded-xl border border-gray-200 bg-white object-contain"
+                      />
+                    ) : (
+                      <div className="h-24 w-24 rounded-xl border border-dashed border-gray-300 bg-gray-50 flex items-center justify-center text-center text-[11px] font-semibold text-gray-400">
+                        No QR uploaded
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <button
+                        type="button"
+                        onClick={() => handleImageClick('upiQr', upiQrInputRef, "Upload UPI QR Image")}
+                        disabled={uploadingUpiQr}
+                        className="inline-flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-800 shadow-sm transition-colors hover:bg-gray-50 disabled:opacity-70"
+                      >
+                        {uploadingUpiQr ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Uploading...
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-4 w-4" />
+                            Upload QR
+                          </>
+                        )}
+                      </button>
+                      <input
+                        ref={upiQrInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingUpiQr}
+                        onChange={(e) => handleUpiQrUpload(e.target.files?.[0])}
+                      />
+                      <p className="mt-1.5 text-xs font-medium text-gray-500">Upload a clear QR image under 5MB.</p>
+                    </div>
+                  </div>
                 </div>
               </>
             )}
@@ -595,6 +707,43 @@ export default function OutletInfo() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!documentPreview} onOpenChange={(open) => !open && setDocumentPreview(null)}>
+        <DialogContent className="w-[94%] sm:max-w-2xl rounded-[24px] p-0 overflow-hidden bg-white shadow-2xl border-0 gap-0">
+          <DialogHeader className="px-5 py-4 border-b border-gray-100 bg-gray-50/70">
+            <div className="flex items-center justify-between gap-3">
+              <DialogTitle className="text-[18px] font-black text-gray-900 tracking-tight text-left">
+                {documentPreview?.title || "Document"}
+              </DialogTitle>
+              <button
+                type="button"
+                onClick={() => setDocumentPreview(null)}
+                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+                aria-label="Close document preview"
+              >
+                <X className="w-5 h-5 text-gray-700" />
+              </button>
+            </div>
+          </DialogHeader>
+          <div className="p-4 bg-gray-100">
+            <div className="h-[70vh] max-h-[620px] overflow-hidden rounded-2xl bg-white border border-gray-200 flex items-center justify-center">
+              {documentPreview?.url && isPdfDocument(documentPreview.url) ? (
+                <iframe
+                  src={documentPreview.url}
+                  title={documentPreview.title || "Document preview"}
+                  className="w-full h-full"
+                />
+              ) : (
+                <img
+                  src={documentPreview?.url}
+                  alt={documentPreview?.title || "Document preview"}
+                  className="max-h-full max-w-full object-contain"
+                />
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       
       <ImageSourcePicker
         isOpen={!!activePicker}
@@ -602,6 +751,8 @@ export default function OutletInfo() {
         onFileSelect={(file) => {
           if (activePicker?.type === 'profile') {
             handleProfileImageReplace(file)
+          } else if (activePicker?.type === 'upiQr') {
+            handleUpiQrUpload(file)
           } else {
             handleCoverImageAdd(file)
           }

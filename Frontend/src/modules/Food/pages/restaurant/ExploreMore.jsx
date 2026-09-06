@@ -1760,7 +1760,7 @@ export default function ExploreMore() {
           </>
         )}
       </AnimatePresence>
-      <BottomNavOrders />
+      {!searchOpen && <BottomNavOrders />}
     </motion.div>
   )
 }

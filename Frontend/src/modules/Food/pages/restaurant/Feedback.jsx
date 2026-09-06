@@ -84,6 +84,7 @@ export default function Feedback() {
   })
   const [isFilterLoading, setIsFilterLoading] = useState(false)
   const [displayedReviews, setDisplayedReviews] = useState([])
+  const [reviewSearchQuery, setReviewSearchQuery] = useState("")
   
   const [isComplaintsFilterOpen, setIsComplaintsFilterOpen] = useState(false)
   const [selectedComplaintsFilterCategory, setSelectedComplaintsFilterCategory] = useState("issueType")
@@ -288,6 +289,25 @@ export default function Feedback() {
 
   useEffect(() => {
     let filtered = [...reviews]
+    const query = reviewSearchQuery.trim().toLowerCase()
+
+    if (query) {
+      filtered = filtered.filter((review) => {
+        const searchableText = [
+          review.userName,
+          review.orderNumber,
+          review.reviewText,
+          review.date,
+          review.rating,
+        ]
+          .filter((value) => value !== null && value !== undefined)
+          .join(" ")
+          .toLowerCase()
+
+        return searchableText.includes(query)
+      })
+    }
+
     if (filterValues.sortBy) {
       filtered.sort((a, b) => {
         const dateA = new Date(a.date); const dateB = new Date(b.date)
@@ -299,9 +319,9 @@ export default function Feedback() {
       })
     }
     setDisplayedReviews(filtered)
-  }, [reviews, filterValues])
+  }, [reviews, filterValues, reviewSearchQuery])
 
-  const handleFilterReset = () => { setFilterValues({ duration: null, sortBy: "newest", reviewType: [] }); setIsFilterApply() }
+  const handleFilterReset = () => { setFilterValues({ duration: null, sortBy: "newest", reviewType: [] }) }
   const handleFilterApply = () => { setIsFilterLoading(true); setIsFilterOpen(false); setTimeout(() => setIsFilterLoading(false), 200) }
 
   const formatDate = (date) => {
@@ -436,6 +456,26 @@ export default function Feedback() {
         {activeTab === "complaints" ? (
           <div className="space-y-4">
             <div className="flex gap-2">
+              <div className="flex-[1.5] bg-white dark:bg-[#1a1a1a] p-3 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center gap-2">
+                <Search className="w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={complaintsSearchQuery}
+                  onChange={(event) => setComplaintsSearchQuery(event.target.value)}
+                  placeholder="Search complaints"
+                  className="min-w-0 flex-1 text-sm bg-transparent focus:outline-none dark:text-white"
+                />
+                {complaintsSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setComplaintsSearchQuery("")}
+                    className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    aria-label="Clear complaints search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
               <button onClick={() => setIsDateSelectorOpen(true)} className="flex-1 bg-white dark:bg-[#1a1a1a] p-3 rounded-xl border border-gray-200 dark:border-gray-800 flex justify-between items-center">
                 <div className="text-left">
                   <p className="text-xs font-bold text-gray-900 dark:text-white">{selectedDateRange}</p>
@@ -498,7 +538,23 @@ export default function Feedback() {
             <div className="flex gap-2">
               <div className="flex-1 bg-white dark:bg-[#1a1a1a] p-3 rounded-xl border border-gray-200 dark:border-gray-800 flex items-center gap-2">
                 <Search className="w-4 h-4 text-gray-400" />
-                <input type="text" placeholder="Search reviews" className="flex-1 text-sm bg-transparent focus:outline-none dark:text-white" />
+                <input
+                  type="text"
+                  value={reviewSearchQuery}
+                  onChange={(event) => setReviewSearchQuery(event.target.value)}
+                  placeholder="Search reviews"
+                  className="min-w-0 flex-1 text-sm bg-transparent focus:outline-none dark:text-white"
+                />
+                {reviewSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setReviewSearchQuery("")}
+                    className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    aria-label="Clear reviews search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
               <button onClick={() => setIsFilterOpen(true)} className="bg-white dark:bg-[#1a1a1a] p-3 rounded-xl border border-gray-200 dark:border-gray-800">
                 <SlidersHorizontal className="w-4 h-4 text-gray-900 dark:text-white" />
@@ -624,10 +680,10 @@ export default function Feedback() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1a1a1a] rounded-t-[32px] shadow-2xl z-50 overflow-hidden"
+              className="fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1a1a1a] rounded-t-[32px] shadow-2xl z-[80] overflow-hidden"
               style={{ maxHeight: "80vh" }}
             >
-              <div className="p-6 flex flex-col h-full">
+              <div className="p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] flex flex-col h-full">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-xl font-bold font-primary text-slate-900 dark:text-white">Filters</h3>
                   <button onClick={() => setIsComplaintsFilterOpen(false)} className="p-2 hover:bg-slate-50 dark:hover:bg-gray-800 rounded-full transition-colors">
@@ -681,7 +737,9 @@ export default function Feedback() {
           </>
         )}
       </AnimatePresence>
-      <BottomNavOrders />
+      {!(isDateSelectorOpen || isCustomDateOpen || isComplaintsFilterOpen || isFilterOpen) && (
+        <BottomNavOrders />
+      )}
     </div>
   )
 }

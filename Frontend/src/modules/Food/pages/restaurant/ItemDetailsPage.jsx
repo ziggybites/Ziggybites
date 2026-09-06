@@ -69,6 +69,7 @@ export default function ItemDetailsPage() {
   const [itemSizeUnit, setItemSizeUnit] = useState("piece")
   const [itemDescription, setItemDescription] = useState("")
   const [foodType, setFoodType] = useState("Non-Veg")
+  const [foodTag, setFoodTag] = useState("Normal")
   const [basePrice, setBasePrice] = useState("")
   const [variants, setVariants] = useState([])
   const [preparationTime, setPreparationTime] = useState("")
@@ -124,6 +125,7 @@ export default function ItemDetailsPage() {
     setItemSizeUnit(item.itemSizeUnit || "piece")
     setItemDescription(item.description || "")
     setFoodType(item.foodType === "Veg" ? "Veg" : "Non-Veg")
+    setFoodTag(item.tag === "Healthy" ? "Healthy" : "Normal")
     const itemVariants = getFoodVariants(item)
     setVariants(itemVariants.map(createVariantDraft))
     setBasePrice(itemVariants.length === 0 ? item.price?.toString() || "" : "")
@@ -677,6 +679,7 @@ export default function ItemDetailsPage() {
           variants: variantPayload,
           image: allImageUrls.length > 0 ? allImageUrls[0] : "",
           foodType: foodType,
+          tag: foodTag,
           isAvailable: isInStock,
           preparationTime: preparationTime || "",
           categoryId: categoryId || undefined,
@@ -699,6 +702,7 @@ export default function ItemDetailsPage() {
           variants: variantPayload,
           image: allImageUrls.length > 0 ? allImageUrls[0] : "",
           foodType: foodType,
+          tag: foodTag,
           isAvailable: isInStock,
           preparationTime: preparationTime || "",
           categoryId: categoryId || undefined,
@@ -1023,6 +1027,31 @@ export default function ItemDetailsPage() {
                   <span>Non-Veg</span>
                 </button>
               )}
+            </div>
+
+            <div className="mt-3">
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                Item tag
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {["Normal", "Healthy"].map((tagOption) => (
+                  <button
+                    key={tagOption}
+                    type="button"
+                    onClick={() => setFoodTag(tagOption)}
+                    className={`flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                      foodTag === tagOption
+                        ? tagOption === "Healthy"
+                          ? "border-2 border-emerald-600 text-emerald-700 bg-emerald-50"
+                          : "border-2 border-slate-800 text-slate-900 bg-slate-50"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {foodTag === tagOption && <Check className="w-4 h-4" />}
+                    <span>{tagOption}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

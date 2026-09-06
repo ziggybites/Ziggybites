@@ -42,6 +42,8 @@ const MENU_FILTER_OPTIONS = [
   { value: "in-stock", label: "In stock" },
   { value: "out-of-stock", label: "Out of stock" },
   { value: "recommended", label: "Recommended" },
+  { value: "healthy", label: "Healthy" },
+  { value: "normal", label: "Normal" },
   { value: "veg", label: "Veg" },
   { value: "non-veg", label: "Non-veg" },
 ]
@@ -225,6 +227,11 @@ const getRuleStatusLabel = (rule) => {
   if (rule.mode === "next-business-day") return `Back next business day at ${formatted}`
   if (rule.mode === "custom-date-time") return `Out of stock until ${formatted}`
   return "Out of stock"
+}
+
+const getStockRuleResumeMs = (rule) => {
+  const resumeAtMs = new Date(rule?.resumeAt || "").getTime()
+  return Number.isFinite(resumeAtMs) ? resumeAtMs : null
 }
 
 // Time Picker Wheel Component (copied from DaySlots.jsx)
@@ -800,8 +807,7 @@ export default function Inventory() {
   const addonImageInputRef = useRef(null)
 
   // Swipe gesture refs
-  const touchStartX = useRef(0)
-  const touchStartY = useRef(0)
+  const touchState = useRef({ startX: 0, endX: 0, startY: 0 })
   const isSwiping = useRef(false)
   const mouseStartX = useRef(0)
 
@@ -859,10 +865,10 @@ export default function Inventory() {
     try {
       setIsUploadingBulk(true);
       const XLSX = await loadXlsx();
-      const headers = ["Name", "Description", "Price", "Category Name", "Food Type (Veg/Non-Veg)", "Preparation Time", "Is Available (TRUE/FALSE)", "Image URL", "Variants (Name:Price, Name:Price)"];
+      const headers = ["Name", "Description", "Price", "Category Name", "Food Type (Veg/Non-Veg)", "Item Tag (Healthy/Normal)", "Preparation Time", "Is Available (TRUE/FALSE)", "Image URL", "Variants (Name:Price, Name:Price)"];
       const rows = [
-        ["Chicken Dum Biryani", "Authentic slow-cooked chicken biryani with aromatic spices", 350, "Biryani", "Non-Veg", "30 mins", "TRUE", "https://res.cloudinary.com/demo/image/upload/sample.jpg", "Half:180, Full:350"],
-        ["Paneer Tikka", "Grilled cottage cheese cubes marinated in yogurt and spices", 280, "Starters", "Veg", "20 mins", "TRUE", "https://res.cloudinary.com/demo/image/upload/sample.jpg", ""]
+        ["Chicken Dum Biryani", "Authentic slow-cooked chicken biryani with aromatic spices", 350, "Biryani", "Non-Veg", "Normal", "30 mins", "TRUE", "https://res.cloudinary.com/demo/image/upload/sample.jpg", "Half:180, Full:350"],
+        ["Paneer Tikka", "Grilled cottage cheese cubes marinated in yogurt and spices", 280, "Starters", "Veg", "Healthy", "20 mins", "TRUE", "https://res.cloudinary.com/demo/image/upload/sample.jpg", ""]
       ];
 
 
@@ -944,6 +950,7 @@ export default function Inventory() {
               else if (header.includes("description")) item.description = val;
               else if (header.includes("price")) item.price = Number(val) || 0;
               else if (header.includes("category")) item.categoryName = val;
+              else if (header.includes("tag") || header.includes("healthy")) item.tag = String(val || "").trim() === "Healthy" ? "Healthy" : "Normal";
               else if (header.includes("type")) item.foodType = val;
               else if (header.includes("prep")) item.preparationTime = val;
               else if (header.includes("available")) item.isAvailable = String(val).toLowerCase() === "true";
@@ -1085,6 +1092,7 @@ export default function Inventory() {
                   isAvailable: item.isAvailable !== undefined ? item.isAvailable : true,
                   isVeg: item.foodType === "Veg",
                   foodType: item.foodType || "Non-Veg",
+                  tag: item.tag === "Healthy" ? "Healthy" : "Normal",
                   approvalStatus: String(item.approvalStatus || "approved").toLowerCase(),
                   rejectionReason: item.rejectionReason || "",
                   // Backend menu is generated from food_items and currently doesn't persist "recommended".
@@ -1117,6 +1125,7 @@ export default function Inventory() {
                   isAvailable: item.isAvailable !== undefined ? item.isAvailable : true,
                   isVeg: item.foodType === "Veg",
                   foodType: item.foodType || "Non-Veg",
+                  tag: item.tag === "Healthy" ? "Healthy" : "Normal",
                   approvalStatus: String(item.approvalStatus || "approved").toLowerCase(),
                   rejectionReason: item.rejectionReason || "",
                   isRecommended: Boolean(recommendedMap?.[String(item.id)]),
@@ -1148,13 +1157,31 @@ export default function Inventory() {
           })
 
           const nowMs = Date.now()
+          const expiredStockRuleIds = new Set()
           const withStockRules = convertedCategories.map((category) => {
             const ruledItems = (category.items || []).map((item) => {
               const rule = stockRules?.[String(item.id)] || null
+              const resumeAtMs = getStockRuleResumeMs(rule)
+              const isExpiredRule =
+                rule &&
+                rule.mode !== "manual" &&
+                resumeAtMs !== null &&
+                resumeAtMs <= nowMs
+
+              if (isExpiredRule) {
+                expiredStockRuleIds.add(String(item.id))
+                return {
+                  ...item,
+                  inStock: true,
+                  isAvailable: true,
+                  stockRule: null,
+                }
+              }
+
               const isActiveRule =
                 rule &&
                 (rule.mode === "manual" ||
-                  (rule.resumeAt && new Date(rule.resumeAt).getTime() > nowMs))
+                  (resumeAtMs !== null && resumeAtMs > nowMs))
 
               if (!isActiveRule) return item
               return {
@@ -1175,6 +1202,28 @@ export default function Inventory() {
           
           setCategories(withStockRules)
           setExpandedCategories(withStockRules.map(c => c.id))
+
+          if (expiredStockRuleIds.size > 0) {
+            const expiredIds = Array.from(expiredStockRuleIds)
+
+            setStockRules((prev) => {
+              const next = { ...prev }
+              expiredIds.forEach((id) => {
+                delete next[id]
+              })
+              return next
+            })
+
+            await Promise.all(
+              expiredIds.map(async (id) => {
+                try {
+                  await restaurantAPI.updateFood(id, { isAvailable: true })
+                } catch (error) {
+                  debugWarn("Failed to restore expired scheduled inventory item:", error)
+                }
+              }),
+            )
+          }
         } else {
           // Empty menu - start fresh
           setCategories([])
@@ -1380,16 +1429,16 @@ export default function Inventory() {
     // Don't handle swipe if starting on topbar
     if (tabBarRef.current?.contains(target)) return
 
-    touchStartX.current = e.touches[0].clientX
-    touchStartY.current = e.touches[0].clientY
-    touchEndX.current = e.touches[0].clientX
+    const clientX = e.touches[0].clientX
+    const clientY = e.touches[0].clientY
+    touchState.current = { startX: clientX, endX: clientX, startY: clientY }
     isSwiping.current = false
   }
 
   const handleTouchMove = (e) => {
     if (!isSwiping.current) {
-      const deltaX = Math.abs(e.touches[0].clientX - touchStartX.current)
-      const deltaY = Math.abs(e.touches[0].clientY - touchStartY.current)
+      const deltaX = Math.abs(e.touches[0].clientX - touchState.current.startX)
+      const deltaY = Math.abs(e.touches[0].clientY - touchState.current.startY)
 
       // Determine if this is a horizontal swipe
       if (deltaX > deltaY && deltaX > 10) {
@@ -1398,18 +1447,17 @@ export default function Inventory() {
     }
 
     if (isSwiping.current) {
-      touchEndX.current = e.touches[0].clientX
+      touchState.current.endX = e.touches[0].clientX
     }
   }
 
   const handleTouchEnd = () => {
     if (!isSwiping.current) {
-      touchStartX.current = 0
-      touchEndX.current = 0
+      touchState.current = { startX: 0, endX: 0, startY: 0 }
       return
     }
 
-    const swipeDistance = touchStartX.current - touchEndX.current
+    const swipeDistance = touchState.current.startX - touchState.current.endX
     const minSwipeDistance = 50
     const swipeVelocity = Math.abs(swipeDistance)
 
@@ -1441,9 +1489,7 @@ export default function Inventory() {
     }
 
     // Reset touch positions
-    touchStartX.current = 0
-    touchEndX.current = 0
-    touchStartY.current = 0
+    touchState.current = { startX: 0, endX: 0, startY: 0 }
     isSwiping.current = false
   }
 
@@ -1474,8 +1520,8 @@ export default function Inventory() {
       const expiredItemIds = Object.entries(stockRules)
         .filter(([, rule]) => rule?.mode !== "manual")
         .filter(([, rule]) => {
-          const resumeAtMs = new Date(rule?.resumeAt || "").getTime()
-          return Number.isFinite(resumeAtMs) && resumeAtMs <= nowMs
+          const resumeAtMs = getStockRuleResumeMs(rule)
+          return resumeAtMs !== null && resumeAtMs <= nowMs
         })
         .map(([itemId]) => itemId)
 
@@ -1553,6 +1599,8 @@ export default function Inventory() {
     if (filterValue === "in-stock") return items.filter((item) => item.inStock)
     if (filterValue === "out-of-stock") return items.filter((item) => !item.inStock)
     if (filterValue === "recommended") return items.filter((item) => item.isRecommended)
+    if (filterValue === "healthy") return items.filter((item) => item.tag === "Healthy")
+    if (filterValue === "normal") return items.filter((item) => item.tag !== "Healthy")
     if (filterValue === "veg") return items.filter((item) => item.isVeg)
     if (filterValue === "non-veg") return items.filter((item) => !item.isVeg)
     return items
@@ -1980,6 +2028,7 @@ export default function Inventory() {
           ...item,
           category: category?.name || "",
           categoryId: category?.id || category?.categoryId || "",
+          tag: item.tag === "Healthy" ? "Healthy" : "Normal",
           isAvailable: item.inStock,
         },
         category: category?.name || "",
@@ -2140,7 +2189,7 @@ export default function Inventory() {
       >
         {/* Search and Filter */}
         <div className="sticky top-0 z-30 -mx-4 px-4 pb-4 bg-[#f3f5f8]/95 backdrop-blur supports-[backdrop-filter]:bg-[#f3f5f8]/80">
-          <div className="overflow-hidden rounded-[28px] border border-white/80 bg-white/90 p-4 shadow-[0_20px_48px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-slate-950">
@@ -2354,7 +2403,7 @@ export default function Inventory() {
                   <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
                 </div>
               ) : filteredAddons.length === 0 ? (
-                <div className="rounded-[28px] border border-dashed border-slate-200 bg-white/70 px-4 py-20 text-center shadow-[0_18px_40px_-34px_rgba(15,23,42,0.35)]">
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-4 py-20 text-center shadow-sm">
                   <div className="text-center">
                     <p className="text-lg font-semibold text-slate-700">
                       {hasActiveTools ? "No matching add-ons found" : "No add-ons available"}
@@ -2369,7 +2418,7 @@ export default function Inventory() {
                   {filteredAddons.map((addon) => (
                     <div
                       key={addon.id}
-                      className="rounded-[28px] border border-white/80 bg-white p-4 shadow-[0_20px_48px_-34px_rgba(15,23,42,0.45)]"
+                      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
@@ -2429,7 +2478,7 @@ export default function Inventory() {
             </>
           )}
           {activeTab !== "add-ons" && !loadingInventory && listToRender.length === 0 && (
-            <div className="rounded-[28px] border border-dashed border-slate-200 bg-white/70 px-6 py-16 text-center shadow-[0_18px_40px_-34px_rgba(15,23,42,0.35)]">
+            <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
               <p className="text-lg font-semibold text-slate-700">
                 {hasActiveTools ? "No matching categories or items found" : "No menu categories available"}
               </p>
@@ -2448,7 +2497,7 @@ export default function Inventory() {
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: isLoading ? 0.6 : 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="relative overflow-hidden rounded-[30px] border border-white/80 bg-white shadow-[0_22px_52px_-36px_rgba(15,23,42,0.45)]"
+                className="relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
                 ref={(el) => {
                   if (el) {
                     categoryRefs.current[category.id] = el
@@ -2460,7 +2509,7 @@ export default function Inventory() {
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="absolute inset-0 z-10 flex items-center justify-center rounded-[30px] bg-white/80"
+                    className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/80"
                   >
                     <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                   </motion.div>
@@ -2474,14 +2523,14 @@ export default function Inventory() {
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-3 mb-2 flex-wrap">
-                        <h3 className="text-xl font-black tracking-tight text-slate-950 dark:text-white">
+                        <h3 className="text-base font-semibold text-gray-900 dark:text-white">
                           {category.name}
                         </h3>
                         <div className="flex items-center gap-2">
-                          <span className="rounded-full bg-slate-100 dark:bg-gray-800 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                          <span className="rounded-full bg-slate-100 dark:bg-gray-800 px-3 py-1 text-xs font-medium text-slate-500">
                             {category.items?.length || category.itemCount || 0} items
                           </span>
-                          <span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${
+                          <span className={`rounded-full px-3 py-1 text-xs font-medium ${
                             category.inStock
                               ? "bg-green-50 text-green-700 border border-green-100"
                               : "bg-amber-50 text-amber-700 border border-amber-100"
@@ -2495,18 +2544,18 @@ export default function Inventory() {
                         {category.inStock ? (
                           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50/50 rounded-xl border border-green-100/50">
                             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                            <p className="text-[10px] font-bold text-green-700">All items live</p>
+                            <p className="text-xs font-medium text-green-700">All items live</p>
                           </div>
                         ) : (
                           <div className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50/50 rounded-xl border border-rose-100/50">
                             <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                            <p className="text-[10px] font-bold text-rose-700">
+                            <p className="text-xs font-medium text-rose-700">
                               {getOutOfStockCount(category)} Items paused
                             </p>
                           </div>
                         )}
                         <div className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50/50 rounded-xl border border-blue-100/50">
-                          <p className="text-[10px] font-bold text-blue-700">
+                          <p className="text-xs font-medium text-blue-700">
                             {(categoryItems.filter((item) => item.isRecommended).length)} Recommended
                           </p>
                         </div>
@@ -2564,7 +2613,7 @@ export default function Inventory() {
 
                           return (
                           <div key={item.id} className="group px-1">
-                            <div className="flex items-center justify-between gap-3 sm:gap-4 rounded-[28px] border border-slate-100/80 bg-white p-3 sm:p-4 shadow-[0_8px_20px_-12px_rgba(0,0,0,0.08)] hover:shadow-[0_20px_40px_-20px_rgba(0,0,0,0.12)] hover:border-slate-200 transition-all duration-500">
+                            <div className="flex items-center justify-between gap-3 sm:gap-4 rounded-xl border border-gray-100 bg-white p-3 sm:p-4 shadow-sm hover:border-gray-200 transition-colors">
                               <div className="flex min-w-0 flex-1 items-center gap-3 sm:gap-5">
                                 {item.image && (
                                   <div className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 flex-shrink-0 rounded-[20px] overflow-hidden shadow-md border-2 border-white ring-1 ring-slate-100/50">
@@ -2579,12 +2628,12 @@ export default function Inventory() {
                                   </div>
                                 )}
                                 <div className="min-w-0 flex-1">
-                                  <h4 className="line-clamp-1 text-sm sm:text-base md:text-lg font-black text-slate-950 tracking-tight leading-tight mb-1.5">
+                                  <h4 className="line-clamp-1 text-sm sm:text-base font-semibold text-gray-900 leading-tight mb-1.5">
                                     {item.name}
                                   </h4>
                                   
                                   <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow-sm transition-all ${
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1 text-xs font-medium shadow-sm transition-all ${
                                       item.isVeg
                                         ? "bg-white text-green-600 border border-green-100"
                                         : "bg-white text-red-600 border border-red-100"
@@ -2594,13 +2643,20 @@ export default function Inventory() {
                                       </div>
                                       {item.isVeg ? "Veg" : "Non-veg"}
                                     </span>
-                                    <span className={`rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1 text-[9px] sm:text-[10px] font-black uppercase tracking-wider border shadow-sm ${approvalMeta.className.replace('text-', 'text-').replace('bg-', 'bg-white border-')}`}>
+                                    <span className={`rounded-full px-2 py-0.5 sm:px-2.5 sm:py-1 text-xs font-medium border shadow-sm ${approvalMeta.className.replace('text-', 'text-').replace('bg-', 'bg-white border-')}`}>
                                       {approvalMeta.label}
+                                    </span>
+                                    <span className={`rounded-full border px-2 py-0.5 sm:px-2.5 sm:py-1 text-xs font-medium shadow-sm ${
+                                      item.tag === "Healthy"
+                                        ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                                        : "border-slate-200 bg-slate-50 text-slate-600"
+                                    }`}>
+                                      {item.tag === "Healthy" ? "Healthy" : "Normal"}
                                     </span>
                                   </div>
                                   
                                   <div className="flex items-center gap-3 sm:gap-4 mt-1">
-                                    <p className={`text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${
+                                    <p className={`text-xs font-medium ${
                                       item.inStock ? "text-green-500" : "text-rose-500"
                                     }`}>
                                       {item.inStock ? "● Live" : `● ${getRuleStatusLabel(item.stockRule)}`}
@@ -2608,7 +2664,7 @@ export default function Inventory() {
                                     <button
                                       type="button"
                                       onClick={() => handleEditItem(category, item)}
-                                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2 text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all shadow-sm ${
+                                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-medium transition-colors shadow-sm ${
                                         isRejectedItem
                                           ? "bg-red-600 text-white hover:bg-red-700"
                                           : "bg-slate-100 text-slate-800 hover:bg-slate-800 hover:text-white"
@@ -2620,7 +2676,7 @@ export default function Inventory() {
                                     <button
                                       type="button"
                                       onClick={() => handleDeleteFoodItem(item.id || item._id)}
-                                      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2 text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all shadow-sm bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white"
+                                      className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 sm:px-3 sm:py-2 text-xs font-medium transition-colors shadow-sm bg-rose-50 text-rose-600 hover:bg-rose-600 hover:text-white"
                                       title="Delete Item"
                                     >
                                       <Trash2 className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
@@ -2628,7 +2684,7 @@ export default function Inventory() {
                                   </div>
 
                                   {item.approvalStatus === "rejected" && item.rejectionReason && (
-                                    <p className="mt-2 text-[9px] sm:text-[10px] font-bold text-red-600 bg-red-50/50 border border-red-100/50 px-2.5 py-1 rounded-lg italic">
+                                    <p className="mt-2 text-xs font-medium text-red-600 bg-red-50/50 border border-red-100/50 px-2.5 py-1 rounded-lg">
                                       {item.rejectionReason}
                                     </p>
                                   )}
@@ -3060,7 +3116,7 @@ export default function Inventory() {
                     />
                     <label
                       htmlFor="bulk-file-input"
-                      className={`w-full flex flex-col items-center justify-center gap-3 p-8 rounded-[28px] border-2 border-dashed ${
+                      className={`w-full flex flex-col items-center justify-center gap-3 p-8 rounded-2xl border-2 border-dashed ${
                         selectedBulkFile ? 'border-green-300 bg-green-50' : 'border-[#ead6e3] bg-[#fcf7fb] hover:bg-[#f9f0f7] hover:border-[#d5bdd0]'
                       } transition-all cursor-pointer`}
                     >
@@ -3105,7 +3161,7 @@ export default function Inventory() {
 
                   <button
                     onClick={() => setShowBulkUpload(false)}
-                    className="w-full py-4 text-sm font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors"
+                    className="w-full py-4 text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors"
                   >
                     Back to options
                   </button>
@@ -3136,28 +3192,28 @@ export default function Inventory() {
               <div className="w-20 h-20 rounded-full bg-green-100 text-green-600 flex items-center justify-center mx-auto mb-4">
                 <Check className="w-10 h-10" />
               </div>
-              <h3 className="text-xl font-black text-slate-900 mb-2">Upload Summary</h3>
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">Upload Summary</h3>
               <p className="text-sm text-slate-500 mb-6">Process completed successfully.</p>
               
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="p-4 rounded-2xl bg-green-50 border border-green-100">
-                  <p className="text-2xl font-black text-green-600">{bulkUploadResult.successCount}</p>
-                  <p className="text-xs font-bold text-green-700 uppercase tracking-wider">Success</p>
+                  <p className="text-2xl font-semibold text-green-600">{bulkUploadResult.successCount}</p>
+                  <p className="text-xs font-medium text-green-700">Success</p>
                 </div>
                 <div className="p-4 rounded-2xl bg-red-50 border border-red-100">
-                  <p className="text-2xl font-black text-red-600">{bulkUploadResult.errorCount}</p>
-                  <p className="text-xs font-bold text-red-700 uppercase tracking-wider">Failed</p>
+                  <p className="text-2xl font-semibold text-red-600">{bulkUploadResult.errorCount}</p>
+                  <p className="text-xs font-medium text-red-700">Failed</p>
                 </div>
               </div>
 
               {bulkUploadResult.errors && bulkUploadResult.errors.length > 0 && (
                 <div className="mb-8 text-left">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Failure Reasons</p>
+                  <p className="text-xs font-medium text-slate-500 mb-3">Failure reasons</p>
                   <div className="max-h-[200px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                     {bulkUploadResult.errors.map((err, idx) => (
                       <div key={idx} className="p-3 rounded-xl bg-slate-50 border border-slate-100">
                         <p className="text-xs font-bold text-slate-900">{err.name || `Row ${err.index + 2}`}</p>
-                        <p className="text-[10px] text-red-500 mt-0.5">{err.message}</p>
+                        <p className="text-xs text-red-500 mt-0.5">{err.message}</p>
                       </div>
                     ))}
                   </div>
@@ -3219,7 +3275,7 @@ export default function Inventory() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 20 }}
                   transition={{ duration: 0.2 }}
-                  className="fixed right-4 bottom-36 z-30 h-[45vh] w-[60vw] max-w-sm overflow-hidden rounded-[28px] border border-[#ead6e3] bg-white shadow-[0_24px_60px_-30px_rgba(126,56,102,0.45)]"
+                  className="fixed right-4 bottom-36 z-30 h-[45vh] w-[60vw] max-w-sm overflow-hidden rounded-2xl border border-[#ead6e3] bg-white shadow-lg"
                 >
                   <div className="h-full flex flex-col">
                     <div className="bg-[linear-gradient(135deg,#fcf4f9_0%,#f6e8f1_100%)] px-4 pt-4 pb-3">

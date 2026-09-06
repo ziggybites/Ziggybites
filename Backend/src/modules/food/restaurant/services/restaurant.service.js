@@ -197,6 +197,8 @@ const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$
 
 const normalizeCuisine = (value) => String(value || '').trim().slice(0, 80);
 
+const UPI_ID_REGEX = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
+
 const LEGACY_ADDRESS_FIELD_NAMES = [
     'addressLine1',
     'addressLine2',
@@ -248,6 +250,8 @@ const RESTAURANT_PROFILE_PROJECTION = [
     'estimatedDeliveryTimeMinutes',
     'diningSettings',
     'isAcceptingOrders',
+    'rating',
+    'totalRatings',
     'status',
     'approvedAt',
     'pendingUpdateReason',
@@ -730,7 +734,11 @@ export const updateRestaurantProfile = async (restaurantId, body = {}) => {
         update.accountType = String(body.accountType || '').trim();
     }
     if (body.upiId !== undefined) {
-        update.upiId = String(body.upiId || '').trim();
+        const upiId = String(body.upiId || '').trim();
+        if (upiId && !UPI_ID_REGEX.test(upiId)) {
+            throw new ValidationError('UPI ID must be in a valid format, e.g. name@bank');
+        }
+        update.upiId = upiId;
     }
     if (body.upiQrImage !== undefined || body.upiQrCode !== undefined) {
         const qrImage = body.upiQrImage !== undefined ? body.upiQrImage : body.upiQrCode;
