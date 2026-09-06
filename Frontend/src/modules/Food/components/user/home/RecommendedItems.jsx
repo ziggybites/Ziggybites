@@ -36,9 +36,9 @@ function RecommendedDishCard({ item, fallbackLabel, handleAddHomeItemToCart }) {
         search: `?dish=${encodeURIComponent(item.name || "")}&dishId=${encodeURIComponent(item.itemId || item.id || "")}&restaurant=${encodeURIComponent(item.restaurantName || "")}&restaurantId=${encodeURIComponent(item.restaurantId || "")}&category=${encodeURIComponent(item.categoryName || "")}${Number.isFinite(item.price) ? `&price=${encodeURIComponent(item.price)}` : ""}`,
       }}
       state={{ dish: item }}
-      className="flex gap-3 rounded-[10px] bg-white border border-orange-100 shadow-sm p-2"
+      className="flex gap-3 rounded-[10px] bg-white dark:bg-[#1a1a1a] border border-orange-100 dark:border-gray-800 shadow-sm p-2"
     >
-      <div className="h-[74px] w-[94px] rounded-lg overflow-hidden shrink-0 bg-orange-50">
+      <div className="h-[74px] w-[94px] rounded-lg overflow-hidden shrink-0 bg-orange-50 dark:bg-gray-900">
         {item.image ? (
           <img src={item.image} alt={item.name} className="h-full w-full object-cover" />
         ) : (
@@ -50,24 +50,24 @@ function RecommendedDishCard({ item, fallbackLabel, handleAddHomeItemToCart }) {
       <div className="min-w-0 flex-1 py-0.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="text-[12px] font-black text-gray-900 truncate">
+            <h3 className="text-[12px] font-black text-gray-900 dark:text-white truncate">
               {item.name}
             </h3>
             {item.description && (
-              <p className="mt-0.5 text-[9px] font-semibold text-gray-600 line-clamp-2">
+              <p className="mt-0.5 text-[9px] font-semibold text-gray-600 dark:text-gray-400 line-clamp-2">
                 {item.description}
               </p>
             )}
           </div>
           {Number.isFinite(item.price) && (
-            <span className="text-[13px] font-black text-gray-900 shrink-0">
+            <span className="text-[13px] font-black text-gray-900 dark:text-white shrink-0">
               Rs. {item.price}
             </span>
           )}
         </div>
 
         {nutritionSummary && (
-          <p className="mt-1 text-[8px] font-black text-gray-600 line-clamp-1">
+          <p className="mt-1 text-[8px] font-black text-gray-600 dark:text-gray-400 line-clamp-1">
             {nutritionSummary}
           </p>
         )}
@@ -118,7 +118,7 @@ export default function RecommendedItems({
   return (
     <section id="home-recommended-items" className="mt-4 scroll-mt-4">
       <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-black text-gray-900">
+        <h2 className="text-sm font-black text-gray-900 dark:text-white">
           {selectedHomeCategory
             ? `${selectedHomeCategory.name} For You`
             : "Recommended For You"}
@@ -150,9 +150,9 @@ export default function RecommendedItems({
               />
             ))
           ) : (
-            <div className="rounded-[10px] border border-dashed border-orange-200 bg-white/70 p-5 text-center">
-              <p className="text-sm font-black text-gray-900">No items found</p>
-              <p className="mt-1 text-xs font-semibold text-gray-500">
+            <div className="rounded-[10px] border border-dashed border-orange-200 dark:border-gray-800 bg-white/70 dark:bg-[#1a1a1a] p-5 text-center">
+              <p className="text-sm font-black text-gray-900 dark:text-white">No items found</p>
+              <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
                 Try another category or switch to All Food Items.
               </p>
             </div>
@@ -167,9 +167,9 @@ export default function RecommendedItems({
             />
           ))
         ) : (
-          <div className="rounded-[10px] border border-dashed border-orange-200 bg-white/70 p-5 text-center">
-            <p className="text-sm font-black text-gray-900">No items found</p>
-            <p className="mt-1 text-xs font-semibold text-gray-500">
+          <div className="rounded-[10px] border border-dashed border-orange-200 dark:border-gray-800 bg-white/70 dark:bg-[#1a1a1a] p-5 text-center">
+            <p className="text-sm font-black text-gray-900 dark:text-white">No items found</p>
+            <p className="mt-1 text-xs font-semibold text-gray-500 dark:text-gray-400">
               Menu items will appear here after restaurants add them.
             </p>
           </div>

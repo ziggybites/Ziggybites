@@ -28,30 +28,30 @@ export default function MobileHeader({
   }, []);
 
   return (
-    <header className="sticky top-0 z-50 bg-[#fff9f2]/95 backdrop-blur-md px-5 pt-3 pb-2">
+    <header className="sticky top-0 z-50 bg-[#fff9f2]/95 dark:bg-[#0a0a0a]/95 backdrop-blur-md px-5 pt-3 pb-2">
             <div className="relative flex min-h-[34px] items-center justify-between gap-3">
               <button
                 type="button"
                 onClick={handleLocationClick}
                 className="min-w-0 max-w-[34%] flex items-center gap-1.5 text-left"
               >
-                <MapPin className="h-4 w-4 text-black fill-black" />
-                <span className="text-[11px] font-black text-gray-900 truncate">
+                <MapPin className="h-4 w-4 text-black dark:text-white fill-black dark:fill-white" />
+                <span className="text-[11px] font-black text-gray-900 dark:text-white truncate">
                   {effectiveLocation?.area || effectiveLocation?.city || "Select location"}
                 </span>
-                <ChevronDown className="h-3.5 w-3.5 text-gray-700" />
+                <ChevronDown className="h-3.5 w-3.5 text-gray-700 dark:text-gray-300" />
               </button>
 
               <div className="pointer-events-none absolute left-1/2 top-1/2 w-[34%] -translate-x-1/2 -translate-y-1/2 text-center">
                 <div className="text-[18px] leading-none font-black italic text-[#e92823] tracking-tight">
                   ZiggyBites
                 </div>
-                <div className="truncate text-[5px] font-black text-gray-700 tracking-[0.08em]">
+                <div className="truncate text-[5px] font-black text-gray-700 dark:text-gray-300 tracking-[0.08em]">
                   Homemade. Healthy. Delivered.
                 </div>
               </div>
 
-              <div className="relative z-10 ml-auto flex w-[34%] items-center justify-end gap-3 text-gray-900">
+              <div className="relative z-10 ml-auto flex w-[34%] items-center justify-end gap-3 text-gray-900 dark:text-white">
               </div>
             </div>
 
@@ -59,13 +59,13 @@ export default function MobileHeader({
               <button
                 type="button"
                 onClick={handleSearchFocus}
-                className="h-10 flex-1 bg-white rounded-full border border-orange-100 shadow-sm px-4 flex items-center gap-2 text-left"
+                className="h-10 flex-1 bg-white dark:bg-[#1a1a1a] rounded-full border border-orange-100 dark:border-gray-800 shadow-sm px-4 flex items-center gap-2 text-left"
               >
                 <Search className="h-4 w-4 text-[#e92823]" />
-                <span className="text-xs font-semibold text-gray-400 truncate">
+                <span className="text-xs font-semibold text-gray-400 dark:text-gray-500 truncate">
                   Search "veg thali"
                 </span>
-                <Mic className="h-4 w-4 text-gray-500 ml-auto" />
+                <Mic className="h-4 w-4 text-gray-500 dark:text-gray-400 ml-auto" />
               </button>
               <button
                 type="button"

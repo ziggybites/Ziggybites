@@ -2193,7 +2193,7 @@ export default function Home() {
           `}</style>
         </div>
 
-        <div className="md:hidden relative overflow-x-clip bg-[#fff9f2] min-h-screen pb-24">
+        <div className="md:hidden relative overflow-x-clip bg-[#fff9f2] dark:bg-[#0a0a0a] min-h-screen pb-24">
           <MobileHeader
             effectiveLocation={effectiveLocation}
             handleLocationClick={handleLocationClick}
@@ -2901,9 +2901,9 @@ export default function Home() {
                 stiffness: 300,
                 mass: 0.8,
               }}
-              className="fixed inset-0 z-[9999] flex dark:bg-[#lalala] dark:text-white items-center justify-center p-4"
+              className="fixed inset-0 z-[9999] flex dark:bg-[#0a0a0a] dark:text-white items-center justify-center p-4"
               onClick={(e) => e.stopPropagation()}>
-              <div className="bg-white dark:bg-[#lalala] dark:text-white rounded-2xl shadow-2xl w-[85%] max-w-sm p-6">
+              <div className="bg-white dark:bg-[#1a1a1a] dark:text-white rounded-2xl shadow-2xl w-[85%] max-w-sm p-6">
                 {/* Warning Icon */}
                 <div className="flex justify-center mb-4">
                   <div className="w-20 h-20 rounded-full bg-pink-100 flex items-center justify-center">
