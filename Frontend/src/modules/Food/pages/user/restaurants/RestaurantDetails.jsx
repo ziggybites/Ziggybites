@@ -1274,6 +1274,19 @@ function RestaurantDetailsContent() {
       .filter(Boolean)
   }, [restaurant?.menuSections])
 
+  // True when every item in the entire menu is veg — this is a pure-veg restaurant
+  const isAllVegRestaurant = useMemo(() => {
+    if (!restaurant?.menuSections || restaurant.menuSections.length === 0) return false
+    const allItems = restaurant.menuSections.flatMap((section) => [
+      ...(Array.isArray(section.items) ? section.items : []),
+      ...(Array.isArray(section.subsections)
+        ? section.subsections.flatMap((sub) => (Array.isArray(sub.items) ? sub.items : []))
+        : []),
+    ])
+    if (allItems.length === 0) return false
+    return allItems.every((item) => item.foodType === "Veg")
+  }, [restaurant?.menuSections])
+
   // Count active filters
   const getActiveFilterCount = () => {
     let count = 0
@@ -2347,7 +2360,6 @@ function RestaurantDetailsContent() {
                   <h1 className="text-2xl font-bold text-gray-900 dark:text-white truncate">
                     {restaurant?.name || "Unknown Restaurant"}
                   </h1>
-                  <Info className="h-5 w-5 text-gray-400" />
                 </div>
                 <div className="mt-1 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                   <Utensils className="h-4 w-4" />
@@ -2369,8 +2381,8 @@ function RestaurantDetailsContent() {
               <div
                 className="flex items-center gap-1 text-sm text-gray-700 dark:text-gray-300 min-w-0"
               >
-                <MapPin className="h-4 w-4" />
-                <span className="truncate">
+                <MapPin className="h-4 w-4 flex-shrink-0" />
+                <span className="break-words">
                   {restaurant?.distance || "1.2 km"} | {restaurant?.location || "Location"}
                 </span>
               </div>
@@ -2492,7 +2504,7 @@ function RestaurantDetailsContent() {
                       )}
                     </Button>
                   )}
-                  {vegModeOption !== "pure-veg" && !vegMode && (
+                  {vegModeOption !== "pure-veg" && !vegMode && !isAllVegRestaurant && (
                     <Button
                       variant="outline"
                       size="sm"
@@ -3002,7 +3014,7 @@ function RestaurantDetailsContent() {
                             <div className="h-4 w-4 rounded-full bg-green-600 dark:bg-green-500" />
                             <span className="font-medium">Veg</span>
                           </button>
-                          {!vegMode && (
+                          {!vegMode && !isAllVegRestaurant && (
                             <button
                               onClick={() =>
                                 setFilters((prev) => ({
@@ -3336,27 +3348,6 @@ function RestaurantDetailsContent() {
                         <span className="text-sm text-gray-400">No image available</span>
                       </div>
                     )}
-                    {/* Bookmark and Share Icons Overlay */}
-                    <div className="absolute bottom-4 right-4 flex items-center gap-3">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleBookmarkClick(selectedItem)
-                        }}
-                        className={`h-10 w-10 rounded-full border flex items-center justify-center transition-all duration-300 ${isDishFavorite(selectedItem.id, restaurant?.restaurantId || restaurant?._id || restaurant?.id)
-                          ? "border-red-500 dark:border-red-400 bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400"
-                          : "border-white dark:border-gray-800 bg-white/90 dark:bg-[#1a1a1a]/90 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-[#2a2a2a]"
-                          }`}
-                      >
-                        <Bookmark
-                          className={`h-5 w-5 transition-all duration-300 ${isDishFavorite(selectedItem.id, restaurant?.restaurantId || restaurant?._id || restaurant?.id) ? "fill-red-500 dark:fill-red-400" : ""
-                            }`}
-                        />
-                      </button>
-                      <button className="h-10 w-10 rounded-full border border-white dark:border-gray-800 bg-white/90 dark:bg-[#1a1a1a]/90 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-[#2a2a2a] flex items-center justify-center transition-colors">
-                        <Share2 className="h-5 w-5" />
-                      </button>
-                    </div>
                   </div>
 
                   {/* Content Section */}
