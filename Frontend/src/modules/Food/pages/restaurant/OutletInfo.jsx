@@ -13,6 +13,7 @@ import {
 } from "@food/components/ui/dialog"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
 import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
+import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 
 const debugLog = (...args) => {}
 const debugError = (...args) => {}
@@ -36,6 +37,19 @@ const getDocumentUrl = (document) => {
 }
 
 const isPdfDocument = (url) => /\.pdf($|\?)/i.test(String(url || ""))
+
+const formatAddress = (location = {}) =>
+  [
+    location.formattedAddress || location.addressLine1 || location.address,
+    location.addressLine2,
+    location.area,
+    location.city,
+    location.state,
+    location.pincode || location.zipCode || location.postalCode,
+    location.landmark,
+  ]
+    .filter(Boolean)
+    .join(", ")
 
 export default function OutletInfo() {
   const navigate = useNavigate()
@@ -64,6 +78,11 @@ export default function OutletInfo() {
   const [editFormData, setEditFormData] = useState({})
   const [savingEdit, setSavingEdit] = useState(false)
   const [documentPreview, setDocumentPreview] = useState(null)
+  const addressSearchInputRef = useRef(null)
+  const addressAutocompleteRef = useRef(null)
+  const [addressSearchValue, setAddressSearchValue] = useState("")
+  const [addressSuggestions, setAddressSuggestions] = useState([])
+  const [isSearchingAddress, setIsSearchingAddress] = useState(false)
 
   // Fetch restaurant data on mount
   useEffect(() => {
@@ -206,9 +225,131 @@ export default function OutletInfo() {
 
   const handleEditClick = (section) => {
     setEditSection(section)
-    setEditFormData({...restaurantData})
+    const currentLocation = restaurantData?.location || restaurantData || {}
+    setEditFormData({
+      ...restaurantData,
+      location: { ...currentLocation },
+    })
+    if (section === "address") {
+      setAddressSearchValue(formatAddress(currentLocation))
+      setAddressSuggestions([])
+    }
     setEditModalOpen(true)
   }
+
+  const applyAddressSelection = ({ display, lat, lng, addr = {} }) => {
+    const area = addr.suburb || addr.neighbourhood || addr.city_district || addr.locality || ""
+    const city = addr.city || addr.town || addr.village || ""
+    const state = addr.state || ""
+    const pincode = addr.postcode || ""
+    setEditFormData((prev) => ({
+      ...prev,
+      location: {
+        ...(prev.location || {}),
+        formattedAddress: display,
+        addressLine1: display,
+        area: area || prev.location?.area || "",
+        city: city || prev.location?.city || "",
+        state: state || prev.location?.state || "",
+        pincode: pincode || prev.location?.pincode || "",
+        latitude: Number.isFinite(lat) ? Number(lat.toFixed(6)) : prev.location?.latitude,
+        longitude: Number.isFinite(lng) ? Number(lng.toFixed(6)) : prev.location?.longitude,
+      },
+    }))
+    setAddressSearchValue(display)
+    setAddressSuggestions([])
+  }
+
+  useEffect(() => {
+    if (!editModalOpen || editSection !== "address" || !addressSearchInputRef.current) return
+    let cancelled = false
+    let autocomplete = null
+
+    const init = async () => {
+      if (!window.google?.maps?.places?.Autocomplete) {
+        const apiKey = await getGoogleMapsApiKey().catch(() => "")
+        if (!apiKey || cancelled) return
+        const existing = document.getElementById("outlet-info-google-maps")
+        if (existing) {
+          await new Promise((resolve) => {
+            existing.addEventListener("load", resolve, { once: true })
+            existing.addEventListener("error", resolve, { once: true })
+          })
+        } else {
+          await new Promise((resolve) => {
+            const script = document.createElement("script")
+            script.id = "outlet-info-google-maps"
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&v=weekly`
+            script.async = true
+            script.defer = true
+            script.onload = resolve
+            script.onerror = resolve
+            document.head.appendChild(script)
+          })
+        }
+      }
+      if (cancelled || !window.google?.maps?.places?.Autocomplete) return
+      autocomplete = new window.google.maps.places.Autocomplete(addressSearchInputRef.current, {
+        fields: ["formatted_address", "address_components", "geometry"],
+        componentRestrictions: { country: "in" },
+        types: ["geocode", "establishment"],
+      })
+      addressAutocompleteRef.current = autocomplete
+      autocomplete.addListener("place_changed", () => {
+        const place = autocomplete.getPlace()
+        const components = Array.isArray(place?.address_components) ? place.address_components : []
+        const get = (types) => components.find((item) => types.some((type) => item.types?.includes(type)))?.long_name || ""
+        const lat = place?.geometry?.location?.lat?.()
+        const lng = place?.geometry?.location?.lng?.()
+        applyAddressSelection({
+          display: place?.formatted_address || addressSearchValue,
+          lat,
+          lng,
+          addr: {
+            suburb: get(["sublocality_level_1", "sublocality", "neighborhood"]),
+            locality: get(["locality"]),
+            city: get(["locality"]),
+            state: get(["administrative_area_level_1"]),
+            postcode: get(["postal_code"]),
+          },
+        })
+      })
+    }
+    init().catch(() => {})
+    return () => {
+      cancelled = true
+      if (autocomplete) window.google?.maps?.event?.clearInstanceListeners(autocomplete)
+      addressAutocompleteRef.current = null
+    }
+  }, [editModalOpen, editSection])
+
+  useEffect(() => {
+    if (!editModalOpen || editSection !== "address") return
+    const query = addressSearchValue.trim()
+    if (query.length < 3) {
+      setAddressSuggestions([])
+      return
+    }
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearchingAddress(true)
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=4&q=${encodeURIComponent(query)}&countrycodes=in`, { headers: { Accept: "application/json" } })
+        const results = await response.json()
+        setAddressSuggestions((Array.isArray(results) ? results : []).map((result) => ({
+          id: result.place_id,
+          display: result.display_name || "",
+          lat: Number(result.lat),
+          lng: Number(result.lon),
+          addr: result.address || {},
+        })))
+      } catch {
+        setAddressSuggestions([])
+      } finally {
+        setIsSearchingAddress(false)
+      }
+    }, 400)
+    return () => clearTimeout(timer)
+  }, [addressSearchValue, editModalOpen, editSection])
 
   const handleUpiQrUpload = async (file) => {
     if (!file) return
@@ -260,6 +401,15 @@ export default function OutletInfo() {
         payload.primaryContactNumber = editFormData.primaryContactNumber
         payload.ownerEmail = editFormData.ownerEmail || editFormData.email
         payload.pureVegRestaurant = editFormData.pureVegRestaurant
+      } else if (editSection === 'address') {
+        const location = editFormData.location || {}
+        const formattedAddress = location.formattedAddress || location.addressLine1 || ""
+        payload.location = {
+          ...location,
+          formattedAddress,
+          address: formattedAddress,
+          pincode: location.pincode || location.zipCode || location.postalCode || "",
+        }
       } else if (editSection === 'compliance') {
         payload.panNumber = editFormData.panNumber
         payload.gstNumber = editFormData.gstNumber
@@ -485,6 +635,20 @@ export default function OutletInfo() {
             </div>
           </div>
 
+          {/* Card 3: Outlet Address */}
+          <div className="bg-white rounded-3xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] border border-gray-100/50">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-base font-bold text-gray-900">Outlet address</p>
+                <p className="text-xs text-gray-500 mt-1">This is used by customers and delivery partners.</p>
+              </div>
+              <button onClick={() => handleEditClick('address')} className="text-[#2563EB] text-sm font-bold hover:underline">Edit</button>
+            </div>
+            <p className="text-[15px] leading-6 text-gray-700">
+              {formatAddress({ ...(restaurantData || {}), ...(restaurantData?.location || {}) }) || "Address not added"}
+            </p>
+          </div>
+
           {/* Card 3: Compliance Details */}
           <div className="bg-white rounded-3xl p-5 shadow-[0_2px_8px_rgba(0,0,0,0.03)] border border-gray-100/50">
             <div className="flex flex-col mb-4.5">
@@ -576,7 +740,7 @@ export default function OutletInfo() {
         <DialogContent className="w-[92%] sm:max-w-md rounded-[24px] p-0 overflow-hidden bg-white shadow-2xl border-0 gap-0">
           <DialogHeader className="px-6 py-5 border-b border-gray-100 bg-gray-50/50">
             <DialogTitle className="text-[19px] font-black text-gray-900 tracking-tight text-left">
-              Edit {editSection === 'restaurantName' ? 'Restaurant Name' : editSection === 'basic' ? 'Basic Details' : editSection === 'compliance' ? 'Compliance Details' : 'Bank Details'}
+              Edit {editSection === 'restaurantName' ? 'Restaurant Name' : editSection === 'basic' ? 'Basic Details' : editSection === 'address' ? 'Outlet Address' : editSection === 'compliance' ? 'Compliance Details' : 'Bank Details'}
             </DialogTitle>
           </DialogHeader>
           
@@ -606,6 +770,46 @@ export default function OutletInfo() {
                   <label htmlFor="pureVeg" className="text-[14px] font-bold text-gray-800 cursor-pointer">Pure Veg Restaurant</label>
                 </div>
               </>
+            )}
+            {editSection === 'address' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[13px] font-bold text-gray-700 mb-1.5 block">Search location</label>
+                  <div className="relative">
+                    <Input
+                      ref={addressSearchInputRef}
+                      className="h-12 rounded-xl bg-gray-50 border-gray-200 focus:bg-white focus:ring-2 focus:ring-[#E91E63]/20 focus:border-[#E91E63] transition-all text-base px-4"
+                      value={addressSearchValue}
+                      onChange={(e) => setAddressSearchValue(e.target.value)}
+                      placeholder="Search and select outlet address"
+                    />
+                    {isSearchingAddress && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#E91E63]" />}
+                    {addressSuggestions.length > 0 && (
+                      <div className="absolute left-0 right-0 top-full z-[60] mt-1 max-h-56 overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-xl">
+                        {addressSuggestions.map((suggestion) => (
+                          <button
+                            key={suggestion.id}
+                            type="button"
+                            onClick={() => applyAddressSelection(suggestion)}
+                            className="block w-full border-b border-gray-100 px-4 py-3 text-left text-[13px] font-medium text-gray-700 last:border-none hover:bg-red-50"
+                          >
+                            {suggestion.display}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[11px] text-gray-500">Search to auto-fill area, city, state, pincode, and coordinates.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <Input className="h-11 rounded-xl bg-gray-50 border-gray-200" value={editFormData.location?.addressLine2 || ""} onChange={(e) => setEditFormData((prev) => ({ ...prev, location: { ...prev.location, addressLine2: e.target.value } }))} placeholder="Floor / unit" />
+                  <Input className="h-11 rounded-xl bg-gray-50 border-gray-200" value={editFormData.location?.area || ""} onChange={(e) => setEditFormData((prev) => ({ ...prev, location: { ...prev.location, area: e.target.value } }))} placeholder="Area" />
+                  <Input className="h-11 rounded-xl bg-gray-50 border-gray-200" value={editFormData.location?.city || ""} onChange={(e) => setEditFormData((prev) => ({ ...prev, location: { ...prev.location, city: e.target.value } }))} placeholder="City" />
+                  <Input className="h-11 rounded-xl bg-gray-50 border-gray-200" value={editFormData.location?.state || ""} onChange={(e) => setEditFormData((prev) => ({ ...prev, location: { ...prev.location, state: e.target.value } }))} placeholder="State" />
+                  <Input className="h-11 rounded-xl bg-gray-50 border-gray-200" value={editFormData.location?.pincode || ""} onChange={(e) => setEditFormData((prev) => ({ ...prev, location: { ...prev.location, pincode: e.target.value.replace(/\D/g, "").slice(0, 6) } }))} placeholder="Pincode" inputMode="numeric" />
+                  <Input className="h-11 rounded-xl bg-gray-50 border-gray-200" value={editFormData.location?.landmark || ""} onChange={(e) => setEditFormData((prev) => ({ ...prev, location: { ...prev.location, landmark: e.target.value } }))} placeholder="Landmark" />
+                </div>
+              </div>
             )}
             {editSection === 'compliance' && (
               <>

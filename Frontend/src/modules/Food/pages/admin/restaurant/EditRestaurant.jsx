@@ -81,7 +81,8 @@ const getStoredImageSrc = (value) => {
 const toMediaValue = (value) => {
   if (!value) return null
   if (typeof value === "string") return value.trim() ? { url: value.trim() } : null
-  if (value?.url) return { url: value.url, publicId: value.publicId || "" }
+  const url = value?.url || value?.secure_url || value?.path || value?.image?.url || value?.image
+  if (url) return { url, publicId: value.publicId || value.public_id || "" }
   return null
 }
 
@@ -146,35 +147,61 @@ const buildStep1FromRestaurant = (restaurant) => {
   }
 }
 
-const buildStep2FromRestaurant = (restaurant) => ({
-  menuImages: normalizeMenuImages(restaurant?.menuImages),
-  profileImage: toMediaValue(restaurant?.profileImage),
-  cuisines: Array.isArray(restaurant?.cuisines) ? restaurant.cuisines : [],
+const buildStep2FromRestaurant = (restaurant) => {
+  const step2 = restaurant?.onboarding?.step2 || {}
+  const deliveryTimings = restaurant?.deliveryTimings || step2.deliveryTimings || {}
+  return {
+  menuImages: normalizeMenuImages(
+    Array.isArray(restaurant?.menuImages) && restaurant.menuImages.length
+      ? restaurant.menuImages
+      : step2.menuImageUrls || step2.menuImages,
+  ),
+  profileImage: toMediaValue(restaurant?.profileImage || step2.profileImageUrl),
+  cuisines:
+    Array.isArray(restaurant?.cuisines) && restaurant.cuisines.length
+      ? restaurant.cuisines
+      : Array.isArray(step2.cuisines)
+        ? step2.cuisines
+        : [],
   estimatedDeliveryTime:
-    restaurant?.estimatedDeliveryTime || restaurant?.estimatedDeliveryTimeMinutes || "",
-  openingTime: restaurant?.openingTime || "",
-  closingTime: restaurant?.closingTime || "",
-  openDays: Array.isArray(restaurant?.openDays) ? restaurant.openDays : [],
-})
+    restaurant?.estimatedDeliveryTime || restaurant?.estimatedDeliveryTimeMinutes || step2.estimatedDeliveryTime || "",
+  openingTime: restaurant?.openingTime || deliveryTimings.openingTime || "",
+  closingTime: restaurant?.closingTime || deliveryTimings.closingTime || "",
+  openDays:
+    Array.isArray(restaurant?.openDays) && restaurant.openDays.length
+      ? restaurant.openDays
+      : Array.isArray(step2.openDays)
+        ? step2.openDays
+        : [],
+  }
+}
 
-const buildStep3FromRestaurant = (restaurant) => ({
-  panNumber: restaurant?.panNumber || "",
-  nameOnPan: restaurant?.nameOnPan || "",
-  panImage: toMediaValue(restaurant?.panImage),
-  gstRegistered: !!restaurant?.gstRegistered,
-  gstNumber: restaurant?.gstNumber || "",
-  gstLegalName: restaurant?.gstLegalName || "",
-  gstAddress: restaurant?.gstAddress || "",
-  gstImage: toMediaValue(restaurant?.gstImage),
-  fssaiNumber: restaurant?.fssaiNumber || "",
-  fssaiExpiry: restaurant?.fssaiExpiry ? String(restaurant.fssaiExpiry).slice(0, 10) : "",
-  fssaiImage: toMediaValue(restaurant?.fssaiImage),
-  accountNumber: restaurant?.accountNumber || "",
-  confirmAccountNumber: restaurant?.accountNumber || "",
-  ifscCode: restaurant?.ifscCode || "",
-  accountHolderName: restaurant?.accountHolderName || "",
-  accountType: restaurant?.accountType || "",
-})
+const buildStep3FromRestaurant = (restaurant) => {
+  const step3 = restaurant?.onboarding?.step3 || {}
+  const pan = step3.pan || {}
+  const gst = step3.gst || {}
+  const fssai = step3.fssai || {}
+  const bank = step3.bank || {}
+  const fssaiExpiry = restaurant?.fssaiExpiry || fssai.expiryDate
+  return {
+  panNumber: restaurant?.panNumber || pan.panNumber || "",
+  nameOnPan: restaurant?.nameOnPan || pan.nameOnPan || "",
+  panImage: toMediaValue(restaurant?.panImage || pan.image),
+  gstRegistered: restaurant?.gstRegistered ?? Boolean(gst.isRegistered),
+  gstNumber: restaurant?.gstNumber || gst.gstNumber || "",
+  gstLegalName: restaurant?.gstLegalName || gst.legalName || "",
+  gstAddress: restaurant?.gstAddress || gst.address || "",
+  gstImage: toMediaValue(restaurant?.gstImage || gst.image),
+  fssaiNumber: restaurant?.fssaiNumber || fssai.registrationNumber || "",
+  fssaiExpiry: fssaiExpiry ? String(fssaiExpiry).slice(0, 10) : "",
+  fssaiImage: toMediaValue(restaurant?.fssaiImage || fssai.image),
+  accountNumber: restaurant?.accountNumber || bank.accountNumber || "",
+  confirmAccountNumber: restaurant?.accountNumber || bank.accountNumber || "",
+  ifscCode: restaurant?.ifscCode || bank.ifscCode || "",
+  accountHolderName: restaurant?.accountHolderName || bank.accountHolderName || "",
+  accountType: restaurant?.accountType || bank.accountType || "",
+  }
+}
 
 export default function EditRestaurant() {
   const { id } = useParams()
@@ -849,7 +876,7 @@ export default function EditRestaurant() {
         <div>
           <Label className="text-xs text-gray-700">Select cuisines (up to 3)*</Label>
           <div className="mt-2 flex flex-wrap gap-2">
-            {cuisinesOptions.map((cuisine) => {
+            {[...new Set([...cuisinesOptions, ...step2.cuisines])].map((cuisine) => {
               const active = step2.cuisines.includes(cuisine)
               return (
                 <button

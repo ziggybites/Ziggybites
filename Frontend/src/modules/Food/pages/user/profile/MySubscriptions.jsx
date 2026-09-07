@@ -43,7 +43,7 @@ export default function MySubscriptions() {
   return (
     <AnimatedPage className="min-h-screen bg-[#f5f5f5] dark:bg-[#0a0a0a]">
       <div className="max-w-md mx-auto px-4 py-4 pb-24">
-        <div className="flex items-center gap-3 mb-4">
+        <div className="sticky top-0 z-40 -mx-4 mb-4 flex items-center gap-3 border-b border-gray-200/80 bg-[#f5f5f5]/95 px-4 py-3 backdrop-blur-md dark:border-gray-800/80 dark:bg-[#0a0a0a]/95">
           <Button
             variant="ghost"
             size="icon"
@@ -53,7 +53,7 @@ export default function MySubscriptions() {
             <ArrowLeft className="h-5 w-5 text-black dark:text-white" />
           </Button>
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
               Purchased Subscriptions
             </h1>
             <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -63,22 +63,22 @@ export default function MySubscriptions() {
         </div>
 
         {loading ? (
-          <Card className="rounded-2xl border-0 shadow-sm">
+          <Card className="rounded-[20px] border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-[#1a1a1a]">
             <CardContent className="p-6 text-center text-sm text-gray-400">
               Loading subscriptions...
             </CardContent>
           </Card>
         ) : subscriptions.length === 0 ? (
-          <Card className="rounded-2xl border-0 shadow-sm">
+          <Card className="rounded-[20px] border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-[#1a1a1a]">
             <CardContent className="p-6 text-center">
-              <p className="text-base font-semibold text-gray-900 dark:text-white">
+              <p className="text-base font-medium text-gray-900 dark:text-white">
                 No subscriptions purchased yet
               </p>
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Choose a dish and plan to start your meal subscription.
               </p>
               <Link to="/food/user" className="inline-block mt-4">
-                <Button className="rounded-xl bg-[#55254b] hover:bg-[#3c0f3d] text-white">
+                <Button className="rounded-xl bg-[#e3282c] text-white hover:bg-[#c92226]">
                   Explore meals
                 </Button>
               </Link>
@@ -90,11 +90,11 @@ export default function MySubscriptions() {
               const id = subscription.subscriptionId || subscription._id;
               return (
                 <Link key={id} to={`/food/user/profile/subscriptions/${id}`} className="block">
-                  <Card className="rounded-2xl border-0 shadow-sm bg-white dark:bg-[#1a1a1a]">
+                <Card className="rounded-[20px] border border-gray-100 bg-white shadow-sm transition-shadow hover:shadow-md dark:border-gray-800 dark:bg-[#1a1a1a]">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h2 className="text-base font-bold text-gray-900 dark:text-white truncate">
+                          <h2 className="truncate text-base font-semibold text-gray-900 dark:text-white">
                             {subscription.dishName || "Subscription meal"}
                           </h2>
                           <p className="mt-1 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 truncate">
@@ -103,7 +103,7 @@ export default function MySubscriptions() {
                           </p>
                         </div>
                         <span
-                          className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-bold uppercase ${getStatusClasses(subscription.status)}`}
+                          className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-medium capitalize ${getStatusClasses(subscription.status)}`}
                         >
                           {subscription.status || "pending"}
                         </span>
@@ -111,16 +111,16 @@ export default function MySubscriptions() {
 
                       <div className="mt-4 grid grid-cols-2 gap-3">
                         <div className="rounded-xl bg-gray-50 dark:bg-gray-900/60 p-3">
-                          <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          <p className="flex items-center gap-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">
                             <CalendarDays className="h-3.5 w-3.5" />
                             Plan
                           </p>
-                          <p className="mt-1 text-sm font-semibold text-gray-900 dark:text-white">
+                            <p className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
                             {subscription.planTitle || `${subscription.planDays} Days`}
                           </p>
                         </div>
                         <div className="rounded-xl bg-gray-50 dark:bg-gray-900/60 p-3">
-                          <p className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          <p className="flex items-center gap-1 text-[11px] font-medium text-gray-500 dark:text-gray-400">
                             <CreditCard className="h-3.5 w-3.5" />
                             Amount
                           </p>
@@ -136,14 +136,14 @@ export default function MySubscriptions() {
                           Meals: <span className="font-medium">{Array.isArray(subscription.meals) && subscription.meals.length > 0 ? subscription.meals.join(", ") : "-"}</span>
                         </p>
                         <p className="flex items-center gap-2">
-                          <Clock3 className="h-4 w-4 text-[#55254b]" />
+                          <Clock3 className="h-4 w-4 text-[#e3282c]" />
                           Active: <span className="font-medium">{formatDate(subscription.startDate)} to {formatDate(subscription.endDate)}</span>
                         </p>
                       </div>
 
                       <div className="mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                         <span>ID: {id || "-"}</span>
-                        <span className="inline-flex items-center gap-1 font-medium text-[#55254b] dark:text-[#d6bfd0]">
+                        <span className="inline-flex items-center gap-1 text-sm text-[#e3282c] dark:text-red-300">
                           Details
                           <ChevronRight className="h-3.5 w-3.5" />
                         </span>

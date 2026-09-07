@@ -2,12 +2,16 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
+  ArrowRight,
   CalendarDays,
+  CalendarCheck2,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Home,
   IndianRupee,
   Lock,
+  ReceiptText,
   MapPin,
   TicketPercent,
 } from "lucide-react";
@@ -168,6 +172,8 @@ export default function SubscriptionCheckout() {
   const [priceQuote, setPriceQuote] = useState(null);
   const [isQuoteLoading, setIsQuoteLoading] = useState(false);
   const [companyName, setCompanyName] = useState("");
+  const [paymentCompleted, setPaymentCompleted] = useState(false);
+  const [completedPayment, setCompletedPayment] = useState(null);
 
   const { dish, selectedMeals = [], subscriptionPlan, selectedDeliveryAddress } = location.state || {};
 
@@ -509,6 +515,13 @@ export default function SubscriptionCheckout() {
     });
   };
 
+  const showPaymentCompleted = (verificationData = null) => {
+    setCompletedPayment(verificationData);
+    setPaymentCompleted(true);
+    setIsPlacingOrder(false);
+    toast.success("Payment completed successfully.");
+  };
+
   const handlePlaceOrder = async () => {
     if (!isAuthenticated) {
       toast.info("Please login to continue with payment.");
@@ -626,9 +639,7 @@ export default function SubscriptionCheckout() {
           );
         }
 
-        toast.success("Subscription activated successfully.");
-        navigate("/food/user/profile", { replace: true });
-        setIsPlacingOrder(false);
+        showPaymentCompleted(verifyResponse?.data?.data || verifyResponse?.data || subscription);
         return;
       }
 
@@ -691,8 +702,7 @@ export default function SubscriptionCheckout() {
               );
             }
 
-            toast.success("Subscription activated successfully.");
-            navigate("/food/user/profile", { replace: true });
+            showPaymentCompleted(verifyResponse?.data?.data || verifyResponse?.data || subscription);
           } catch (error) {
             if (error?.response?.status === 401) {
               toast.info("Please login to continue.");
@@ -746,6 +756,101 @@ export default function SubscriptionCheckout() {
       setIsPlacingOrder(false);
     }
   };
+
+  if (paymentCompleted) {
+    const paymentId =
+      completedPayment?.razorpayPaymentId ||
+      completedPayment?.paymentId ||
+      completedPayment?.payment?.id ||
+      "Payment verified";
+
+    return (
+      <div className="min-h-screen bg-[#fafafa] text-gray-900 pb-12 font-sans">
+        <div className="mx-auto flex min-h-screen max-w-md flex-col">
+          <header className="sticky top-0 z-50 flex items-center justify-between border-b border-gray-100 bg-white px-4 py-4 shadow-sm">
+            <button
+              type="button"
+              onClick={() => navigate("/food/user", { replace: true })}
+              className="text-gray-800"
+              aria-label="Go to home"
+            >
+              <ArrowLeft className="h-6 w-6" />
+            </button>
+            <h1 className="text-lg font-bold tracking-tight">Payment complete</h1>
+            <div className="w-6" />
+          </header>
+
+          <main className="flex flex-1 flex-col justify-center px-4 py-8">
+            <div className="text-center">
+              <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-red-50">
+                <CheckCircle2 className="h-14 w-14 text-[#e3282c]" strokeWidth={1.8} />
+              </div>
+              <p className="mb-2 text-xs font-bold uppercase tracking-widest text-[#e3282c]">
+                Payment successful
+              </p>
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+                Subscription confirmed
+              </h1>
+              <p className="mx-auto mt-3 max-w-[290px] text-sm font-medium leading-relaxed text-gray-500">
+                Your payment was verified successfully. We&apos;ll take care of the rest and keep you updated before every delivery.
+              </p>
+            </div>
+
+            <div className="mt-8 overflow-hidden rounded-[20px] border border-gray-100 bg-white shadow-sm">
+              <div className="flex items-center gap-3 border-b border-gray-100 bg-[#fff5ef] px-5 py-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-50 text-[#e3282c]">
+                  <CalendarCheck2 className="h-5 w-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-gray-900">{subscriptionPlan?.title || `${days} Days`} plan</p>
+                  <p className="mt-0.5 text-xs font-semibold text-[#e3282c]">Ready to schedule your meals</p>
+                </div>
+              </div>
+              <div className="space-y-4 px-5 py-5">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs font-semibold text-gray-500">Meal</span>
+                  <span className="max-w-[210px] truncate text-right text-sm font-bold text-gray-900">{dish?.name || "Subscription meal"}</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-xs font-semibold text-gray-500">Duration</span>
+                  <span className="text-sm font-bold text-gray-900">{days} days · {totalDeliveries} deliveries</span>
+                </div>
+                <div className="flex items-center justify-between gap-4 border-t border-dashed border-gray-200 pt-4">
+                  <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-500"><ReceiptText className="h-4 w-4" /> Paid</span>
+                  <span className="text-xl font-bold text-[#e3282c]">{formatCurrency(totalAmount)}</span>
+                </div>
+                <p className="truncate text-[10px] font-medium text-gray-400">Reference: {paymentId}</p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex items-start gap-3 rounded-[14px] border border-orange-100 bg-[#fff5ef] px-4 py-3.5">
+              <CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-[#e3282c]" />
+              <p className="text-xs font-semibold leading-relaxed text-gray-600">
+                You can manage, skip, or modify your upcoming meals from your subscriptions area.
+              </p>
+            </div>
+          </main>
+
+          <div className="space-y-3 px-4 pb-8">
+            <button
+              type="button"
+              onClick={() => navigate("/food/user/profile", { replace: true })}
+              className="flex w-full items-center justify-center gap-2 rounded-[12px] bg-[#e3282c] py-3.5 text-sm font-bold text-white shadow-sm transition-opacity active:opacity-80 hover:bg-[#d02023]"
+            >
+              View my subscriptions <ArrowRight className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/food/user", { replace: true })}
+              className="flex w-full items-center justify-center gap-2 rounded-[12px] border border-[#e3282c] bg-white py-3.5 text-sm font-bold text-[#e3282c] transition-colors hover:bg-red-50"
+            >
+              <Home className="h-4 w-4" /> Back to home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!dish || !subscriptionPlan) {
     return (
