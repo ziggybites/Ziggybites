@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Input } from "@food/components/ui/input"
 import { Label } from "@food/components/ui/label"
 import { Button } from "@food/components/ui/button"
+import DatePickerDDMMYYYY from "@food/components/ui/DatePickerDDMMYYYY"
 import { adminAPI, uploadAPI, zoneAPI } from "@food/api"
 import { toast } from "sonner"
 import { EMAIL_REGEX } from "@/shared/utils/emailValidation"
@@ -1384,13 +1385,12 @@ export default function AddRestaurant() {
           <Input value={step3.fssaiNumber || ""} onChange={(e) => setStep3({ ...step3, fssaiNumber: sanitizeFssai(e.target.value) })} className="bg-white text-sm" placeholder="FSSAI number*" inputMode="numeric" maxLength={14} />
           <div>
             <Label className="text-xs text-gray-700 mb-1 block">FSSAI expiry date*</Label>
-            <Input
-              type="date"
+            <DatePickerDDMMYYYY
               value={step3.fssaiExpiry || ""}
-              onChange={(e) => setStep3({ ...step3, fssaiExpiry: e.target.value })}
+              onChange={(val) => setStep3({ ...step3, fssaiExpiry: val })}
               min={getTodayLocalYMD()}
-              autoComplete="off"
               className="bg-white text-sm"
+              placeholder="DD/MM/YYYY"
             />
           </div>
         </div>
