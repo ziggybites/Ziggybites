@@ -238,11 +238,17 @@ export async function tryAutoAssign(orderId, options = {}) {
       if (io && partners.length > 0) {
         const payload = buildDeliverySocketPayload(order, order.restaurantId);
         for (const p of partners) {
-          const roomName = rooms.delivery(p.partnerId);
-          logger.info(
-            `[DeliveryDispatchDebug] re-broadcast socket order=${order._id} partner=${String(p.partnerId)} room=${roomName} pickupDistanceKm=${Number(p.distanceKm || 0).toFixed(2)}`,
-          );
-          io.to(roomName).emit('new_order_available', { ...payload, pickupDistanceKm: p.distanceKm });
+           const roomName = rooms.delivery(p.partnerId);
+           logger.info(
+             `[DeliveryRequest] send channel=socket event=new_order_available phase=rebroadcast orderMongoId=${order._id} partnerId=${String(p.partnerId)} room=${roomName}`,
+           );
+           logger.info(
+             `[DeliveryDispatchDebug] re-broadcast socket order=${order._id} partner=${String(p.partnerId)} room=${roomName} pickupDistanceKm=${Number(p.distanceKm || 0).toFixed(2)}`,
+           );
+           io.to(roomName).emit('new_order_available', { ...payload, pickupDistanceKm: p.distanceKm });
+           logger.info(
+             `[DeliveryRequest] sent channel=socket event=new_order_available phase=rebroadcast orderMongoId=${order._id} partnerId=${String(p.partnerId)}`,
+           );
         }
         
         // Also send FCM push for riders with app in background/closed
@@ -251,18 +257,24 @@ export async function tryAutoAssign(orderId, options = {}) {
           ownerId: p.partnerId,
         }));
         try {
-          logger.info(
-            `[DeliveryDispatchDebug] re-broadcast push order=${order._id} riders=${reNotifyList.map((item) => String(item.ownerId)).join(',')}`,
-          );
-          await notifyOwnersSafely(
+         logger.info(
+           `[DeliveryDispatchDebug] re-broadcast push order=${order._id} riders=${reNotifyList.map((item) => String(item.ownerId)).join(',')}`,
+         );
+         logger.info(
+           `[DeliveryRequest] send channel=fcm phase=rebroadcast orderMongoId=${order._id} partnerIds=${reNotifyList.map((item) => String(item.ownerId)).join(',')}`,
+         );
+         await notifyOwnersSafely(
             reNotifyList,
             {
               title: '🚴 Order Still Waiting!',
               body: `Order #${order.order_id || order._id} needs a delivery partner. Accept now!`,
               dataOnly: true,
               data: { type: 'new_order', orderId: order._id.toString() },
-            },
-          );
+           },
+         );
+         logger.info(
+           `[DeliveryRequest] sent channel=fcm phase=rebroadcast orderMongoId=${order._id} partnerCount=${reNotifyList.length}`,
+         );
         } catch (err) {
           logger.warn(`Re-broadcast push notifications failed: ${err.message}`);
         }
@@ -292,6 +304,9 @@ export async function tryAutoAssign(orderId, options = {}) {
         if (io) {
           const eventPayload = { ...payload, pickupDistanceKm: p.distanceKm };
           logger.info(
+            `[DeliveryRequest] send channel=socket event=new_order_available phase=phase2 orderMongoId=${order._id} partnerId=${String(p.partnerId)} room=${roomName}`,
+          );
+          logger.info(
             `[DeliveryDispatchDebug] phase2 socket order=${order._id} partner=${String(p.partnerId)} room=${roomName} pickupDistanceKm=${Number(p.distanceKm || 0).toFixed(2)}`,
           );
           logger.info(
@@ -301,6 +316,9 @@ export async function tryAutoAssign(orderId, options = {}) {
             `[VPS_DISPATCH_TEST] source=socket phase=phase2 order=${order._id} partner=${String(p.partnerId)} room=${roomName} emitted=true event=new_order_available`,
           );
           io.to(roomName).emit('new_order_available', eventPayload);
+          logger.info(
+            `[DeliveryRequest] sent channel=socket event=new_order_available phase=phase2 orderMongoId=${order._id} partnerId=${String(p.partnerId)}`,
+          );
         }
       }
       
@@ -312,6 +330,9 @@ export async function tryAutoAssign(orderId, options = {}) {
       try {
         logger.info(
           `[DeliveryDispatchDebug] phase2 push order=${order._id} riders=${phase2NotifyList.map((item) => String(item.ownerId)).join(',')}`,
+        );
+        logger.info(
+          `[DeliveryRequest] send channel=fcm phase=phase2 orderMongoId=${order._id} partnerIds=${phase2NotifyList.map((item) => String(item.ownerId)).join(',')}`,
         );
         logger.info(
           `[DeliveryOrderPopupServer] source=push phase=phase2 order=${order._id} riders=${phase2NotifyList.map((item) => String(item.ownerId)).join(',')} emitted=${phase2NotifyList.length > 0}`,
@@ -328,6 +349,9 @@ export async function tryAutoAssign(orderId, options = {}) {
             data: { type: 'new_order', orderId: order._id.toString() },
           },
         );
+        logger.info(
+          `[DeliveryRequest] sent channel=fcm phase=phase2 orderMongoId=${order._id} partnerCount=${phase2NotifyList.length}`,
+        );
       } catch (err) {
         logger.warn(`Phase 2 push notifications failed: ${err.message}`);
       }
@@ -343,6 +367,9 @@ export async function tryAutoAssign(orderId, options = {}) {
         if (io) {
           const eventPayload = { ...payload, pickupDistanceKm: p.distanceKm };
           logger.info(
+            `[DeliveryRequest] send channel=socket event=new_order_available phase=phase1 orderMongoId=${order._id} partnerId=${String(p.partnerId)} room=${roomName}`,
+          );
+          logger.info(
             `[DeliveryDispatchDebug] phase1 socket order=${order._id} partner=${String(p.partnerId)} room=${roomName} pickupDistanceKm=${Number(p.distanceKm || 0).toFixed(2)}`,
           );
           logger.info(
@@ -352,6 +379,9 @@ export async function tryAutoAssign(orderId, options = {}) {
             `[VPS_DISPATCH_TEST] source=socket phase=phase1 order=${order._id} partner=${String(p.partnerId)} room=${roomName} emitted=true event=new_order_available`,
           );
           io.to(roomName).emit('new_order_available', eventPayload);
+          logger.info(
+            `[DeliveryRequest] sent channel=socket event=new_order_available phase=phase1 orderMongoId=${order._id} partnerId=${String(p.partnerId)}`,
+          );
         }
       }
 
@@ -364,6 +394,9 @@ export async function tryAutoAssign(orderId, options = {}) {
       try {
         logger.info(
           `[DeliveryDispatchDebug] phase1 push order=${order._id} riders=${notifyList.map((item) => String(item.ownerId)).join(',')}`,
+        );
+        logger.info(
+          `[DeliveryRequest] send channel=fcm phase=phase1 orderMongoId=${order._id} partnerIds=${notifyList.map((item) => String(item.ownerId)).join(',')}`,
         );
         logger.info(
           `[DeliveryOrderPopupServer] source=push phase=phase1 order=${order._id} riders=${notifyList.map((item) => String(item.ownerId)).join(',')} emitted=${notifyList.length > 0}`,
@@ -379,6 +412,9 @@ export async function tryAutoAssign(orderId, options = {}) {
             dataOnly: true,
             data: { type: 'new_order', orderId: order._id.toString() },
           },
+        );
+        logger.info(
+          `[DeliveryRequest] sent channel=fcm phase=phase1 orderMongoId=${order._id} partnerCount=${notifyList.length}`,
         );
       } catch (err) {
         logger.warn(`Push notifications failed for batch: ${err.message}`);
