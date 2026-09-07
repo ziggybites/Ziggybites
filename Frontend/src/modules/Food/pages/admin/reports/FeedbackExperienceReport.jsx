@@ -43,9 +43,25 @@ export default function FeedbackExperienceReport() {
         ...(filters.experience && { experience: filters.experience }),
         ...(filters.module && { module: filters.module }),
       }
-      const response = await adminAPI.getFeedbackExperiences(params)
+      const response = await adminAPI.getFeedbackExperiences({ ...params, page: 1 })
       if (response.data && response.data.data) {
-        const rawData = response.data.data.feedbacks || []
+        const firstPageData = response.data.data
+        const totalPages = Math.max(1, Number(firstPageData.pagination?.pages || 1))
+        let rawData = [...(firstPageData.feedbacks || [])]
+
+        // The API is paginated. Load every remaining page so this report does
+        // not silently show only the first 1,000 feedback records.
+        if (totalPages > 1) {
+          const remainingPages = await Promise.all(
+            Array.from({ length: totalPages - 1 }, (_, index) =>
+              adminAPI.getFeedbackExperiences({ ...params, page: index + 2 })
+            )
+          )
+          remainingPages.forEach((pageResponse) => {
+            rawData = rawData.concat(pageResponse?.data?.data?.feedbacks || [])
+          })
+        }
+
         const formattedData = rawData.map(fb => ({
           _id: fb._id,
           userName: fb.userName || 'N/A',
@@ -58,7 +74,7 @@ export default function FeedbackExperienceReport() {
           createdAt: fb.createdAt
         }))
         setFeedbackExperiences(formattedData)
-        setStatistics(response.data.data.statistics || null)
+        setStatistics(firstPageData.statistics || null)
       }
     } catch (error) {
       debugError('Error fetching feedback experiences:', error)

@@ -135,7 +135,6 @@ export default function RegularOrderReport() {
                     transactionPricing.subtotal ||
                     0
                   )
-            const packagingFee = Number(amountBreakdown.packagingFee || transactionPricing.packagingFee || 0)
             const deliveryCharge = Number(
               isSubscriptionPrepaidOrder
                 ? settlementAmounts.riderShare ||
@@ -222,7 +221,6 @@ export default function RegularOrderReport() {
               customerName,
               zoneId: String(zoneId || ""),
               totalItemAmount: foodValue,
-              packagingFee,
               couponDiscount,
               vatTax,
               deliveryCharge,
@@ -286,7 +284,6 @@ export default function RegularOrderReport() {
       { key: "restaurant", label: "Restaurant" },
       { key: "customerName", label: "Customer Name" },
       { key: "totalItemAmount", label: "Food Value" },
-      { key: "packagingFee", label: "Packaging Fee" },
       { key: "couponDiscount", label: "Coupon Discount" },
       { key: "deliveryCharge", label: "Delivery Share" },
       { key: "totalAmount", label: "Total Amount" },
@@ -334,7 +331,6 @@ export default function RegularOrderReport() {
         (acc, order) => {
           acc.totalOrders += 1
           acc.foodValue += Number(order.totalItemAmount || 0)
-          acc.packagingFee += Number(order.packagingFee || 0)
           acc.discount += Number(order.couponDiscount || 0)
           acc.gst += Number(order.vatTax || 0)
           acc.delivery += Number(order.deliveryCharge || 0)
@@ -345,7 +341,6 @@ export default function RegularOrderReport() {
         {
           totalOrders: 0,
           foodValue: 0,
-          packagingFee: 0,
           discount: 0,
           gst: 0,
           delivery: 0,
@@ -500,7 +495,6 @@ export default function RegularOrderReport() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
           <SummaryCard label="Total Orders" value={pricingStats.totalOrders} tone="blue" />
           <SummaryCard label="Food Value" value={formatAmount(pricingStats.foodValue)} tone="slate" />
-          <SummaryCard label="Packaging Fee" value={formatAmount(pricingStats.packagingFee)} tone="amber" />
           <SummaryCard label="Discount" value={formatAmount(pricingStats.discount)} tone="rose" />
           <SummaryCard label="GST" value={formatAmount(pricingStats.gst)} tone="emerald" />
           <SummaryCard label="Delivery Share" value={formatAmount(pricingStats.delivery)} tone="cyan" />
@@ -594,9 +588,6 @@ export default function RegularOrderReport() {
                     Food Value
                   </th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: "7%" }}>
-                    Packaging
-                  </th>
-                  <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: "7%" }}>
                     Coupon
                   </th>
                   <th className="px-1.5 py-1 text-left text-[8px] font-bold text-slate-700 uppercase tracking-wider" style={{ width: "7%" }}>
@@ -613,7 +604,7 @@ export default function RegularOrderReport() {
               <tbody className="bg-white divide-y divide-slate-100">
                 {paginatedOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={10} className="px-6 py-20 text-center">
+                    <td colSpan={9} className="px-6 py-20 text-center">
                       <div className="flex flex-col items-center justify-center">
                         <p className="text-lg font-semibold text-slate-700 mb-1">No Data Found</p>
                         <p className="text-sm text-slate-500">No orders match your filters</p>
@@ -639,9 +630,6 @@ export default function RegularOrderReport() {
                       </td>
                       <td className="px-1.5 py-1">
                         <span className="text-[10px] text-slate-700">{formatAmount(order.totalItemAmount)}</span>
-                      </td>
-                      <td className="px-1.5 py-1">
-                        <span className="text-[10px] text-slate-700">{formatAmount(order.packagingFee)}</span>
                       </td>
                       <td className="px-1.5 py-1">
                         <span className="text-[10px] text-slate-700">{formatAmount(order.couponDiscount)}</span>

@@ -35,7 +35,7 @@ export async function updateBusinessSettings(req, res, next) {
         const { 
             companyName, email, phoneCountryCode, phoneNumber, address, state, pincode, region,
             supportEmail, supportPhone, supportHours, fssai, gstin, onlinePaymentOnly, maxCodAmount,
-            maintenanceMode, customerRegistration, restaurantRegistration, deliveryRegistration
+            maintenanceMode, customerRegistration, restaurantRegistration, deliveryRegistration, foodVariantsEnabled
         } = data;
 
         // Ensure string inputs for validation to prevent crashes from non-string values
@@ -117,6 +117,9 @@ export async function updateBusinessSettings(req, res, next) {
         }
         if (deliveryRegistration !== undefined) {
             settings.deliveryRegistration = Boolean(deliveryRegistration === 'true' || deliveryRegistration === true);
+        }
+        if (foodVariantsEnabled !== undefined) {
+            settings.foodVariantsEnabled = Boolean(foodVariantsEnabled === 'true' || foodVariantsEnabled === true);
         }
 
         // Handle file uploads

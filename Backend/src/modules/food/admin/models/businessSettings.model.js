@@ -34,7 +34,8 @@ const businessSettingsSchema = new mongoose.Schema(
         maintenanceMode: { type: Boolean, default: false },
         customerRegistration: { type: Boolean, default: true },
         restaurantRegistration: { type: Boolean, default: true },
-        deliveryRegistration: { type: Boolean, default: true }
+        deliveryRegistration: { type: Boolean, default: true },
+        foodVariantsEnabled: { type: Boolean, default: true }
     },
     {
         collection: 'foodbusinesssettings',

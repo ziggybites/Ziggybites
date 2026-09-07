@@ -105,7 +105,6 @@ const transformOrders = (ordersData = []) => {
       totalAmount: amountBreakdown.total,
       subtotal: amountBreakdown.subtotal,
       deliveryFee: amountBreakdown.deliveryFee,
-      packagingFee: amountBreakdown.packagingFee,
       platformFee: amountBreakdown.platformFee,
       tax: amountBreakdown.tax,
       gst: amountBreakdown.gst,

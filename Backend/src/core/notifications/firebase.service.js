@@ -456,6 +456,40 @@ export const notifyAdminsSafely = async (payload = {}) => {
             ownerType: 'ADMIN',
             ownerId: String(a._id)
         }));
+
+        // 1. Create DB Inbox Notification records for admins
+        try {
+            const { createInboxNotifications } = await import('./notification.service.js');
+            const title = String(payload.title || payload.notification?.title || 'Admin Alert');
+            const message = String(payload.body || payload.notification?.body || '');
+            const notificationsToCreate = admins.map(a => ({
+                ownerType: 'ADMIN',
+                ownerId: String(a._id),
+                title,
+                message,
+                category: payload.category || 'system',
+                metadata: payload.data || {}
+            }));
+            await createInboxNotifications({ notifications: notificationsToCreate });
+        } catch (dbErr) {
+            logger.warn(`Failed to create admin inbox notifications: ${dbErr.message}`);
+        }
+
+        // 2. Emit real-time Socket.io event to room 'admin'
+        try {
+            const { getSocketIO } = await import('../../socket.js');
+            const io = getSocketIO();
+            if (io) {
+                io.to('admin').emit('admin_notification', {
+                    title: payload.title || 'Admin Alert',
+                    body: payload.body || '',
+                    data: payload.data || {},
+                    timestamp: new Date().toISOString()
+                });
+            }
+        } catch (sockErr) {
+            logger.warn(`Failed to emit socket notification to admin room: ${sockErr.message}`);
+        }
         
         return await sendNotificationToOwners(targets, payload);
     } catch (e) {

@@ -6,6 +6,18 @@ import { Loader2, MapPin, Clock, Package, CheckCircle2, Navigation, ShoppingBag,
 import { toast } from 'sonner';
 import { getRestaurantAvailabilityStatus } from '../../utils/restaurantAvailability';
 
+const formatOrderTime = (value) => {
+  const date = value ? new Date(value) : null;
+  if (!date || Number.isNaN(date.getTime())) return '--:--';
+
+  return new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(date);
+};
+
 export default function StatusMonitor() {
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('statusMonitorTab') || 'restaurants';
@@ -501,7 +513,7 @@ function DeliveryPartnerDetails({ partner, onRefresh }) {
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <span className="text-sm font-bold text-gray-800">{order.orderId}</span>
-                      <p className="text-xs text-gray-500">{new Date(order.time).toLocaleTimeString()}</p>
+                      <p className="text-xs text-gray-500">{formatOrderTime(order.time)}</p>
                     </div>
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                       order.status === 'delivered' ? 'bg-green-50 text-green-600' :

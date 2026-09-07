@@ -23,7 +23,7 @@ import { restaurantAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
 import { ImageSourcePicker } from "@food/components/ImageSourcePicker"
 import { isFlutterBridgeAvailable } from "@food/utils/imageUploadUtils"
-import { getFoodVariants } from "@food/utils/foodVariants"
+import { areFoodVariantsEnabled, getFoodVariants } from "@food/utils/foodVariants"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -72,6 +72,7 @@ export default function ItemDetailsPage() {
   const [foodTag, setFoodTag] = useState("Normal")
   const [basePrice, setBasePrice] = useState("")
   const [variants, setVariants] = useState([])
+  const [foodVariantsEnabled, setFoodVariantsEnabled] = useState(areFoodVariantsEnabled)
   const [preparationTime, setPreparationTime] = useState("")
   const [gst, setGst] = useState("5.0")
   const [isRecommended, setIsRecommended] = useState(false)
@@ -104,6 +105,17 @@ export default function ItemDetailsPage() {
   const [loadingItem, setLoadingItem] = useState(false)
   const [restaurantProfile, setRestaurantProfile] = useState(null)
   const [keyboardInset, setKeyboardInset] = useState(0)
+
+  useEffect(() => {
+    const syncVariantSetting = () => setFoodVariantsEnabled(areFoodVariantsEnabled())
+    window.addEventListener("food-variants-setting-changed", syncVariantSetting)
+    syncVariantSetting()
+    return () => window.removeEventListener("food-variants-setting-changed", syncVariantSetting)
+  }, [])
+
+  useEffect(() => {
+    if (!foodVariantsEnabled) setVariants([])
+  }, [foodVariantsEnabled])
 
   const maxNameLength = 70
   const maxDescriptionLength = 1000
@@ -676,7 +688,7 @@ export default function ItemDetailsPage() {
           name: itemName.trim(),
           description: itemDescription.trim(),
           price: hasVariants ? undefined : parsedBasePrice,
-          variants: variantPayload,
+          variants: foodVariantsEnabled ? variantPayload : [],
           image: allImageUrls.length > 0 ? allImageUrls[0] : "",
           foodType: foodType,
           tag: foodTag,
@@ -699,7 +711,7 @@ export default function ItemDetailsPage() {
           name: itemName.trim(),
           description: itemDescription.trim(),
           price: hasVariants ? undefined : parsedBasePrice,
-          variants: variantPayload,
+          variants: foodVariantsEnabled ? variantPayload : [],
           image: allImageUrls.length > 0 ? allImageUrls[0] : "",
           foodType: foodType,
           tag: foodTag,
@@ -1100,7 +1112,7 @@ export default function ItemDetailsPage() {
                 </div>
               )}
 
-              <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
+              {foodVariantsEnabled && <div className="rounded-xl border border-gray-200 bg-white p-3 space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-medium text-gray-900">Variants</p>
@@ -1165,7 +1177,7 @@ export default function ItemDetailsPage() {
                 ) : (
                   <p className="text-xs text-gray-500">No variants added. This item will use the base price only.</p>
                 )}
-              </div>
+              </div>}
 
               {/* Preparation Time */}
               <div className="relative">

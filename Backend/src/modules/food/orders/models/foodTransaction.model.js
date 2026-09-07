@@ -26,7 +26,6 @@ const foodTransactionSchema = new mongoose.Schema({
     pricing: {
         subtotal: { type: Number },
         tax: { type: Number },
-        packagingFee: { type: Number },
         deliveryFee: { type: Number },
         platformFee: { type: Number },
         restaurantCommission: { type: Number },

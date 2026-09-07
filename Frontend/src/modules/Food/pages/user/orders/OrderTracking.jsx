@@ -20,7 +20,12 @@ import {
   CircleSlash,
   Loader2,
   Clock,
-  Calendar
+  Calendar,
+  MessageCircle,
+  Send,
+  Mail,
+  MessagesSquare,
+  Copy
 } from "lucide-react"
 import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Card, CardContent } from "@food/components/ui/card"
@@ -202,10 +207,10 @@ const DeliveryMap = memo(({ orderId, order, isVisible, fallbackCustomerCoords = 
 });
 
 // Section item component
-const SectionItem = ({ icon: Icon, iconNode, title, subtitle, onClick, showArrow = true, rightContent }) => (
+const SectionItem = ({ icon: Icon, iconNode, title, subtitle, onClick, showArrow = true, rightContent, multiline = false }) => (
   <motion.button
     onClick={onClick}
-    className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left border-b border-dashed border-gray-200 dark:border-gray-800 last:border-0"
+    className={`w-full flex ${multiline ? "items-start" : "items-center"} gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors text-left border-b border-dashed border-gray-200 dark:border-gray-800 last:border-0`}
     whileTap={{ scale: 0.99 }}
   >
     <div className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -221,7 +226,7 @@ const SectionItem = ({ icon: Icon, iconNode, title, subtitle, onClick, showArrow
     </div>
     <div className="flex-1 min-w-0">
       <p className="font-medium text-gray-900 dark:text-gray-100 truncate">{title}</p>
-      {subtitle && <p className="text-sm text-gray-500 dark:text-gray-400 truncate">{subtitle}</p>}
+      {subtitle && <p className={`text-sm text-gray-500 dark:text-gray-400 ${multiline ? "whitespace-normal break-words leading-5" : "truncate"}`}>{subtitle}</p>}
     </div>
     {rightContent || (showArrow && <ChevronRight className="w-5 h-5 text-gray-400 dark:text-gray-500 flex-shrink-0" />)}
   </motion.button>
@@ -384,7 +389,6 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     deliveryFee: amountBreakdown.deliveryFee || previousOrder?.deliveryFee || 0,
     gst: amountBreakdown.gst || previousOrder?.gst || 0,
     tax: amountBreakdown.tax || previousOrder?.tax || 0,
-    packagingFee: amountBreakdown.packagingFee || previousOrder?.packagingFee || 0,
     platformFee: amountBreakdown.platformFee || previousOrder?.platformFee || 0,
     discount: amountBreakdown.discount || previousOrder?.discount || 0,
     subtotal: amountBreakdown.subtotal || previousOrder?.subtotal || 0,
@@ -511,6 +515,7 @@ export default function OrderTracking() {
   const [isInstructionsModalOpen, setIsInstructionsModalOpen] = useState(false)
   const [deliveryInstructions, setDeliveryInstructions] = useState("")
   const [isUpdatingInstructions, setIsUpdatingInstructions] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
   const [resolvedLookupId, setResolvedLookupId] = useState("")
   const [timerNow, setTimerNow] = useState(Date.now())
   const [cancelSecondsRemaining, setCancelSecondsRemaining] = useState(0)
@@ -1309,25 +1314,58 @@ export default function OrderTracking() {
     }
   };
 
-  const handleShare = async () => {
+  const getSharePayload = () => ({
+    title: `Track my order from ${order?.restaurant || companyName}`,
+    text: `Hey! Track my order from ${order?.restaurant || companyName} with ID #${order?.orderId || order?.id}.`,
+    url: window.location.href,
+  })
+
+  const handleShare = () => setShowShareModal(true)
+
+  const copyShareLink = async () => {
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `Track my order from ${order?.restaurant || companyName}`,
-          text: `Hey! Track my order from ${order?.restaurant || companyName} with ID #${order?.orderId || order?.id}.`,
-          url: window.location.href,
-        });
-      } else {
-        await navigator.clipboard.writeText(window.location.href);
-        toast.success("Tracking link copied to clipboard!");
-      }
+      await navigator.clipboard.writeText(getSharePayload().url)
+      toast.success("Tracking link copied to clipboard!")
+      setShowShareModal(false)
     } catch (error) {
-      if (error.name !== 'AbortError') {
-        debugError('Error sharing:', error);
-        toast.error("Failed to share link");
+      debugError("Error copying share link:", error)
+      toast.error("Failed to copy link")
+    }
+  }
+
+  const handleSystemShareFromModal = async () => {
+    if (!navigator.share) return
+    try {
+      await navigator.share(getSharePayload())
+      setShowShareModal(false)
+    } catch (error) {
+      if (error?.name !== "AbortError") {
+        debugError("Error sharing:", error)
+        toast.error("Failed to share link")
       }
     }
-  };
+  }
+
+  const openShareTarget = (target) => {
+    const { title, text, url } = getSharePayload()
+    const encodedUrl = encodeURIComponent(url)
+    let shareLink = ""
+
+    if (target === "whatsapp") {
+      shareLink = `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`
+    } else if (target === "telegram") {
+      shareLink = `https://t.me/share/url?url=${encodedUrl}&text=${encodeURIComponent(text)}`
+    } else if (target === "email") {
+      shareLink = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(`${text}\n\n${url}`)}`
+    } else if (target === "sms") {
+      shareLink = `sms:?body=${encodeURIComponent(`${text} ${url}`)}`
+    }
+
+    if (shareLink) {
+      window.open(shareLink, "_blank", "noopener,noreferrer")
+      setShowShareModal(false)
+    }
+  }
 
   const handleRefresh = async () => {
     setIsRefreshing(true)
@@ -1959,12 +1997,8 @@ export default function OrderTracking() {
             }
             title="Delivery at Location"
             subtitle={(() => {
-              // Priority 1: Use order address formattedAddress (live location address)
-              if (order?.address?.formattedAddress && order.address.formattedAddress !== "Select location") {
-                return order.address.formattedAddress
-              }
-
-              // Priority 2: Build full address from order address parts
+              // Prefer the stored address parts so apartment/area details are not
+              // lost when the API's formattedAddress only contains the city.
               if (order?.address) {
                 const orderAddressParts = []
                 if (order.address.street) orderAddressParts.push(order.address.street)
@@ -1977,12 +2011,14 @@ export default function OrderTracking() {
                 }
               }
 
-              // Priority 3: Use defaultAddress formattedAddress (live location address)
+              if (order?.address?.formattedAddress && order.address.formattedAddress !== "Select location") {
+                return order.address.formattedAddress
+              }
+
               if (defaultAddress?.formattedAddress && defaultAddress.formattedAddress !== "Select location") {
                 return defaultAddress.formattedAddress
               }
 
-              // Priority 4: Build full address from defaultAddress parts
               if (defaultAddress) {
                 const defaultAddressParts = []
                 if (defaultAddress.street) defaultAddressParts.push(defaultAddress.street)
@@ -1998,6 +2034,7 @@ export default function OrderTracking() {
               return 'Add delivery address'
             })()}
             showArrow={false}
+            multiline
           />
           {!isAdminAccepted && orderStatus !== 'cancelled' && orderStatus !== 'delivered' && (
             <SectionItem
@@ -2258,12 +2295,6 @@ export default function OrderTracking() {
                 <span className="text-gray-900 font-medium">₹{Number(order?.subtotal || 0).toFixed(2)}</span>
               </div>
 
-              {Number(order?.packagingFee) > 0 && (
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Packaging Charges</span>
-                  <span className="text-gray-900 font-medium">₹{Number(order.packagingFee).toFixed(2)}</span>
-                </div>
-              )}
 
               {Number(order?.platformFee) > 0 && (
                 <div className="flex justify-between items-center text-sm">
@@ -2271,16 +2302,6 @@ export default function OrderTracking() {
                   <span className="text-gray-900 font-medium">₹{Number(order.platformFee).toFixed(2)}</span>
                 </div>
               )}
-
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">Delivery Fee</span>
-                <span className="text-gray-900 font-medium">₹{Number(order?.deliveryFee || 0).toFixed(2)}</span>
-              </div>
-
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-600">GST</span>
-                <span className="text-gray-900 font-medium">₹{Number(order?.gst || 0).toFixed(2)}</span>
-              </div>
 
               {Number(order?.discount) > 0 && (
                 <div className="flex justify-between items-center text-sm text-green-600 font-medium">
@@ -2441,6 +2462,53 @@ export default function OrderTracking() {
               className="w-full text-sm text-gray-400 dark:text-gray-500 font-medium hover:text-gray-600 dark:hover:text-gray-400 transition-colors py-2"
             >
               Maybe later
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Share order dialog */}
+      <Dialog open={showShareModal} onOpenChange={setShowShareModal}>
+        <DialogContent className="sm:max-w-md w-[95vw] rounded-3xl p-0 border-0 shadow-2xl bg-white dark:bg-[#121212] overflow-hidden">
+          <DialogHeader className="px-5 py-4 border-b border-gray-100 dark:border-gray-800">
+            <DialogTitle className="text-base font-semibold text-gray-900 dark:text-gray-100">
+              Share order tracking
+            </DialogTitle>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Choose an app to send this tracking link.
+            </p>
+          </DialogHeader>
+
+          <div className="p-5 space-y-3">
+            {typeof navigator !== "undefined" && navigator.share && (
+              <Button
+                type="button"
+                onClick={handleSystemShareFromModal}
+                className="w-full h-11 rounded-xl bg-primary hover:bg-secondary text-white font-semibold flex items-center justify-center gap-2"
+              >
+                <Share2 className="w-4 h-4" />
+                Share via apps
+              </Button>
+            )}
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <button type="button" onClick={() => openShareTarget("whatsapp")} className="rounded-xl border border-gray-200 dark:border-gray-800 px-2 py-3 text-xs text-gray-700 dark:text-gray-200 flex flex-col items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800">
+                <MessageCircle className="w-5 h-5 text-green-600" /> WhatsApp
+              </button>
+              <button type="button" onClick={() => openShareTarget("telegram")} className="rounded-xl border border-gray-200 dark:border-gray-800 px-2 py-3 text-xs text-gray-700 dark:text-gray-200 flex flex-col items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800">
+                <Send className="w-5 h-5 text-sky-500" /> Telegram
+              </button>
+              <button type="button" onClick={() => openShareTarget("sms")} className="rounded-xl border border-gray-200 dark:border-gray-800 px-2 py-3 text-xs text-gray-700 dark:text-gray-200 flex flex-col items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800">
+                <MessagesSquare className="w-5 h-5 text-violet-500" /> SMS
+              </button>
+              <button type="button" onClick={() => openShareTarget("email")} className="rounded-xl border border-gray-200 dark:border-gray-800 px-2 py-3 text-xs text-gray-700 dark:text-gray-200 flex flex-col items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800">
+                <Mail className="w-5 h-5 text-rose-500" /> Email
+              </button>
+            </div>
+
+            <button type="button" onClick={copyShareLink} className="w-full rounded-xl border border-gray-200 dark:border-gray-800 px-3 py-3 text-sm text-gray-700 dark:text-gray-200 flex items-center justify-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-800">
+              <Copy className="w-4 h-4 text-gray-500" />
+              Copy link
             </button>
           </div>
         </DialogContent>

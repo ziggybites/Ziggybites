@@ -98,7 +98,7 @@ const restaurantRegisterSchema = z.object({
     fssaiNumber: z.string().optional(),
     fssaiExpiry: z.string().optional(),
     accountNumber: z.string().optional(),
-    ifscCode: z.string().optional(),
+    ifscCode: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/i, 'Invalid IFSC format').optional().or(z.literal('')),
     accountHolderName: z.string().optional(),
     accountType: z.string().optional()
 });

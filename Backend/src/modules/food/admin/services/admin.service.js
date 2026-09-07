@@ -330,7 +330,6 @@ const DASHBOARD_PENDING_ORDER_STATUSES = ['created', 'confirmed'];
 const DASHBOARD_PROCESSING_ORDER_STATUSES = ['preparing', 'ready_for_pickup'];
 const DELIVERED_ORDER_STATUS_EXPR = { $eq: ['$orderStatus', 'delivered'] };
 const ORDER_SUBTOTAL_EXPR = { $ifNull: ['$subtotal', { $ifNull: ['$pricing.subtotal', 0] }] };
-const ORDER_PACKAGING_FEE_EXPR = { $ifNull: ['$packagingFee', { $ifNull: ['$pricing.packagingFee', 0] }] };
 const ORDER_DELIVERY_FEE_EXPR = { $ifNull: ['$deliveryFee', { $ifNull: ['$pricing.deliveryFee', 0] }] };
 const ORDER_PLATFORM_FEE_EXPR = { $ifNull: ['$platformFee', { $ifNull: ['$pricing.platformFee', 0] }] };
 const ORDER_TAX_EXPR = { $ifNull: ['$tax', { $ifNull: ['$pricing.tax', 0] }] };
@@ -345,13 +344,8 @@ const DASHBOARD_DERIVED_PLATFORM_FEE_EXPR = {
                     $subtract: [
                         {
                             $subtract: [
-                                {
-                                    $subtract: [
-                                        ORDER_TOTAL_EXPR,
-                                        ORDER_SUBTOTAL_EXPR
-                                    ]
-                                },
-                                ORDER_PACKAGING_FEE_EXPR
+                                ORDER_TOTAL_EXPR,
+                                ORDER_SUBTOTAL_EXPR
                             ]
                         },
                         ORDER_DELIVERY_FEE_EXPR
@@ -901,7 +895,6 @@ export async function getTransactionReport(query = {}) {
             String(order?.subscriptionUsage?.billingMode || '').toLowerCase() === 'subscription_prepaid' ||
             String(tx?.paymentMethod || tx?.payment?.method || '').toLowerCase() === 'subscription';
         const subtotal = Number(pricing.subtotal || 0) || 0;
-        const packagingFee = Number(pricing.packagingFee || 0) || 0;
         const deliveryFee = Number(pricing.deliveryFee || 0) || 0;
         const tax = Number(pricing.tax || 0) || 0;
         const discount = Number(pricing.discount || 0) || 0;
@@ -909,10 +902,10 @@ export async function getTransactionReport(query = {}) {
 
         // "Platform fee" should come from pricing.platformFee when available.
         // For older orders where pricing.platformFee isn't stored, derive it from the pricing equation:
-        // total = subtotal + packagingFee + deliveryFee + platformFee + tax - discount
+        // total = subtotal + deliveryFee + platformFee + tax - discount
         const platformFeeDerived = Math.max(
             0,
-            total - subtotal - packagingFee - deliveryFee - tax + discount
+            total - subtotal - deliveryFee - tax + discount
         );
         const platformFee =
             isSubscriptionPrepaidOrder
@@ -963,7 +956,6 @@ export async function getTransactionReport(query = {}) {
             adminEarningBreakdown: {
                 deliveryProfit: deliveryFeeUser - deliveryCostAdmin - deliveryGstAdmin,
                 platformFee: platformFee,
-                packagingFee: packagingFee,
                 restaurantCommission: Number(pricing.restaurantCommission || 0),
                 gstOnItem: isSubscriptionPrepaidOrder ? 0 : Number(pricing.gstOnItem || 0),
                 gstOnCommission: isSubscriptionPrepaidOrder ? 0 : Number(pricing.gstOnCommission || 0),
@@ -1017,7 +1009,6 @@ export async function getTransactionReport(query = {}) {
             adminEarningBreakdown: {
                 deliveryProfit: 0,
                 platformFee: Number(purchase?.pricing?.platformFee || 0),
-                packagingFee: 0,
                 restaurantCommission: 0,
                 gstOnItem: Number(purchase?.pricing?.gstAmount || 0),
                 gstOnCommission: 0,
@@ -1044,7 +1035,6 @@ export async function getTransactionReport(query = {}) {
     let adminEarningBreakdown = {
         deliveryProfit: 0,
         platformFee: 0,
-        packagingFee: 0,
         restaurantCommission: 0,
         gstOnCommission: 0,
         paymentGatewayFee: 0,
@@ -1078,7 +1068,6 @@ export async function getTransactionReport(query = {}) {
             
             adminEarningBreakdown.deliveryProfit += (deliveryFeeUser - deliveryCostAdmin - deliveryGstAdmin);
             adminEarningBreakdown.platformFee += Number(pricing.platformFee || 0);
-            adminEarningBreakdown.packagingFee += Number(pricing.packagingFee || 0);
             adminEarningBreakdown.restaurantCommission += Number(pricing.restaurantCommission || 0);
             adminEarningBreakdown.gstOnCommission += Number(pricing.gstOnCommission || 0);
             adminEarningBreakdown.paymentGatewayFee += Number(pricing.paymentGatewayFee || 0);
@@ -2142,16 +2131,12 @@ export async function upsertFeeSettings(body) {
         if (body.platformFee === null) $unset.platformFee = 1;
         else if (body.platformFee !== undefined) $set.platformFee = body.platformFee;
 
-        if (body.packagingFee === null) $unset.packagingFee = 1;
-        else if (body.packagingFee !== undefined) $set.packagingFee = body.packagingFee;
-
         if (body.gstRate === null) $unset.gstRate = 1;
         else if (body.gstRate !== undefined) $set.gstRate = body.gstRate;
 
         // Always remove legacy fee-tax GST fields once fee settings are touched.
         $unset.gstOnDeliveryFee = 1;
         $unset.gstOnPlatformFee = 1;
-        $unset.gstOnPackagingFee = 1;
 
         if (body.deliveryBonusAmount === null) $unset.deliveryBonusAmount = 1;
         else if (body.deliveryBonusAmount !== undefined) $set.deliveryBonusAmount = body.deliveryBonusAmount;
@@ -2178,7 +2163,6 @@ export async function upsertFeeSettings(body) {
     if (body.freeDeliveryUpTo !== undefined && body.freeDeliveryUpTo !== null) payload.freeDeliveryUpTo = body.freeDeliveryUpTo;
     if (body.freeDeliveryThreshold !== undefined && body.freeDeliveryThreshold !== null) payload.freeDeliveryThreshold = body.freeDeliveryThreshold;
     if (body.platformFee !== undefined && body.platformFee !== null) payload.platformFee = body.platformFee;
-    if (body.packagingFee !== undefined && body.packagingFee !== null) payload.packagingFee = body.packagingFee;
     if (body.gstRate !== undefined && body.gstRate !== null) payload.gstRate = body.gstRate;
     if (body.deliveryBonusAmount !== undefined && body.deliveryBonusAmount !== null) payload.deliveryBonusAmount = body.deliveryBonusAmount;
     if (body.dispatchRadiusTiers !== undefined && body.dispatchRadiusTiers !== null) payload.dispatchRadiusTiers = body.dispatchRadiusTiers;
@@ -2746,7 +2730,6 @@ export async function getRestaurantAnalytics(restaurantId) {
         // Pricing (what customer paid components)
         subtotal: sum(completedTx, (tx) => tx?.pricing?.subtotal ?? tx?.orderId?.subtotal),
         tax: sum(completedTx, (tx) => tx?.pricing?.tax ?? tx?.amounts?.taxAmount ?? 0),
-        packagingFee: sum(completedTx, (tx) => tx?.pricing?.packagingFee ?? 0),
         deliveryFee: sum(completedTx, (tx) => tx?.pricing?.deliveryFee ?? 0),
         platformFee: sum(completedTx, (tx) => tx?.pricing?.platformFee ?? 0),
         discount: sum(completedTx, (tx) => tx?.pricing?.discount ?? 0),
@@ -4256,7 +4239,9 @@ export async function getDeliveryJoinRequests(query) {
         status: doc.status === 'rejected' ? 'denied' : doc.status,
         rejectionReason: doc.rejectionReason || undefined,
         profilePhoto: doc.profilePhoto || null,
-        profileImage: doc.profilePhoto ? { url: doc.profilePhoto } : null
+        profileImage: doc.profilePhoto ? { url: doc.profilePhoto } : null,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt
     }));
 
     return { requests };
@@ -5154,6 +5139,7 @@ export async function approveDeliveryPartner(id) {
 
     try {
         const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
+        const { createInboxNotifications } = await import('../../../../core/notifications/notification.service.js');
         await notifyOwnerSafely(
             { ownerType: 'DELIVERY_PARTNER', ownerId: partner._id },
             {
@@ -5166,6 +5152,20 @@ export async function approveDeliveryPartner(id) {
                 }
             }
         );
+        await createInboxNotifications({
+            notifications: [{
+                ownerType: 'DELIVERY_PARTNER',
+                ownerId: partner._id,
+                title: 'Application Approved',
+                message: 'Your delivery partner application has been approved. You can now go online and start earning!',
+                link: '/food/delivery/profile',
+                category: 'delivery_approval',
+                metadata: {
+                    type: 'onboarding_approved',
+                    partnerId: String(partner._id)
+                }
+            }]
+        });
     } catch (e) {
         console.error('Failed to send delivery partner approval notification:', e);
     }

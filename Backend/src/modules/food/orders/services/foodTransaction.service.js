@@ -185,7 +185,7 @@ export async function createInitialTransaction(order) {
     const paymentGatewayFee = commissionSnapshot.paymentGatewayFee || 0;
     const tcs = commissionSnapshot.tcs || 0;
 
-    const restaurantNet = (pricing.subtotal || 0) + (pricing.packagingFee || 0) - restaurantCommission - gstOnItem - gstOnCommission - paymentGatewayFee - tcs;
+    const restaurantNet = (pricing.subtotal || 0) - restaurantCommission - gstOnItem - gstOnCommission - paymentGatewayFee - tcs;
 
     const calculatedPlatformNetProfit = isSubscriptionPrepaidOrder
         ? restaurantCommission + subscriptionDeliveryFeeAmount + subscriptionPlatformFeeAmount - subscriptionCouponDiscountAmount - riderShare
@@ -233,7 +233,6 @@ export async function createInitialTransaction(order) {
         : {
             subtotal: Number(pricing.subtotal || 0) || 0,
             tax: Number(pricing.tax || 0) || 0,
-            packagingFee: Number(pricing.packagingFee || 0) || 0,
             deliveryFee: Number(pricing.deliveryFee || 0) || 0,
             platformFee: Number(pricing.platformFee || 0) || 0,
             restaurantCommission,

@@ -16,7 +16,6 @@ export default function FeeSettings() {
     freeDeliveryUpTo: "",
     freeDeliveryThreshold: "",
     platformFee: "",
-    packagingFee: "",
     gstRate: "",
     deliveryBonusAmount: "",
     dispatchRadiusTiers: "2, 4, 6, 8, 10",
@@ -38,7 +37,6 @@ export default function FeeSettings() {
           freeDeliveryUpTo: response.data.data.feeSettings.freeDeliveryUpTo ?? "",
           freeDeliveryThreshold: response.data.data.feeSettings.freeDeliveryThreshold ?? "",
           platformFee: response.data.data.feeSettings.platformFee ?? "",
-          packagingFee: response.data.data.feeSettings.packagingFee ?? "",
           gstRate: response.data.data.feeSettings.gstRate ?? "",
           deliveryBonusAmount: response.data.data.feeSettings.deliveryBonusAmount ?? "",
           dispatchRadiusTiers: response.data.data.feeSettings.dispatchRadiusTiers?.join(", ") ?? "2, 4, 6, 8, 10",
@@ -51,7 +49,6 @@ export default function FeeSettings() {
           freeDeliveryUpTo: "",
           freeDeliveryThreshold: "",
           platformFee: "",
-          packagingFee: "",
           gstRate: "",
           deliveryBonusAmount: "",
           dispatchRadiusTiers: "2, 4, 6, 8, 10",
@@ -80,7 +77,6 @@ export default function FeeSettings() {
         freeDeliveryUpTo: feeSettings.freeDeliveryUpTo === "" ? undefined : Number(feeSettings.freeDeliveryUpTo),
         freeDeliveryThreshold: feeSettings.freeDeliveryThreshold === "" ? undefined : Number(feeSettings.freeDeliveryThreshold),
         platformFee: feeSettings.platformFee === "" ? undefined : Number(feeSettings.platformFee),
-        packagingFee: feeSettings.packagingFee === "" ? undefined : Number(feeSettings.packagingFee),
         gstRate: feeSettings.gstRate === "" ? undefined : Number(feeSettings.gstRate),
         deliveryBonusAmount: feeSettings.deliveryBonusAmount === "" ? undefined : Number(feeSettings.deliveryBonusAmount),
         dispatchRadiusTiers: feeSettings.dispatchRadiusTiers ? feeSettings.dispatchRadiusTiers.split(',').map(s => Number(s.trim())).filter(n => !isNaN(n)) : undefined,
@@ -98,7 +94,6 @@ export default function FeeSettings() {
             freeDeliveryUpTo: saved.freeDeliveryUpTo ?? "",
             freeDeliveryThreshold: saved.freeDeliveryThreshold ?? "",
             platformFee: saved.platformFee ?? "",
-            packagingFee: saved.packagingFee ?? "",
             gstRate: saved.gstRate ?? "",
             deliveryBonusAmount: saved.deliveryBonusAmount ?? "",
             dispatchRadiusTiers: saved.dispatchRadiusTiers?.join(", ") ?? "2, 4, 6, 8, 10",
@@ -488,24 +483,6 @@ export default function FeeSettings() {
                   />
                   <p className="text-xs text-slate-500">
                     Platform service fee per order
-                  </p>
-                </div>
-                {/* Packaging Fee */}
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-slate-700">
-                    Packaging Charges Fee (₹)
-                  </label>
-                  <input
-                    type="number"
-                    value={feeSettings.packagingFee}
-                    onChange={(e) => setFeeSettings({ ...feeSettings, packagingFee: e.target.value })}
-                    min="0"
-                    step="1"
-                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all"
-                    placeholder="10"
-                  />
-                  <p className="text-xs text-slate-500">
-                    Packaging charges fee per order
                   </p>
                 </div>
 

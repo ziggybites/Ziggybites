@@ -21,6 +21,13 @@ const createEmptyUploadedDocs = () => ({
   drivingLicensePhoto: null
 })
 
+const REQUIRED_DOCUMENT_UPLOADS = [
+  { key: "profilePhoto", label: "Profile Photo" },
+  { key: "aadharPhoto", label: "Aadhar Card Photo" },
+  { key: "panPhoto", label: "PAN Card Photo" },
+  { key: "drivingLicensePhoto", label: "Driving License Photo" }
+]
+
 // IndexedDB helpers for persistent file storage
 const DELIVERY_FILES_DB = "DeliverySignupFiles"
 const FILES_STORE = "files"
@@ -228,6 +235,7 @@ export default function SignupStep2() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploading, setUploading] = useState({})
   const [isSuccess, setIsSuccess] = useState(false)
+  const [documentErrors, setDocumentErrors] = useState({})
 
   // Hydrate files from IndexedDB on load
   useEffect(() => {
@@ -312,6 +320,7 @@ export default function SignupStep2() {
 
       setDocuments((prev) => ({ ...prev, [docType]: compressedDataUrl }))
       setUploadedDocs((prev) => ({ ...prev, [docType]: { file: true } }))
+      setDocumentErrors((prev) => ({ ...prev, [docType]: "" }))
       await saveFileToDB(docType, compressedDataUrl)
       toast.success(`${docType.replace(/([A-Z])/g, " $1").trim()} selected`)
     } catch (error) {
@@ -340,6 +349,10 @@ export default function SignupStep2() {
       ...prev,
       [docType]: null
     }))
+    setDocumentErrors(prev => ({
+      ...prev,
+      [docType]: "This image is required"
+    }))
     await deleteFileFromDB(docType)
   }
 
@@ -361,6 +374,18 @@ export default function SignupStep2() {
     } catch {
       toast.error("Invalid session. Please start from Create Account.")
       navigate("/food/delivery/signup", { replace: true })
+      return
+    }
+
+    const missingDocuments = REQUIRED_DOCUMENT_UPLOADS.filter(({ key }) => !documents[key])
+    if (missingDocuments.length > 0) {
+      setDocumentErrors(
+        missingDocuments.reduce((acc, { key }) => {
+          acc[key] = "This image is required"
+          return acc
+        }, {})
+      )
+      toast.error(`Please upload ${missingDocuments[0].label}`)
       return
     }
 
@@ -471,9 +496,10 @@ export default function SignupStep2() {
     const uploaded = uploadedDocs[docType]
     const isUploading = uploading[docType]
     const src = getPreviewSrc(docType)
+    const error = documentErrors[docType]
 
     return (
-      <div className="bg-white rounded-lg p-4 border border-gray-200">
+      <div className={`bg-white rounded-lg p-4 border ${error ? "border-red-400" : "border-gray-200"}`}>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
@@ -562,6 +588,9 @@ export default function SignupStep2() {
             />
           </div>
         )}
+        {error && (
+          <p className="mt-2 text-xs font-medium text-red-600">{error}</p>
+        )}
       </div>
     )
   }
@@ -609,10 +638,10 @@ export default function SignupStep2() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <DocumentUpload docType="profilePhoto" label="Profile Photo" required={false} />
-          <DocumentUpload docType="aadharPhoto" label="Aadhar Card Photo" required={false} />
-          <DocumentUpload docType="panPhoto" label="PAN Card Photo" required={false} />
-          <DocumentUpload docType="drivingLicensePhoto" label="Driving License Photo" required={false} />
+          <DocumentUpload docType="profilePhoto" label="Profile Photo" />
+          <DocumentUpload docType="aadharPhoto" label="Aadhar Card Photo" />
+          <DocumentUpload docType="panPhoto" label="PAN Card Photo" />
+          <DocumentUpload docType="drivingLicensePhoto" label="Driving License Photo" />
 
           {/* Submit Button */}
           <button

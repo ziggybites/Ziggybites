@@ -117,7 +117,6 @@ export default function OrderDetails() {
               order.gst
             ) ?? 0
 
-          const packagingFee = firstNumber(pricing.packagingFee, order.packagingFee) ?? 0
           const deliveryFee = firstNumber(pricing.deliveryFee, order.deliveryFee) ?? 0
           const platformFee = firstNumber(pricing.platformFee, order.platformFee) ?? 0
           const discount = firstNumber(pricing.discount, order.discount) ?? 0
@@ -136,7 +135,6 @@ export default function OrderDetails() {
               0,
               itemSubtotal +
                 taxes +
-                packagingFee +
                 deliveryFee +
                 platformFee -
                 discount
@@ -151,8 +149,8 @@ export default function OrderDetails() {
           const gstOnCommission = Number(pricing.gstOnCommission) || 0;
           const paymentGatewayFee = Number(pricing.paymentGatewayFee) || 0;
           const tcs = Number(pricing.tcs) || 0;
-          const totalAdminReceivable = deliveryCostToAdmin + deliveryGstToAdmin + platformFee + taxes + packagingFee + restaurantCommission + gstOnItem + gstOnCommission + paymentGatewayFee + tcs;
-          const restaurantGets = Math.max(0, itemSubtotal + packagingFee - restaurantCommission - gstOnItem - gstOnCommission - paymentGatewayFee - tcs);
+          const totalAdminReceivable = deliveryCostToAdmin + deliveryGstToAdmin + platformFee + taxes + restaurantCommission + gstOnItem + gstOnCommission + paymentGatewayFee + tcs;
+          const restaurantGets = Math.max(0, itemSubtotal - restaurantCommission - gstOnItem - gstOnCommission - paymentGatewayFee - tcs);
           const deliveryDistance = firstNumber(order.deliveryDistance, order.customer?.distance, 0);
 
           const addressParts = [
@@ -245,7 +243,6 @@ export default function OrderDetails() {
             billing: {
               itemSubtotal,
               taxes,
-              packagingFee,
               deliveryFee,
               platformFee,
               discount,
@@ -483,9 +480,6 @@ export default function OrderDetails() {
         ["Item Subtotal:", formatPdfMoney(orderData.billing.itemSubtotal)]
       ]
 
-      if (Number(orderData.billing.packagingFee) > 0) {
-        billRows.push(["Packaging Fee:", formatPdfMoney(orderData.billing.packagingFee)])
-      }
       if (Number(orderData.billing.restaurantCommission) > 0) {
         billRows.push(["Restaurant Commission:", formatPdfDiscount(orderData.billing.restaurantCommission)])
       }
@@ -924,12 +918,6 @@ export default function OrderDetails() {
                 <span className="text-[13px] text-gray-600 font-medium">Item subtotal</span>
                 <span className="text-[13px] text-gray-900">{formatMoney(orderData.billing.itemSubtotal)}</span>
               </div>
-              {Number(orderData.billing.packagingFee) > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-[13px] text-gray-600 font-medium">Packaging fee</span>
-                  <span className="text-[13px] text-gray-900">{formatMoney(orderData.billing.packagingFee)}</span>
-                </div>
-              )}
               
               <div 
                 className="flex items-center justify-between cursor-pointer group"

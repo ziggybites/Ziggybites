@@ -542,7 +542,7 @@ export default function DeliveryOTP() {
                     value={digit}
                     onChange={(e) => handleChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
-                    onPaste={index === 0 ? handlePaste : undefined}
+                    onPaste={handlePaste}
                     disabled={isLoading}
                     autoComplete="off"
                     autoFocus={false}

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Info, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { adminAPI } from "@food/api";
+import { setFoodVariantsEnabled } from "@food/utils/foodVariants";
 
 export default function ToggleManagement() {
   const [loading, setLoading] = useState(true);
@@ -14,6 +15,7 @@ export default function ToggleManagement() {
     customerRegistration: true,
     restaurantRegistration: true,
     deliveryRegistration: true,
+    foodVariantsEnabled: true,
   });
 
   useEffect(() => {
@@ -35,6 +37,7 @@ export default function ToggleManagement() {
           customerRegistration: settings.customerRegistration !== false,
           restaurantRegistration: settings.restaurantRegistration !== false,
           deliveryRegistration: settings.deliveryRegistration !== false,
+          foodVariantsEnabled: settings.foodVariantsEnabled !== false,
         }));
       }
     } catch (error) {
@@ -69,9 +72,11 @@ export default function ToggleManagement() {
         customerRegistration: toggles.customerRegistration,
         restaurantRegistration: toggles.restaurantRegistration,
         deliveryRegistration: toggles.deliveryRegistration,
+        foodVariantsEnabled: toggles.foodVariantsEnabled,
       };
 
       await adminAPI.updateBusinessSettings(dataToSend);
+      setFoodVariantsEnabled(toggles.foodVariantsEnabled);
       toast.success("Toggle settings saved successfully");
     } catch (error) {
       toast.error(error?.response?.data?.message || "Failed to save toggle settings");
@@ -242,7 +247,23 @@ export default function ToggleManagement() {
                   />
                 </button>
               </div>
-              
+
+              {/* Food Variants */}
+              <div className="flex items-center justify-between border border-slate-100 p-4 rounded-xl bg-slate-50/50">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Food Variants</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Show variants in food forms, menus, and ordering</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Toggle food variants"
+                  onClick={() => handleToggleChange('foodVariantsEnabled')}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${toggles.foodVariantsEnabled ? 'bg-blue-600' : 'bg-slate-200'}`}
+                >
+                  <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${toggles.foodVariantsEnabled ? 'translate-x-5' : 'translate-x-0'}`} />
+                </button>
+              </div>
+
             </div>
           </div>
 

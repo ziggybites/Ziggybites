@@ -1324,7 +1324,6 @@ export async function sendSubscriptionMealToDelivery(scheduleId, restaurantId) {
   const pricing = {
     subtotal: itemPrice,
     tax: 0,
-    packagingFee: 0,
     deliveryFee: 0,
     platformFee: 0,
     restaurantCommission: 0,

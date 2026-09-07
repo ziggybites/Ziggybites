@@ -32,7 +32,7 @@ export async function listPendingFoodApprovals(query = {}) {
         .sort({ requestedAt: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
-        .select('restaurantId categoryName name price variants image foodType approvalStatus requestedAt createdAt')
+        .select('restaurantId categoryName name description price variants image foodType approvalStatus requestedAt createdAt')
         .lean();
 
     const addonList = await FoodAddon.find({ approvalStatus: 'pending' })
@@ -60,12 +60,14 @@ export async function listPendingFoodApprovals(query = {}) {
         restaurantId: toRestaurantDisplayId(f.restaurantId),
         category: f.categoryName || '',
         itemName: f.name,
+        description: f.description || '',
         foodType: f.foodType || 'Non-Veg',
         sectionName: f.categoryName || '',
         subsectionName: '',
         approvalStatus: f.approvalStatus || 'pending',
         price: getFoodDisplayPrice(f),
         variants: serializeFoodVariants(f.variants),
+        variations: serializeFoodVariants(f.variants),
         image: f.image || '',
         images: f.image ? [f.image] : [],
         requestedAt: f.requestedAt || f.createdAt,

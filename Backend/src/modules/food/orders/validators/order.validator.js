@@ -35,7 +35,6 @@ const addressSchema = z.object({
 const pricingSchema = z.object({
     subtotal: z.number().min(0),
     tax: z.number().min(0).optional(),
-    packagingFee: z.number().min(0).optional(),
     deliveryFee: z.number().min(0).optional(),
     platformFee: z.number().min(0).optional(),
     discount: z.number().min(0).optional(),
