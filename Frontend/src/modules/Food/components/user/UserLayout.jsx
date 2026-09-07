@@ -14,6 +14,8 @@ import BottomNavigation from "./BottomNavigation"
 import DesktopNavbar from "./DesktopNavbar"
 import { useUserNotifications } from "../../hooks/useUserNotifications"
 import LocationGuard from "./LocationGuard"
+import { adminAPI } from "@food/api"
+import { setFoodVariantsEnabled } from "@food/utils/foodVariants"
 
 // Create SearchOverlay context with default value
 const SearchOverlayContext = createContext({
@@ -103,6 +105,14 @@ function LocationSelectorProvider({ children }) {
 }
 
 export default function UserLayout() {
+  useEffect(() => {
+    adminAPI.getPublicBusinessSettings()
+      .then((response) => {
+        const settings = response?.data?.data || response?.data
+        setFoodVariantsEnabled(settings?.foodVariantsEnabled !== false)
+      })
+      .catch(() => {})
+  }, [])
   const location = useLocation()
 
   useEffect(() => {

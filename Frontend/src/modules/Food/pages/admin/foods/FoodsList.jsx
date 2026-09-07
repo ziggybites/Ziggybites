@@ -5,7 +5,7 @@ import { adminAPI, uploadAPI } from "@food/api"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@food/components/ui/dialog"
 import { Popover, PopoverContent, PopoverTrigger } from "@food/components/ui/popover"
-import { getFoodDisplayPrice, getFoodVariants } from "@food/utils/foodVariants"
+import { areFoodVariantsEnabled, getFoodDisplayPrice, getFoodVariants } from "@food/utils/foodVariants"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -56,8 +56,22 @@ export default function FoodsList() {
   const [categoryPopoverOpen, setCategoryPopoverOpen] = useState(false)
   const [selectedImageFile, setSelectedImageFile] = useState(null)
   const [imagePreviewUrl, setImagePreviewUrl] = useState("")
+  const [foodVariantsEnabled, setFoodVariantsEnabled] = useState(areFoodVariantsEnabled)
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+
+  useEffect(() => {
+    const syncVariantSetting = () => setFoodVariantsEnabled(areFoodVariantsEnabled())
+    window.addEventListener("food-variants-setting-changed", syncVariantSetting)
+    syncVariantSetting()
+    return () => window.removeEventListener("food-variants-setting-changed", syncVariantSetting)
+  }, [])
+
+  useEffect(() => {
+    if (!foodVariantsEnabled) {
+      setFoodForm((prev) => ({ ...prev, variants: [] }))
+    }
+  }, [foodVariantsEnabled])
   const [imageVersion, setImageVersion] = useState(Date.now())
 
   const getItemCreatedMs = (item = {}) => {
@@ -369,7 +383,7 @@ export default function FoodsList() {
       return
     }
 
-    const normalizedVariants = (Array.isArray(foodForm.variants) ? foodForm.variants : [])
+    const normalizedVariants = (foodVariantsEnabled && Array.isArray(foodForm.variants) ? foodForm.variants : [])
       .map((variant) => ({
         id: String(variant?.id || variant?._id || "").trim(),
         name: String(variant?.name || "").trim(),
@@ -756,7 +770,7 @@ export default function FoodsList() {
                 <p><span className="font-semibold text-slate-700">Protein:</span> <span className="text-slate-900">{selectedFood.nutrition?.protein != null ? `${selectedFood.nutrition.protein}g` : "-"}</span></p>
                 <p><span className="font-semibold text-slate-700">Fiber:</span> <span className="text-slate-900">{selectedFood.nutrition?.fiber != null ? `${selectedFood.nutrition.fiber}g` : "-"}</span></p>
               </div>
-              {selectedFood.variants?.length ? (
+              {foodVariantsEnabled && selectedFood.variants?.length ? (
                 <div className="rounded-lg border border-slate-200 bg-white p-4">
                   <p className="text-sm font-semibold text-slate-800 mb-2">Variants</p>
                   <div className="space-y-2">
@@ -1021,7 +1035,7 @@ export default function FoodsList() {
                 className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-sm bg-white resize-none"
               />
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            {foodVariantsEnabled && <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">Variants</p>
@@ -1077,7 +1091,7 @@ export default function FoodsList() {
               ) : (
                 <p className="text-sm text-slate-500">No variants added. This food will use the single base price.</p>
               )}
-            </div>
+            </div>}
             <div className="flex justify-end">
               <button
                 type="button"

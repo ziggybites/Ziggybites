@@ -1,10 +1,12 @@
-import { Suspense, lazy } from "react"
+import { Suspense, lazy, useEffect } from "react"
 import { Routes, Route, Navigate } from "react-router-dom"
 import ProtectedRoute from "@food/components/ProtectedRoute"
 import Loader from "@food/components/Loader"
 import { RestaurantNotificationProvider } from "@food/context/RestaurantNotificationContext"
 import GlobalPickupOtpModal from "@food/components/restaurant/GlobalPickupOtpModal"
 import "./restaurantTheme.css"
+import { adminAPI } from "@food/api"
+import { setFoodVariantsEnabled } from "@food/utils/foodVariants"
 
 // Lazy Loading Components
 const RestaurantNotifications = lazy(() => import("@food/pages/restaurant/Notifications"))
@@ -55,6 +57,15 @@ const ForgotPassword = lazy(() => import("@food/pages/restaurant/auth/ForgotPass
 const VerificationPending = lazy(() => import("@food/pages/restaurant/auth/VerificationPending"))
 
 export default function RestaurantRouter() {
+  useEffect(() => {
+    adminAPI.getPublicBusinessSettings()
+      .then((response) => {
+        const settings = response?.data?.data || response?.data
+        setFoodVariantsEnabled(settings?.foodVariantsEnabled !== false)
+      })
+      .catch(() => {})
+  }, [])
+
   return (
     <RestaurantNotificationProvider>
       <div className="restaurant-theme">

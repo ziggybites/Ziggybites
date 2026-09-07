@@ -1,5 +1,16 @@
 const toArray = (value) => (Array.isArray(value) ? value : [])
 
+export const FOOD_VARIANTS_SETTING_KEY = "foodVariantsEnabled"
+
+export const setFoodVariantsEnabled = (enabled) => {
+  if (typeof window === "undefined") return
+  window.localStorage.setItem(FOOD_VARIANTS_SETTING_KEY, enabled === false ? "false" : "true")
+  window.dispatchEvent(new CustomEvent("food-variants-setting-changed"))
+}
+
+export const areFoodVariantsEnabled = () =>
+  typeof window === "undefined" || window.localStorage.getItem(FOOD_VARIANTS_SETTING_KEY) !== "false"
+
 export const normalizeFoodVariants = (value) =>
   toArray(value)
     .map((entry = {}, index) => {
@@ -18,7 +29,7 @@ export const normalizeFoodVariants = (value) =>
     .filter(Boolean)
 
 export const getFoodVariants = (item = {}) =>
-  normalizeFoodVariants(item?.variants || item?.variations || [])
+  areFoodVariantsEnabled() ? normalizeFoodVariants(item?.variants || item?.variations || []) : []
 
 export const hasFoodVariants = (item = {}) => getFoodVariants(item).length > 0
 

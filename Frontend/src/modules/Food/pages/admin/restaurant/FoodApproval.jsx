@@ -11,6 +11,7 @@ import {
 } from "@food/components/ui/dialog"
 import { adminAPI } from "@food/api"
 import { toast } from "sonner"
+import { getFoodVariants } from "@food/utils/foodVariants"
 const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
@@ -365,6 +366,11 @@ export default function FoodApproval() {
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700 font-semibold">
                             {request.itemName || '-'}
+                            {getFoodVariants(request).length > 0 && (
+                              <span className="ml-2 px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80 rounded-md">
+                                {getFoodVariants(request).length} variants
+                              </span>
+                            )}
                           </td>
                           <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-700 capitalize text-center">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${request.entityType === 'addon' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
@@ -487,6 +493,26 @@ export default function FoodApproval() {
                         </div>
                     )}
                 </div>
+
+                {/* Variants / Variations */}
+                {(() => {
+                  const variantsList = getFoodVariants(selectedRequest);
+                  return variantsList.length > 0 ? (
+                    <div className="col-span-full">
+                      <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+                        Variants / Options ({variantsList.length})
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {variantsList.map((v, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200/70 text-sm">
+                            <span className="font-semibold text-slate-800">{v.name || `Variant ${idx + 1}`}</span>
+                            <span className="font-bold text-emerald-600">₹{v.price}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
 
                 {selectedRequest.description && (
                   <div className="col-span-full">

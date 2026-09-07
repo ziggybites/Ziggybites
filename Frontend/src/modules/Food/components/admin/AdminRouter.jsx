@@ -1,8 +1,10 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./ProtectedRoute";
 import AdminLayout from "./AdminLayout";
 import Loader from "@food/components/Loader";
+import { adminAPI } from "@food/api";
+import { setFoodVariantsEnabled } from "@food/utils/foodVariants";
 
 const AdminHome = lazy(() => import("@food/pages/admin/AdminHome"));
 const PointOfSale = lazy(() => import("@food/pages/admin/PointOfSale"));
@@ -138,6 +140,15 @@ const AdminSignup = lazy(() => import("@food/pages/admin/auth/AdminSignup"));
 const AdminForgotPassword = lazy(() => import("@food/pages/admin/auth/AdminForgotPassword"));
 
 export default function AdminRouter() {
+  useEffect(() => {
+    adminAPI.getPublicBusinessSettings()
+      .then((response) => {
+        const settings = response?.data?.data || response?.data;
+        setFoodVariantsEnabled(settings?.foodVariantsEnabled !== false);
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <Suspense fallback={<Loader />}>
       <Routes>
