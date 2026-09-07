@@ -36,10 +36,9 @@ import useNotificationInbox from "@food/hooks/useNotificationInbox";
 import { clearModuleAuth } from '@/modules/Food/utils/auth';
 import { getAccessToken } from '@/core/auth/tokenStore';
 
-// Simulation is intentionally development-only. Production must always use
-// the rider's real device GPS/location updates.
+// This environment variable is the single switch for simulation mode.
+// Set it to true in development and false in production.
 const simulationEnabled =
-  Boolean(import.meta.env.DEV) &&
   String(import.meta.env.VITE_ENABLE_MAP_SIMULATION || '').toLowerCase() === 'true';
 
 /** Minimal bottom-sheet popup (Restored from legacy FeedNavbar) */
