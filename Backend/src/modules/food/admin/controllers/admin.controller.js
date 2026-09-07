@@ -710,6 +710,9 @@ export async function updateSupportTicketController(req, res, next) {
         if (!updated) return res.status(404).json({ success: false, message: 'Ticket not found' });
         res.status(200).json({ success: true, message: 'Support ticket updated successfully', data: { ticket: updated } });
     } catch (error) {
+        if (error.statusCode) {
+            return res.status(error.statusCode).json({ success: false, message: error.message });
+        }
         next(error);
     }
 }
