@@ -1,4 +1,4 @@
-import { Eye } from "lucide-react"
+import { Eye, MapPin } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -6,6 +6,46 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@food/components/ui/dialog"
+
+const formatFullAddress = (address) => {
+  if (!address) return ""
+  if (typeof address === "string") return address.trim()
+
+  const formattedAddress = String(address.formattedAddress || "").trim()
+  const rawAddress = String(address.address || "").trim()
+
+  const fragments = [
+    address.houseNumber || address.house || address.flat || address.apartment,
+    address.floor ? `Floor ${address.floor}` : null,
+    address.street || address.addressLine1,
+    address.additionalDetails || address.addressLine2,
+    address.landmark ? `Near ${address.landmark}` : null,
+    address.area,
+    address.city,
+    address.state,
+    address.zipCode || address.postalCode || address.pincode,
+  ]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+
+  const orderedParts = []
+  const pushPart = (part) => {
+    const norm = String(part || "").trim()
+    if (!norm) return
+    const key = norm.toLowerCase()
+    const exists = orderedParts.some((existing) => {
+      const existingKey = existing.toLowerCase()
+      return existingKey === key || existingKey.includes(key) || key.includes(existingKey)
+    })
+    if (!exists) orderedParts.push(norm)
+  }
+
+  if (formattedAddress) pushPart(formattedAddress)
+  if (rawAddress) pushPart(rawAddress)
+  fragments.forEach(pushPart)
+
+  return orderedParts.join(", ")
+}
 
 const getStatusColor = (status) => {
   if (status === "Expired") return "bg-blue-100 text-blue-700"
@@ -73,6 +113,34 @@ export default function ViewSubscriptionDialog({ isOpen, onOpenChange, order }) 
                 </div>
               </div>
             </div>
+
+            {(order.deliveryAddress || order.formattedAddress) && (
+              <div className="pt-4 border-t border-slate-200">
+                <div className="flex items-center justify-between mb-1.5">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    <MapPin className="h-3.5 w-3.5 text-emerald-600" />
+                    Delivery Address
+                  </p>
+                  {order.deliveryAddress?.label && (
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                      {order.deliveryAddress.label}
+                    </span>
+                  )}
+                </div>
+                <div className="rounded-lg border border-slate-200/80 bg-slate-50/70 p-3">
+                  <p className="break-words text-sm font-medium leading-relaxed text-slate-900">
+                    {formatFullAddress(order.deliveryAddress || order.formattedAddress) || "Address not available"}
+                  </p>
+                  {order.deliveryAddress?.location?.coordinates?.length === 2 && (
+                    <p className="mt-1 text-xs text-slate-500">
+                      <span className="font-semibold text-slate-600">Coordinates:</span>{" "}
+                      {Number(order.deliveryAddress.location.coordinates[1]).toFixed(6)},{" "}
+                      {Number(order.deliveryAddress.location.coordinates[0]).toFixed(6)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
