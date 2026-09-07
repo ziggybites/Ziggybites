@@ -196,6 +196,20 @@
     color: #71717a;
   }
 
+  /* MUI DatePicker dark mode support */
+  .dark .MuiPickersInputBase-root,
+  .dark .MuiPickersOutlinedInput-root,
+  .dark .MuiPickersSectionList-root,
+  .dark .MuiPickersSectionList-sectionContent,
+  .dark .MuiPickersSectionList-sectionSeparator {
+    color: #f9fafb !important;
+  }
+
+  .dark .MuiPickersInputBase-root .MuiSvgIcon-root,
+  .dark .MuiPickersInputBase-root .MuiIconButton-root {
+    color: #f9fafb !important;
+  }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
