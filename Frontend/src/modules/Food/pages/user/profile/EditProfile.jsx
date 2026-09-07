@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft, X, Pencil, Loader2, Camera, Upload } from "lucide-react"
 import { Button } from "@food/components/ui/button"
@@ -34,6 +34,7 @@ import {
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import { ThemeProvider, createTheme } from '@mui/material/styles'
 import dayjs from 'dayjs'
 const debugLog = (...args) => { }
 const debugWarn = (...args) => { }
@@ -62,20 +63,18 @@ const saveProfileToStorage = (data) => {
 const normalizePhoneToTenDigits = (value) =>
   String(value || "").replace(/\D/g, "").slice(-10)
 
+const parseDateField = (val) => {
+  if (!val || val === 'null' || val === 'undefined') return null
+  const d = dayjs(val)
+  return d.isValid() ? d : null
+}
+
 const buildFormDataFromProfile = (profile = {}) => ({
   name: profile.name || "",
   mobile: normalizePhoneToTenDigits(profile.mobile || profile.phone || ""),
   email: profile.email || "",
-  dateOfBirth: profile.dateOfBirth
-    ? (typeof profile.dateOfBirth === 'string'
-      ? dayjs(profile.dateOfBirth)
-      : dayjs(profile.dateOfBirth))
-    : null,
-  anniversary: profile.anniversary
-    ? (typeof profile.anniversary === 'string'
-      ? dayjs(profile.anniversary)
-      : dayjs(profile.anniversary))
-    : null,
+  dateOfBirth: parseDateField(profile.dateOfBirth),
+  anniversary: parseDateField(profile.anniversary),
   gender: profile.gender || "",
 })
 
@@ -132,6 +131,158 @@ export default function EditProfile() {
   })
   const fileInputRef = useRef(null)
   const hydratedFromDraftRef = useRef(Boolean(draftProfile))
+
+  // Track dark mode dynamically for MUI DatePicker
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    if (typeof document !== 'undefined') {
+      return (
+        document.documentElement.classList.contains('dark') ||
+        localStorage.getItem('appTheme') === 'dark'
+      )
+    }
+    return false
+  })
+
+  useEffect(() => {
+    const updateTheme = () => {
+      const isDark =
+        document.documentElement.classList.contains('dark') ||
+        localStorage.getItem('appTheme') === 'dark'
+      setIsDarkMode(isDark)
+    }
+
+    updateTheme()
+
+    const observer = new MutationObserver(updateTheme)
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    })
+
+    window.addEventListener('storage', updateTheme)
+
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('storage', updateTheme)
+    }
+  }, [])
+
+  const muiTheme = useMemo(
+    () =>
+      createTheme({
+        palette: {
+          mode: isDarkMode ? 'dark' : 'light',
+          primary: {
+            main: '#7e3866',
+          },
+          background: {
+            default: isDarkMode ? '#1a1a1a' : '#ffffff',
+            paper: isDarkMode ? '#1f1f1f' : '#ffffff',
+          },
+          text: {
+            primary: isDarkMode ? '#ffffff' : '#111827',
+            secondary: isDarkMode ? '#9ca3af' : '#6b7280',
+          },
+        },
+        typography: {
+          fontFamily: 'inherit',
+        },
+      }),
+    [isDarkMode]
+  )
+
+  const datePickerSx = useMemo(
+    () => ({
+      width: '100%',
+      '& .MuiPickersOutlinedInput-root, & .MuiOutlinedInput-root, & .MuiPickersInputBase-root': {
+        height: '48px',
+        borderRadius: '8px',
+        backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+        color: isDarkMode ? '#ffffff' : '#111827',
+        fontSize: '16px',
+        '& fieldset, & .MuiPickersOutlinedInput-notchedOutline': {
+          borderColor: isDarkMode ? '#374151' : '#d1d5db',
+        },
+        '&:hover fieldset, &:hover .MuiPickersOutlinedInput-notchedOutline': {
+          borderColor: isDarkMode ? '#4b5563' : '#9ca3af',
+        },
+        '&.Mui-focused fieldset, &.Mui-focused .MuiPickersOutlinedInput-notchedOutline': {
+          borderColor: '#7e3866',
+          borderWidth: '1px',
+        },
+        '& .MuiSvgIcon-root': {
+          color: isDarkMode ? '#ffffff' : '#6b7280',
+        },
+        '& .MuiIconButton-root': {
+          color: isDarkMode ? '#ffffff' : '#6b7280',
+        },
+        '& .MuiPickersSectionList-root, & .MuiPickersInputBase-sectionsContainer': {
+          color: isDarkMode ? '#ffffff' : '#111827',
+        },
+        '& .MuiPickersSectionList-sectionContent, & .MuiPickersInputBase-sectionContent': {
+          color: isDarkMode ? '#ffffff' : '#111827',
+          fontSize: '16px',
+          fontWeight: 400,
+          '&[aria-valuetext="Empty"]': {
+            color: isDarkMode ? '#9ca3af' : '#9ca3af',
+            opacity: 0.8,
+          },
+        },
+        '& .MuiPickersSectionList-sectionSeparator, & .MuiPickersInputBase-separator': {
+          color: isDarkMode ? '#ffffff' : '#111827',
+        },
+        '& input, & .MuiPickersInputBase-input': {
+          color: isDarkMode ? '#ffffff' : '#111827',
+          '&::placeholder': {
+            color: isDarkMode ? '#9ca3af' : '#9ca3af',
+            opacity: 0.8,
+          },
+        },
+      },
+    }),
+    [isDarkMode]
+  )
+
+  const datePickerPopperSx = useMemo(
+    () => ({
+      '& .MuiPaper-root': {
+        backgroundColor: isDarkMode ? '#1f1f1f' : '#ffffff',
+        color: isDarkMode ? '#ffffff' : '#111827',
+        border: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+        borderRadius: '12px',
+        boxShadow: isDarkMode
+          ? '0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.5)'
+          : '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+      },
+      '& .MuiPickersDay-root': {
+        color: isDarkMode ? '#ffffff' : '#111827',
+        '&:hover': {
+          backgroundColor: isDarkMode ? '#374151' : '#f3f4f6',
+        },
+        '&.Mui-selected': {
+          backgroundColor: '#7e3866 !important',
+          color: '#ffffff !important',
+        },
+      },
+      '& .MuiDayCalendar-weekDayLabel': {
+        color: isDarkMode ? '#9ca3af' : '#6b7280',
+      },
+      '& .MuiPickersCalendarHeader-label': {
+        color: isDarkMode ? '#ffffff' : '#111827',
+      },
+      '& .MuiPickersCalendarHeader-switchViewButton, & .MuiPickersArrowSwitcher-button': {
+        color: isDarkMode ? '#ffffff' : '#6b7280',
+      },
+      '& .MuiYearCalendar-root .MuiPickersYear-yearButton': {
+        color: isDarkMode ? '#ffffff' : '#111827',
+        '&.Mui-selected': {
+          backgroundColor: '#7e3866 !important',
+          color: '#ffffff !important',
+        },
+      },
+    }),
+    [isDarkMode]
+  )
 
   // Update form data when profile changes
   useEffect(() => {
@@ -507,101 +658,58 @@ export default function EditProfile() {
             </div>
 
             {/* Date of Birth Field */}
-            <div className="space-y-1.5 text-gray-900 dark:text-white [&_input]:dark:!text-white [&_input::placeholder]:dark:!text-white [&_.MuiSvgIcon-root]:dark:!text-white">
+            <div className="space-y-1.5 text-gray-900 dark:text-white">
               <Label htmlFor="dateOfBirth" className="text-sm font-medium text-gray-700 dark:text-white">
                 Date of birth
               </Label>
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <DatePicker
-                  value={formData.dateOfBirth}
-                  onChange={(newValue) => handleChange('dateOfBirth', newValue)}
-                  maxDate={dayjs()}
-                  slotProps={{
-                    textField: {
-                      className: "w-full",
-                      sx: {
-                        '& .MuiOutlinedInput-root': {
-                          height: '48px',
-                          borderRadius: '8px',
-                          color: 'inherit',
-                          '& fieldset': {
-                            borderColor: '#d1d5db',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#9ca3af',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#7e3866',
-                            borderWidth: '1px',
-                          },
-                          '& .MuiSvgIcon-root': {
-                            color: 'inherit',
-                          },
-                        },
-                        '& .MuiInputBase-input': {
-                          padding: '12px 14px',
-                          fontSize: '16px',
-                          color: 'inherit',
-                          '&::placeholder': {
-                            color: 'inherit',
-                            opacity: 0.5,
-                          }
-                        },
+              <ThemeProvider theme={muiTheme}>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DatePicker
+                    value={formData.dateOfBirth}
+                    onChange={(newValue) => handleChange('dateOfBirth', newValue)}
+                    maxDate={dayjs()}
+                    format="DD/MM/YYYY"
+                    slotProps={{
+                      textField: {
+                        className: "w-full",
+                        sx: datePickerSx,
                       },
-                    },
-                  }}
-                />
-              </LocalizationProvider>
+                      popper: {
+                        sx: datePickerPopperSx,
+                      },
+                    }}
+                  />
+                </LocalizationProvider>
+              </ThemeProvider>
               {fieldErrors.dateOfBirth && (
                 <p className="text-xs text-red-600">{fieldErrors.dateOfBirth}</p>
               )}
             </div>
 
             {/* Anniversary Field */}
-            <div className="space-y-1.5 text-gray-900 dark:text-white [&_input]:dark:!text-white [&_input::placeholder]:dark:!text-white [&_.MuiSvgIcon-root]:dark:!text-white">
+            <div className="space-y-1.5 text-gray-900 dark:text-white">
               <Label htmlFor="anniversary" className="text-sm font-medium text-gray-700 dark:text-white">
                 Anniversary <span className="text-gray-400 dark:text-gray-500 font-normal">(Optional)</span>
               </Label>
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <DatePicker
-                  value={formData.anniversary}
-                  onChange={(newValue) => handleChange('anniversary', newValue)}
-                  slotProps={{
-                    textField: {
-                      className: "w-full",
-                      sx: {
-                        '& .MuiOutlinedInput-root': {
-                          height: '48px',
-                          borderRadius: '8px',
-                          color: 'inherit',
-                          '& fieldset': {
-                            borderColor: '#d1d5db',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#9ca3af',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#7e3866',
-                            borderWidth: '1px',
-                          },
-                          '& .MuiSvgIcon-root': {
-                            color: 'inherit',
-                          },
-                        },
-                        '& .MuiInputBase-input': {
-                          padding: '12px 14px',
-                          fontSize: '16px',
-                          color: 'inherit',
-                          '&::placeholder': {
-                            color: 'inherit',
-                            opacity: 0.5,
-                          }
-                        },
+              <ThemeProvider theme={muiTheme}>
+                <LocalizationProvider dateAdapter={AdapterDayjs}>
+                  <DatePicker
+                    value={formData.anniversary}
+                    onChange={(newValue) => handleChange('anniversary', newValue)}
+                    maxDate={dayjs()}
+                    format="DD/MM/YYYY"
+                    slotProps={{
+                      textField: {
+                        className: "w-full",
+                        sx: datePickerSx,
                       },
-                    },
-                  }}
-                />
-              </LocalizationProvider>
+                      popper: {
+                        sx: datePickerPopperSx,
+                      },
+                    }}
+                  />
+                </LocalizationProvider>
+              </ThemeProvider>
             </div>
 
             {/* Gender Field */}
