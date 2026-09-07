@@ -4,10 +4,12 @@ import { motion } from "framer-motion";
 import { Flame } from "lucide-react";
 import RestaurantImageCarousel from "@food/components/user/RestaurantImageCarousel";
 import { API_BASE_URL } from "@food/api/config";
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability";
+import { toast } from "sonner";
 
 const BACKEND_ORIGIN = API_BASE_URL.replace(/\/api\/?$/, "");
 
-export default function RecommendedRestaurants({ recommendedForYouRestaurants }) {
+export default function RecommendedRestaurants({ recommendedForYouRestaurants, availabilityTick = Date.now() }) {
   if (recommendedForYouRestaurants.length === 0) return null;
   return (
     <motion.section
@@ -23,6 +25,10 @@ export default function RecommendedRestaurants({ recommendedForYouRestaurants })
           const restaurantSlug =
             restaurant.slug ||
             restaurant.name.toLowerCase().replace(/\s+/g, "-");
+          const isUnavailable = !getRestaurantAvailabilityStatus(
+            restaurant,
+            new Date(availabilityTick),
+          ).isOpen;
           return (
             <motion.div
               key={`recommended-${restaurant.mongoId || restaurant.id || restaurantSlug}`}
@@ -32,7 +38,13 @@ export default function RecommendedRestaurants({ recommendedForYouRestaurants })
               transition={{ duration: 0.35, delay: index * 0.05 }}>
               <Link
                 to={`/user/restaurants/${restaurantSlug}`}
-                className="block rounded-[20px] overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-sm hover:shadow-md transition-shadow">
+                className={`block rounded-[20px] overflow-hidden border border-gray-100 dark:border-gray-800 bg-white dark:bg-[#1a1a1a] shadow-sm transition-shadow ${isUnavailable ? "grayscale opacity-75 cursor-not-allowed" : "hover:shadow-md"}`}
+                aria-disabled={isUnavailable}
+                onClick={(event) => {
+                  if (!isUnavailable) return;
+                  event.preventDefault();
+                  toast.info("This restaurant is currently unavailable. Please try again later.");
+                }}>
                 <div className="relative h-24 sm:h-28 md:h-32 bg-gray-50">
                   <RestaurantImageCarousel
                     restaurant={restaurant}

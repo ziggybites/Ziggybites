@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  HelpCircle,
   IndianRupee,
   Lock,
   MapPin,
@@ -208,13 +207,15 @@ export default function SubscriptionCheckout() {
   const mealCount = selectedMeals.length || 1;
   const days = subscriptionPlan?.durationDays || 30;
   const estimatedFoodSubtotal = roundMoney(basePrice * mealCount * days);
-  const pricing = priceQuote?.pricing || {};
+  const pricing = priceQuote?.pricing || priceQuote?.data?.pricing || priceQuote?.data || priceQuote || {};
   const totalFoodCost = roundMoney(pricing.foodSubtotal || 0);
   const gstRate = Number(pricing.gstRate || 0);
   const gstAmount = roundMoney(pricing.gstAmount || 0);
   const deliveryDistanceKm = Number(pricing.deliveryDistanceKm || 0);
   const deliveryFeePerDay = roundMoney(pricing.deliveryFeePerDay || 0);
   const totalDeliveryCharges = roundMoney(pricing.deliveryCharges || 0);
+  const packagingFee = roundMoney(pricing.packagingFee || 0);
+  const platformFee = roundMoney(pricing.platformFee || 0);
   const totalBeforeDiscount = roundMoney(pricing.totalBeforeDiscount || 0);
   const couponDiscount = roundMoney(pricing.couponDiscount || 0);
   const totalAmount = roundMoney(pricing.totalAmount || 0);
@@ -371,7 +372,10 @@ export default function SubscriptionCheckout() {
         );
         const response = await subscriptionAPI.getQuote(payload);
         if (!active) return;
-        const nextQuote = response?.data?.data || null;
+        const rawQuote = response?.data?.data?.data || response?.data?.data || response?.data || null;
+        const nextQuote = rawQuote
+          ? { ...rawQuote, pricing: rawQuote.pricing || rawQuote }
+          : null;
         console.log("[SubscriptionCheckout] quote response", nextQuote);
         console.log(
           "[SubscriptionCheckout] quote response json",
@@ -432,7 +436,8 @@ export default function SubscriptionCheckout() {
     setIsQuoteLoading(true);
     try {
       const response = await subscriptionAPI.getQuote(buildQuotePayload(couponCode));
-      setPriceQuote(response?.data?.data || null);
+      const rawQuote = response?.data?.data?.data || response?.data?.data || response?.data || null;
+      setPriceQuote(rawQuote ? { ...rawQuote, pricing: rawQuote.pricing || rawQuote.data?.pricing || rawQuote.data || rawQuote } : null);
       setAppliedCoupon({ ...coupon, code: couponCode });
       setManualCouponCode(couponCode);
       setShowCoupons(false);
@@ -765,9 +770,6 @@ export default function SubscriptionCheckout() {
           </button>
           <h1 className="text-lg font-bold tracking-tight">Plan details & payment</h1>
         </div>
-        <button className="text-gray-500">
-          <HelpCircle className="h-6 w-6" strokeWidth={1.5} />
-        </button>
       </header>
 
       <main className="max-w-md mx-auto p-4 space-y-4">
@@ -1003,6 +1005,22 @@ export default function SubscriptionCheckout() {
                 </p>
               </div>
               <span className="shrink-0 font-bold">{formatCurrency(totalDeliveryCharges)}</span>
+            </div>
+
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-700">Packaging charges</p>
+                <p className="mt-0.5 text-xs font-medium text-gray-400">Subscription packaging fee</p>
+              </div>
+              <span className="shrink-0 font-bold">{formatCurrency(packagingFee)}</span>
+            </div>
+
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="font-semibold text-gray-700">Platform fee</p>
+                <p className="mt-0.5 text-xs font-medium text-gray-400">Service and platform charge</p>
+              </div>
+              <span className="shrink-0 font-bold">{formatCurrency(platformFee)}</span>
             </div>
 
             {couponDiscount > 0 ? (

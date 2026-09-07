@@ -577,7 +577,8 @@ async function resolveSubscriptionOrderPricing(userId, dto = {}) {
     : calculatedDeliveryFeePerDay;
   const deliveryCharges = roundMoney(deliveryFeePerDay * planDays);
   const platformFee = roundMoney(Number(feeSettings?.platformFee || 0) || 0);
-  const totalBeforeDiscount = roundMoney(foodSubtotal + gstAmount + deliveryCharges + platformFee);
+  const packagingFee = roundMoney(Number(feeSettings?.packagingFee || 0) || 0);
+  const totalBeforeDiscount = roundMoney(foodSubtotal + gstAmount + deliveryCharges + platformFee + packagingFee);
   let couponDiscount = 0;
   let couponCode = dto.couponCode ? String(dto.couponCode).trim().toUpperCase() : '';
 
@@ -691,6 +692,7 @@ async function resolveSubscriptionOrderPricing(userId, dto = {}) {
     deliveryFeePerDay,
     deliveryCharges,
     platformFee,
+    packagingFee,
     totalBeforeDiscount,
     couponCode,
     couponDiscount,
@@ -988,6 +990,7 @@ export async function createSubscriptionOrder(userId, dto) {
     gstAmount: pricing.gstAmount,
     deliveryFeePerDay: pricing.deliveryFeePerDay,
     deliveryCharges: pricing.deliveryCharges,
+    packagingFee: pricing.packagingFee,
     platformFee: pricing.platformFee,
     totalAmount: payableAmount,
     totalBeforeDiscount: pricing.totalBeforeDiscount,
@@ -1010,6 +1013,7 @@ export async function createSubscriptionOrder(userId, dto) {
     gstAmount: pricing.gstAmount,
     deliveryFeePerDay: pricing.deliveryFeePerDay,
     deliveryCharges: pricing.deliveryCharges,
+    packagingFee: pricing.packagingFee,
     platformFee: pricing.platformFee,
     totalBeforeDiscount: pricing.totalBeforeDiscount,
     couponCode: pricing.couponCode,

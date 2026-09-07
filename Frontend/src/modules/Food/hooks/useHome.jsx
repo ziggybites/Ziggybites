@@ -382,8 +382,6 @@ export const useHome = ({ effectiveLocation, effectiveZoneId, hasUsableUserCity 
     const cachedRestaurants = homeDataCache.restaurantsByQuery.get(requestCacheKey);
     if (cachedRestaurants) {
       setRestaurantsData(cachedRestaurants);
-      setLoadingRestaurants(false);
-      return cachedRestaurants;
     }
 
     const requestSeq = ++restaurantsRequestSeqRef.current;
@@ -419,7 +417,9 @@ export const useHome = ({ effectiveLocation, effectiveZoneId, hasUsableUserCity 
       if (effectiveZoneId) params.zoneId = effectiveZoneId;
       if (!effectiveZoneId && hasUsableUserCity) params.city = String(effectiveLocation.city).trim();
 
-      const response = await restaurantAPI.getRestaurants(params);
+      // Availability changes independently of the restaurant list, so bypass
+      // persistent/browser-cached restaurant responses on each refresh.
+      const response = await restaurantAPI.getRestaurants(params, { noCache: true });
       if (requestSeq !== restaurantsRequestSeqRef.current) return [];
 
       if (!(response.data?.success && response.data?.data?.restaurants)) {

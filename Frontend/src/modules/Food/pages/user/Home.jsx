@@ -242,7 +242,6 @@ import MindCategories from "@food/components/user/home/MindCategories";
 import StickyHeader from "@food/components/user/home/StickyHeader";
 import ExploreMoreSection from "@food/components/user/home/ExploreMoreSection";
 import RecommendedRestaurants from "@food/components/user/home/RecommendedRestaurants";
-import RestaurantsSection from "@food/components/user/home/RestaurantsSection";
 import AllCategoriesModal from "@food/components/user/home/AllCategoriesModal";
 import ManageCollectionsModal from "@food/components/user/home/ManageCollectionsModal";
 import VegModeOverlay from "@food/components/user/home/VegModeOverlay";
@@ -448,7 +447,7 @@ export default function Home() {
   const [loadingMenuCategories, setLoadingMenuCategories] = useState(false);
   const [, setRestaurantDietMeta] = useState({});
   const [showAllCategoriesModal, setShowAllCategoriesModal] = useState(false);
-  const [availabilityTick, setAvailabilityTick] = useState(Date.now());
+  const [availabilityTick] = useState(Date.now());
   const RESTAURANTS_BATCH_SIZE = 9;
   const [visibleRestaurantCount, setVisibleRestaurantCount] = useState(
     RESTAURANTS_BATCH_SIZE,
@@ -639,14 +638,6 @@ export default function Home() {
     },
     [buildRestaurantImageCandidates],
   );
-
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      setAvailabilityTick(Date.now());
-    }, 60000);
-
-    return () => clearInterval(intervalId);
-  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -1881,6 +1872,9 @@ export default function Home() {
     // Primary source: restaurants returned by landing settings API (already admin-selected).
     const fromSettingsMapped = fromSettings.map((restaurant) => {
       const restaurantId = restaurant?._id ? String(restaurant._id) : "";
+      const liveRestaurant = (restaurantsData || []).find(
+        (entry) => String(entry.mongoId || entry.id || entry.restaurantId || "") === restaurantId,
+      );
       const cuisine =
         Array.isArray(restaurant?.cuisines) && restaurant.cuisines.length > 0
           ? restaurant.cuisines[0]
@@ -1907,8 +1901,11 @@ export default function Home() {
         slug: restaurant?.slug || restaurant?.restaurantId || restaurantId,
         offer: null,
         pureVegRestaurant: restaurant?.pureVegRestaurant === true,
-        isActive: true,
-        isAcceptingOrders: true,
+        isActive: liveRestaurant ? liveRestaurant.isActive !== false : restaurant?.isActive !== false,
+        isAcceptingOrders: liveRestaurant
+          ? liveRestaurant.isAcceptingOrders !== false
+          : restaurant?.isAcceptingOrders !== false,
+        outletTimings: liveRestaurant?.outletTimings || restaurant?.outletTimings || null,
       };
     });
 
@@ -2224,6 +2221,8 @@ export default function Home() {
   recommendedFoodItems={recommendedFoodItems} 
   handleAddHomeItemToCart={handleAddHomeItemToCart} 
   cart={cart} 
+  restaurantsData={restaurantsData}
+  availabilityTick={availabilityTick}
 />
           </main>
         </div>
@@ -2322,7 +2321,10 @@ export default function Home() {
           </AnimatePresence>
         </div>
 
-        <RecommendedRestaurants recommendedForYouRestaurants={recommendedForYouRestaurants} />
+        <RecommendedRestaurants
+          recommendedForYouRestaurants={recommendedForYouRestaurants}
+          availabilityTick={availabilityTick}
+        />
 
         {/* Explore More Section */}
         <ExploreMoreSection 
@@ -2333,22 +2335,6 @@ export default function Home() {
 
         {/* Featured Foods - Horizontal Scroll */}
 
-        {/* Restaurants - Enhanced with Animations */}
-        <RestaurantsSection 
-      shouldShowOutOfZoneHome={shouldShowOutOfZoneHome}
-      filteredRestaurants={filteredRestaurants}
-      isLoadingFilterResults={isLoadingFilterResults}
-      loadingRestaurants={loadingRestaurants}
-      visibleRestaurants={visibleRestaurants}
-      isOutOfService={isEffectiveLocationOutOfService}
-      availabilityTick={availabilityTick}
-      hasMoreRestaurants={hasMoreRestaurants}
-      loadMoreRestaurants={loadMoreRestaurants}
-      setSelectedRestaurantSlug={setSelectedRestaurantSlug}
-      setShowManageCollections={setShowManageCollections}
-      setShowToast={setShowToast}
-      restaurantLoadMoreRef={restaurantLoadMoreRef}
-    />
       </div>
 
       {/* Filter Modal - Bottom Sheet */}

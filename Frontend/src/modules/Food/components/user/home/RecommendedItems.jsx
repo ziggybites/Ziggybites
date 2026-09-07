@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Leaf, Plus } from "lucide-react";
 import { RestaurantGridSkeleton } from "@food/components/ui/loading-skeletons";
 import { getNutritionSummary } from "@food/utils/nutrition";
+import { getRestaurantAvailabilityStatus } from "@food/utils/restaurantAvailability";
+import { toast } from "sonner";
 
 const getFoodTypeTag = (item, fallbackLabel) => {
   const rawLabel = String(item.foodType || fallbackLabel || "").trim();
@@ -25,9 +27,13 @@ const getFoodTypeTag = (item, fallbackLabel) => {
   };
 };
 
-function RecommendedDishCard({ item, fallbackLabel, handleAddHomeItemToCart }) {
+function RecommendedDishCard({ item, fallbackLabel, handleAddHomeItemToCart, restaurant, availabilityTick }) {
   const nutritionSummary = getNutritionSummary(item.nutrition);
   const foodTypeTag = getFoodTypeTag(item, fallbackLabel);
+  const availability = restaurant
+    ? getRestaurantAvailabilityStatus(restaurant, new Date(availabilityTick))
+    : { isOpen: true };
+  const isUnavailable = !availability.isOpen;
 
   return (
     <Link
@@ -36,7 +42,13 @@ function RecommendedDishCard({ item, fallbackLabel, handleAddHomeItemToCart }) {
         search: `?dish=${encodeURIComponent(item.name || "")}&dishId=${encodeURIComponent(item.itemId || item.id || "")}&restaurant=${encodeURIComponent(item.restaurantName || "")}&restaurantId=${encodeURIComponent(item.restaurantId || "")}&category=${encodeURIComponent(item.categoryName || "")}${Number.isFinite(item.price) ? `&price=${encodeURIComponent(item.price)}` : ""}`,
       }}
       state={{ dish: item }}
-      className="flex gap-3 rounded-[10px] bg-white dark:bg-[#1a1a1a] border border-orange-100 dark:border-gray-800 shadow-sm p-2"
+      className={`flex gap-3 rounded-[10px] bg-white dark:bg-[#1a1a1a] border border-orange-100 dark:border-gray-800 shadow-sm p-2 ${isUnavailable ? "grayscale opacity-75 cursor-not-allowed" : ""}`}
+      aria-disabled={isUnavailable}
+      onClick={(event) => {
+        if (!isUnavailable) return;
+        event.preventDefault();
+        toast.info("This restaurant is currently unavailable. Please try again later.");
+      }}
     >
       <div className="h-[74px] w-[94px] rounded-lg overflow-hidden shrink-0 bg-orange-50 dark:bg-gray-900">
         {item.image ? (
@@ -85,7 +97,15 @@ function RecommendedDishCard({ item, fallbackLabel, handleAddHomeItemToCart }) {
           )}
           <button
             type="button"
-            onClick={(event) => handleAddHomeItemToCart(event, item)}
+            onClick={(event) => {
+              if (isUnavailable) {
+                event.preventDefault();
+                event.stopPropagation();
+                toast.info("This restaurant is currently unavailable. Please try again later.");
+                return;
+              }
+              handleAddHomeItemToCart(event, item);
+            }}
             className="ml-auto h-6 w-6 rounded-full bg-[#ef2b24] text-white flex items-center justify-center"
             aria-label={`Add ${item.name || "item"} to cart`}
           >
@@ -107,6 +127,8 @@ export default function RecommendedItems({
   categoryFoodItems,
   recommendedFoodItems,
   handleAddHomeItemToCart,
+  restaurantsData,
+  availabilityTick,
 }) {
   const navigate = useNavigate();
   const isLoading =
@@ -114,6 +136,18 @@ export default function RecommendedItems({
     loadingRestaurants ||
     loadingCategoryFoodItems ||
     (!selectedHomeCategory && loadingRecommendedFoodItems);
+
+  const findRestaurant = (item) => {
+    const itemRestaurantId = String(item?.restaurantId || item?.mongoRestaurantId || "");
+    const itemSlug = String(item?.restaurantSlug || "");
+    return (restaurantsData || []).find((restaurant) => {
+      const restaurantId = String(
+        restaurant?.mongoId || restaurant?.restaurantId || restaurant?.id || "",
+      );
+      return (itemRestaurantId && restaurantId === itemRestaurantId) ||
+        (itemSlug && String(restaurant?.slug || "") === itemSlug);
+    });
+  };
 
   return (
     <section id="home-recommended-items" className="mt-4 scroll-mt-4">
@@ -147,6 +181,8 @@ export default function RecommendedItems({
                 item={item}
                 fallbackLabel=""
                 handleAddHomeItemToCart={handleAddHomeItemToCart}
+                restaurant={findRestaurant(item)}
+                availabilityTick={availabilityTick}
               />
             ))
           ) : (
@@ -164,6 +200,8 @@ export default function RecommendedItems({
               item={item}
               fallbackLabel=""
               handleAddHomeItemToCart={handleAddHomeItemToCart}
+              restaurant={findRestaurant(item)}
+              availabilityTick={availabilityTick}
             />
           ))
         ) : (
