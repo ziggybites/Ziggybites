@@ -1,4 +1,5 @@
 import { sendResponse } from '../../../../utils/response.js';
+import { logger } from '../../../../utils/logger.js';
 import * as orderService from '../services/order.service.js';
 import {
     validateCalculateOrderDto,
@@ -308,6 +309,15 @@ export async function getOrderByIdDeliveryController(req, res, next) {
     } catch (err) {
         next(err);
     }
+}
+
+export async function reportDeliveryPopupOpenedController(req, res) {
+    const orderId = String(req.params.orderId || '').trim();
+    const deliveryPartnerId = String(req.user?.userId || '').trim();
+    logger.info(
+        `[DeliveryPopup] opened orderId=${orderId} deliveryPartnerId=${deliveryPartnerId} source=${String(req.body?.source || 'unknown')} clientTimestamp=${String(req.body?.clientTimestamp || '')} userAgent=${String(req.get('user-agent') || '').slice(0, 180)}`,
+    );
+    return sendResponse(res, 200, 'Delivery popup open reported', { orderId });
 }
 
 export async function getPaymentStatusController(req, res, next) {

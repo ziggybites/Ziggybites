@@ -214,6 +214,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const lastCoordRef = useRef(null);
   const rollingSpeedRef = useRef([]);
   const lastAutoArrivalRef = useRef({ PICKING_UP: false, PICKED_UP: false });
+  const popupOpenedReportedRef = useRef(new Set());
 
   const [zoom, setZoom] = useState(14);
   const [isSimMode, setIsSimMode] = useState(false);
@@ -679,6 +680,19 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
     }
     setIncomingOrder((prev) => mergeIncomingOrderData(prev, newOrder));
   }, [newOrder]);
+
+  useEffect(() => {
+    const orderId = resolveIncomingOrderId(incomingOrder);
+    if (!orderId || popupOpenedReportedRef.current.has(String(orderId))) return;
+
+    popupOpenedReportedRef.current.add(String(orderId));
+    void deliveryAPI.reportPopupOpened(orderId, {
+      source: incomingOrder?.source || 'delivery-popup',
+      clientTimestamp: new Date().toISOString(),
+    }).catch((error) => {
+      console.warn('[DeliveryPopup] Failed to report popup opened:', error?.message || error);
+    });
+  }, [incomingOrder]);
 
   useEffect(() => {
     console.log('[DeliveryOrderPopup] DeliveryHomeV2 incomingOrder changed', {

@@ -37,6 +37,7 @@ router.get('/support-tickets/:id', authMiddleware, requireRoles('DELIVERY_PARTNE
 // ----- Orders -----
 router.get('/orders/current', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.getCurrentTripDeliveryController);
 router.get('/orders/available', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.listOrdersAvailableDeliveryController);
+router.post('/orders/:orderId/popup-opened', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.reportDeliveryPopupOpenedController);
 router.get('/orders/:orderId', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.getOrderByIdDeliveryController);
 router.patch('/orders/:orderId/accept', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.acceptOrderDeliveryController);
 router.patch('/orders/:orderId/reject', authMiddleware, requireRoles('DELIVERY_PARTNER'), orderController.rejectOrderDeliveryController);
