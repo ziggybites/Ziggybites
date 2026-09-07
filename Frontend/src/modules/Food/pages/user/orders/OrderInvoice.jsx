@@ -247,7 +247,36 @@ export default function OrderInvoice() {
 
                   <div className="text-gray-500 font-medium">Payment</div>
                   <div className="font-bold">:</div>
-                  <div className="font-bold">{order.paymentMethod?.type?.toUpperCase() || "CASH"}</div>
+                  <div className="font-bold">
+                    {(() => {
+                      const raw = String(
+                        (typeof order.paymentMethod === "string" ? order.paymentMethod : "") ||
+                        order.payment?.method ||
+                        order.paymentMethod?.type ||
+                        (order.subscriptionUsage ? "subscription" : "")
+                      ).toLowerCase().trim()
+
+                      if (raw === "subscription" || raw === "subscription_prepaid" || order.subscriptionUsage) {
+                        return "SUBSCRIPTION"
+                      }
+                      if (raw === "cash" || raw === "cod" || raw === "cash on delivery") {
+                        return "CASH ON DELIVERY"
+                      }
+                      if (raw === "wallet") {
+                        return "WALLET"
+                      }
+                      if (raw === "razorpay_qr" || raw === "qr") {
+                        return "ONLINE (QR)"
+                      }
+                      if (raw === "razorpay" || raw === "online" || raw === "upi" || raw === "card" || raw === "netbanking") {
+                        return "ONLINE"
+                      }
+                      if (raw) {
+                        return raw.toUpperCase()
+                      }
+                      return "ONLINE"
+                    })()}
+                  </div>
                 </div>
               </div>
             </div>

@@ -180,7 +180,40 @@ export default function UserOrderDetails() {
 
   const userName = order.userName || ""
   const userPhone = order.userPhone || ""
-  const paymentMethod = order.payment?.method || "Online"
+  const resolvePaymentMethod = (ord) => {
+    const method = String(
+      ord?.payment?.method ||
+      ord?.paymentMethod ||
+      (ord?.subscriptionUsage ? "subscription" : "")
+    ).toLowerCase().trim()
+
+    if (method === "subscription" || method === "subscription_prepaid" || ord?.subscriptionUsage) {
+      return "Subscription"
+    }
+    if (method === "cash" || method === "cod" || method === "cash on delivery") {
+      return "Cash on Delivery"
+    }
+    if (method === "wallet") {
+      return "Wallet"
+    }
+    if (method === "razorpay_qr" || method === "qr") {
+      return "Online (QR)"
+    }
+    if (
+      method === "razorpay" ||
+      method === "online" ||
+      method === "upi" ||
+      method === "card" ||
+      method === "netbanking"
+    ) {
+      return "Online"
+    }
+    if (method) {
+      return method.charAt(0).toUpperCase() + method.slice(1)
+    }
+    return "Online"
+  }
+  const paymentMethod = resolvePaymentMethod(order)
   const paymentDate = order.createdAt
     ? new Date(order.createdAt).toLocaleString("en-IN", {
       month: "long",

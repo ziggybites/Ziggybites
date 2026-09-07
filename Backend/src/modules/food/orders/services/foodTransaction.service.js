@@ -196,6 +196,7 @@ export async function createInitialTransaction(order) {
 
     const paymentSnapshot = isSubscriptionPrepaidOrder
         ? {
+            method: String(order.payment?.method || 'subscription'),
             status: String(order.payment?.status || 'paid'),
             amountDue: Number(order.payment?.amountDue ?? 0) || 0,
         }
@@ -274,7 +275,7 @@ export async function createInitialTransaction(order) {
         userId: order.userId,
         restaurantId: order.restaurantId,
         deliveryPartnerId: order.dispatch?.deliveryPartnerId,
-        ...(isSubscriptionPrepaidOrder ? {} : { paymentMethod: order.payment?.method || 'cash' }),
+        paymentMethod: isSubscriptionPrepaidOrder ? 'subscription' : (order.payment?.method || 'cash'),
         status: order.payment?.status === 'paid' ? 'captured' : 'pending',
         payment: paymentSnapshot,
         pricing: pricingSnapshot,
