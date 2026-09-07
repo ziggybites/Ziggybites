@@ -11,7 +11,10 @@ const navItems = [
       pathname === "/" ||
       pathname === "/food" ||
       pathname === "/food/" ||
-      pathname === "/food/user",
+      pathname === "/food/user" ||
+      pathname === "/food/user/" ||
+      pathname === "/user" ||
+      pathname === "/user/",
   },
   {
     label: "Subscription",
@@ -19,23 +22,33 @@ const navItems = [
     icon: CalendarDays,
     active: (pathname) =>
       pathname.startsWith("/food/user/profile/subscriptions") ||
+      pathname.startsWith("/user/profile/subscriptions") ||
       pathname.startsWith("/food/user/choose-meal") ||
+      pathname.startsWith("/user/choose-meal") ||
       pathname.startsWith("/food/user/subscription-plans") ||
-      pathname.startsWith("/food/user/checkout"),
+      pathname.startsWith("/user/subscription-plans") ||
+      pathname.startsWith("/food/user/checkout") ||
+      pathname.startsWith("/user/checkout"),
   },
   {
     label: "History",
     to: "/food/user/orders",
     icon: History,
-    active: (pathname) => pathname.startsWith("/food/user/orders"),
+    active: (pathname) =>
+      pathname.startsWith("/food/user/orders") ||
+      pathname.startsWith("/user/orders"),
   },
   {
     label: "Profile",
     to: "/food/user/profile",
     icon: User,
     active: (pathname) =>
-      pathname.startsWith("/food/user/profile") &&
-      !pathname.startsWith("/food/user/profile/subscriptions"),
+      (pathname.startsWith("/food/user/profile") ||
+        pathname.startsWith("/user/profile") ||
+        pathname === "/profile" ||
+        pathname.startsWith("/profile/")) &&
+      !pathname.startsWith("/food/user/profile/subscriptions") &&
+      !pathname.startsWith("/user/profile/subscriptions"),
   },
 ]
 
@@ -68,7 +81,7 @@ export default function BottomNavigation() {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false)
   const [isTextInputFocused, setIsTextInputFocused] = useState(false)
 
-  // Hide bottom nav when typing or keyboard is open (standard mobile UX)
+  // Hide bottom nav when typing on pages where virtual keyboard pushes it up (e.g. safety emergency)
   useEffect(() => {
     if (typeof window === "undefined") return undefined
 
@@ -124,11 +137,14 @@ export default function BottomNavigation() {
     }
   }, [])
 
-  const isHidden = isKeyboardVisible || isTextInputFocused
+  // Only hide bottom nav on pages with specific text input issues (like report safety emergency),
+  // keeping it permanently fixed at bottom on profile edit and standard views
+  const isSafetyEmergency = pathname.includes("report-safety-emergency")
+  const isHidden = isSafetyEmergency && (isKeyboardVisible || isTextInputFocused)
 
   return (
     <nav
-      className={`md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-gray-100 bg-white shadow-[0_-2px_10px_rgba(15,23,42,0.06)] transition-all duration-150 ${
+      className={`md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-gray-100 bg-white shadow-[0_-2px_10px_rgba(15,23,42,0.06)] pb-[env(safe-area-inset-bottom)] transition-all duration-150 ${
         isHidden ? "hidden pointer-events-none" : ""
       }`}
       aria-hidden={isHidden}
