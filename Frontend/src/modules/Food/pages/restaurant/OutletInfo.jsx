@@ -268,7 +268,12 @@ export default function OutletInfo() {
       } else if (editSection === 'bank') {
         payload.accountHolderName = editFormData.accountHolderName
         payload.accountNumber = editFormData.accountNumber
-        payload.ifscCode = editFormData.ifscCode
+        const ifsc = String(editFormData.ifscCode || "").trim().toUpperCase()
+        if (ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) {
+          toast.error("Enter a valid IFSC code (e.g. HDFC0000123)")
+          return
+        }
+        payload.ifscCode = ifsc
         const upiId = String(editFormData.upiId || "").trim()
         if (upiId && !UPI_ID_REGEX.test(upiId)) {
           toast.error("Enter a valid UPI ID, e.g. name@bank")

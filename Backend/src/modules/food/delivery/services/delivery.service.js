@@ -10,6 +10,22 @@ import { uploadImageBuffer } from '../../../../services/cloudinary.service.js';
 import { ValidationError } from '../../../../core/auth/errors.js';
 import { getDeliveryCashLimitSettings } from '../../admin/services/admin.service.js';
 
+const REQUIRED_REGISTRATION_IMAGES = [
+    { key: 'profilePhoto', label: 'Profile photo' },
+    { key: 'aadharPhoto', label: 'Aadhar card photo' },
+    { key: 'panPhoto', label: 'PAN card photo' },
+    { key: 'drivingLicensePhoto', label: 'Driving license photo' }
+];
+
+const hasUploadedImage = (files, key) => Boolean(files?.[key]?.[0]?.buffer?.length);
+
+const assertRequiredRegistrationImages = (files) => {
+    const missingImage = REQUIRED_REGISTRATION_IMAGES.find(({ key }) => !hasUploadedImage(files, key));
+    if (missingImage) {
+        throw new ValidationError(`${missingImage.label} is required`);
+    }
+};
+
 export const registerDeliveryPartner = async (payload, files) => {
     const { 
         name, phone, email, countryCode, address, city, state, 
@@ -17,6 +33,8 @@ export const registerDeliveryPartner = async (payload, files) => {
         fcmToken, platform 
     } = payload;
     const refRaw = typeof payload?.ref === 'string' ? String(payload.ref).trim() : '';
+
+    assertRequiredRegistrationImages(files);
 
     const existing = await FoodDeliveryPartner.findOne({ phone });
     if (existing) {

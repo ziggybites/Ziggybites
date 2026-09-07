@@ -4239,7 +4239,9 @@ export async function getDeliveryJoinRequests(query) {
         status: doc.status === 'rejected' ? 'denied' : doc.status,
         rejectionReason: doc.rejectionReason || undefined,
         profilePhoto: doc.profilePhoto || null,
-        profileImage: doc.profilePhoto ? { url: doc.profilePhoto } : null
+        profileImage: doc.profilePhoto ? { url: doc.profilePhoto } : null,
+        createdAt: doc.createdAt,
+        updatedAt: doc.updatedAt
     }));
 
     return { requests };
@@ -5137,6 +5139,7 @@ export async function approveDeliveryPartner(id) {
 
     try {
         const { notifyOwnerSafely } = await import('../../../../core/notifications/firebase.service.js');
+        const { createInboxNotifications } = await import('../../../../core/notifications/notification.service.js');
         await notifyOwnerSafely(
             { ownerType: 'DELIVERY_PARTNER', ownerId: partner._id },
             {
@@ -5149,6 +5152,20 @@ export async function approveDeliveryPartner(id) {
                 }
             }
         );
+        await createInboxNotifications({
+            notifications: [{
+                ownerType: 'DELIVERY_PARTNER',
+                ownerId: partner._id,
+                title: 'Application Approved',
+                message: 'Your delivery partner application has been approved. You can now go online and start earning!',
+                link: '/food/delivery/profile',
+                category: 'delivery_approval',
+                metadata: {
+                    type: 'onboarding_approved',
+                    partnerId: String(partner._id)
+                }
+            }]
+        });
     } catch (e) {
         console.error('Failed to send delivery partner approval notification:', e);
     }
