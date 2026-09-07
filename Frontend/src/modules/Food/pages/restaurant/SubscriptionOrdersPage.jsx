@@ -25,16 +25,15 @@ const formatSubscriptionDate = (value) => {
   });
 };
 
-const formatDateTime = (value) => {
-  if (!value) return "No time";
+const formatServiceDate = (value) => {
+  if (!value) return "No date";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "No time";
+  if (Number.isNaN(date.getTime())) return "No date";
   return date.toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
+    timeZone: "UTC",
   });
 };
 
@@ -531,7 +530,7 @@ function SubscriptionOrdersPage() {
                                   {meal.mealName || "Meal"}
                                 </span>
                               </div>
-                              <p className="mt-1 text-xs text-gray-500">{formatDateTime(meal.serviceDate)}</p>
+                              <p className="mt-1 text-xs text-gray-500">Delivery date: {formatServiceDate(meal.serviceDate)}</p>
                               <p className="mt-2 text-xs text-gray-500">Schedule ID: {scheduleId}</p>
                               {meal.order?._id && (
                                 <p className="mt-1 text-xs text-gray-500">Linked order: {meal.order.order_id || meal.order._id}</p>

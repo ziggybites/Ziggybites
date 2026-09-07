@@ -9,6 +9,7 @@ import {
 import { deliveryAPI } from '@food/api';
 import { useDeliveryStore } from '@/modules/DeliveryV2/store/useDeliveryStore';
 import { ActionSlider } from '@/modules/DeliveryV2/components/ui/ActionSlider';
+import { toast } from 'sonner';
 
 const Backdrop = ({ onClose }) => (
   <motion.div
@@ -54,6 +55,7 @@ const OtpModal = ({ order, onVerified, onClose }) => {
   const [otp, setOtp] = useState(['', '', '', '']);
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
   const [isOtpVerified, setIsOtpVerified] = useState(false);
+  const [otpError, setOtpError] = useState('');
   const inputRefs = [useRef(), useRef(), useRef(), useRef()];
 
   useEffect(() => {
@@ -74,6 +76,7 @@ const OtpModal = ({ order, onVerified, onClose }) => {
     const nextOtp = [...otp];
     nextOtp[index] = value.substring(value.length - 1);
     setOtp(nextOtp);
+    if (otpError) setOtpError('');
     if (value && index < 3) inputRefs[index + 1].current?.focus();
   };
 
@@ -85,8 +88,12 @@ const OtpModal = ({ order, onVerified, onClose }) => {
 
   const verifyOtp = async () => {
     const otpString = otp.join('');
-    if (otpString.length < 4) return;
+    if (otpString.length < 4) {
+      setOtpError('Enter the complete 4-digit OTP.');
+      return;
+    }
     setIsVerifyingOtp(true);
+    setOtpError('');
     try {
       const res = await deliveryAPI.verifyDropOtp(orderId, otpString);
       if (res?.data?.success) {
@@ -111,9 +118,16 @@ const OtpModal = ({ order, onVerified, onClose }) => {
 
         setIsOtpVerified(true);
         setTimeout(() => onVerified(otpString), 600);
+      } else {
+        const message = res?.data?.message || 'Invalid OTP. Please enter the customer OTP and try again.';
+        setOtpError(message);
+        toast.error(message);
       }
     } catch (err) {
-      throw err;
+      const message = err?.response?.data?.message || 'Invalid OTP. Please enter the customer OTP and try again.';
+      setOtpError(message);
+      toast.error(message);
+      inputRefs[0].current?.focus();
     } finally {
       setIsVerifyingOtp(false);
     }
@@ -128,9 +142,9 @@ const OtpModal = ({ order, onVerified, onClose }) => {
         initial={{ y: '100%' }}
         animate={{ y: 0 }}
         exit={{ y: '100%' }}
-        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-6 sm:pb-10 pointer-events-auto max-h-[84vh] overflow-hidden flex flex-col"
+        className="w-full max-w-md sm:max-w-lg bg-white rounded-t-3xl sm:rounded-t-[2.5rem] shadow-[0_-20px_60px_rgba(0,0,0,0.3)] p-4 sm:p-6 pb-4 sm:pb-8 pointer-events-auto h-[min(90vh,720px)] max-h-[90vh] overflow-hidden flex flex-col"
       >
-        <div className="overflow-y-auto pr-1">
+        <div className="flex-1 min-h-0 overflow-y-auto pr-1 overscroll-contain">
           <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6" />
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-3">
@@ -149,7 +163,7 @@ const OtpModal = ({ order, onVerified, onClose }) => {
 
           <DeliveryInstructionsPanel note={order?.note} />
 
-          <div className="flex justify-center gap-2.5 sm:gap-3 mb-4 sm:mb-6">
+          <div className="flex justify-center gap-2.5 sm:gap-3 mb-5 sm:mb-6">
             {otp.map((digit, i) => (
               <input
                 key={i}
@@ -159,15 +173,20 @@ const OtpModal = ({ order, onVerified, onClose }) => {
                 value={digit}
                 onChange={(e) => handleOtpChange(i, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(i, e)}
-                className={`w-12 sm:w-14 h-16 sm:h-18 bg-gray-50 border-2 rounded-2xl text-center text-2xl sm:text-3xl font-bold transition-all ${
-                  isOtpVerified ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 focus:border-green-600 text-gray-700'
+                className={`w-12 sm:w-14 h-14 sm:h-16 bg-gray-50 border-2 rounded-2xl text-center text-2xl sm:text-3xl font-bold transition-all ${
+                  isOtpVerified ? 'border-green-500 bg-green-50 text-green-700' : otpError ? 'border-red-400 bg-red-50 text-gray-700 focus:border-red-500' : 'border-gray-200 focus:border-green-600 text-gray-700'
                 }`}
               />
             ))}
           </div>
+          {otpError && (
+            <p className="mb-5 text-center text-xs font-semibold text-red-600" role="alert">
+              {otpError}
+            </p>
+          )}
         </div>
 
-        <div className="pt-4 mt-2 border-t border-gray-100 bg-white">
+        <div className="shrink-0 pt-4 mt-2 border-t border-gray-100 bg-white pb-[env(safe-area-inset-bottom)]">
           <ActionSlider
             key="action-otp"
             label={isVerifyingOtp ? 'Verifying...' : isAlreadyVerified ? 'Code already verified' : 'Slide to Verify OTP'}

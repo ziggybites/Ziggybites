@@ -1,4 +1,7 @@
 import { FeedbackExperience } from '../models/feedbackExperience.model.js';
+import { FoodUser } from '../../../../core/users/user.model.js';
+import { FoodRestaurant } from '../../restaurant/models/restaurant.model.js';
+import { FoodDeliveryPartner } from '../../delivery/models/deliveryPartner.model.js';
 import { sendResponse, sendError } from '../../../../utils/response.js';
 
 /**
@@ -91,11 +94,44 @@ export const getFeedbackExperiences = async (req, res) => {
         const skip = (parseInt(page) - 1) * parseInt(limit);
         
         const feedbacks = await FeedbackExperience.find(query)
-            .populate('userId', 'name phone email restaurantName ownerPhone ownerEmail')
             .populate('restaurantId', 'restaurantName')
             .sort({ createdAt: -1 })
             .skip(skip)
-            .limit(parseInt(limit));
+            .limit(parseInt(limit))
+            .lean();
+
+        // Resolve dynamic user references explicitly. This also handles older
+        // feedback rows where `userModel` was missing or stored inconsistently.
+        const idsByModel = {
+            FoodUser: [],
+            FoodRestaurant: [],
+            FoodDeliveryPartner: [],
+        };
+        feedbacks.forEach((feedback) => {
+            const model = ['FoodUser', 'FoodRestaurant', 'FoodDeliveryPartner'].includes(feedback.userModel)
+                ? feedback.userModel
+                : feedback.module === 'restaurant'
+                    ? 'FoodRestaurant'
+                    : feedback.module === 'delivery'
+                        ? 'FoodDeliveryPartner'
+                        : 'FoodUser';
+            if (feedback.userId) idsByModel[model].push(feedback.userId);
+        });
+
+        const [users, restaurants, deliveryPartners] = await Promise.all([
+            FoodUser.find({ _id: { $in: idsByModel.FoodUser } }).select('name phone email').lean(),
+            FoodRestaurant.find({ _id: { $in: idsByModel.FoodRestaurant } })
+                .select('restaurantName name phone ownerPhone ownerEmail email')
+                .lean(),
+            FoodDeliveryPartner.find({ _id: { $in: idsByModel.FoodDeliveryPartner } })
+                .select('name fullName phone phoneNumber email').lean(),
+        ]);
+
+        const detailsByModel = {
+            FoodUser: new Map(users.map((user) => [String(user._id), user])),
+            FoodRestaurant: new Map(restaurants.map((restaurant) => [String(restaurant._id), restaurant])),
+            FoodDeliveryPartner: new Map(deliveryPartners.map((partner) => [String(partner._id), partner])),
+        };
 
         const total = await FeedbackExperience.countDocuments(query);
 
@@ -123,11 +159,18 @@ export const getFeedbackExperiences = async (req, res) => {
 
         // Normalize the feedback data to have consistent user fields
         const normalizedFeedbacks = feedbacks.map(fb => {
-            const user = fb.userId || {};
+            const model = ['FoodUser', 'FoodRestaurant', 'FoodDeliveryPartner'].includes(fb.userModel)
+                ? fb.userModel
+                : fb.module === 'restaurant'
+                    ? 'FoodRestaurant'
+                    : fb.module === 'delivery'
+                        ? 'FoodDeliveryPartner'
+                        : 'FoodUser';
+            const user = detailsByModel[model].get(String(fb.userId || '')) || {};
             return {
-                ...fb.toObject(),
-                userName: user.name || user.restaurantName || 'N/A',
-                userPhone: user.phone || user.ownerPhone || 'N/A',
+                ...fb,
+                userName: user.name || user.fullName || user.restaurantName || 'N/A',
+                userPhone: user.phone || user.phoneNumber || user.ownerPhone || 'N/A',
                 userEmail: user.email || user.ownerEmail || 'N/A'
             };
         });

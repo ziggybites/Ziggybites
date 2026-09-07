@@ -647,6 +647,7 @@ const toTripDto = (order) => {
     const earningAmount = Number(order?.riderEarning ?? order?.deliveryEarning ?? 0) || 0;
     const codAmount = paymentMethod === 'cash' ? Number(order?.payment?.amountDue) || 0 : 0;
     const codCollectedAmount = paymentMethod === 'cash' && order?.payment?.status === 'paid' ? codAmount : 0;
+    const deliveryPartnerRating = order?.ratings?.deliveryPartner || null;
     return {
         id: order?._id,
         _id: order?._id,
@@ -668,7 +669,10 @@ const toTripDto = (order) => {
         deliveredAt: deliveredAt,
         completedAt: deliveredAt,
         date: dateForUi,
-        time
+        time,
+        // Customer feedback for the delivery partner. Keep the complete object
+        // so the delivery app can show both stars and the optional comment.
+        deliveryPartnerRating
     };
 };
 
