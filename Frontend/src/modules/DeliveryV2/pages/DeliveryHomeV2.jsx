@@ -36,6 +36,12 @@ import useNotificationInbox from "@food/hooks/useNotificationInbox";
 import { clearModuleAuth } from '@/modules/Food/utils/auth';
 import { getAccessToken } from '@/core/auth/tokenStore';
 
+// Simulation is intentionally development-only. Production must always use
+// the rider's real device GPS/location updates.
+const simulationEnabled =
+  Boolean(import.meta.env.DEV) &&
+  String(import.meta.env.VITE_ENABLE_MAP_SIMULATION || '').toLowerCase() === 'true';
+
 /** Minimal bottom-sheet popup (Restored from legacy FeedNavbar) */
 function BottomPopup({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
@@ -224,6 +230,16 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
   const [activePolyline, setActivePolyline] = useState(null);
   const mapRef = useRef(null);
   const simInitializedRef = useRef(false);
+
+  useEffect(() => {
+    if (!simulationEnabled && isSimMode) {
+      setIsSimMode(false);
+      setSimPath([]);
+      setSimIndex(0);
+      setSimProgress(0);
+      simInitializedRef.current = false;
+    }
+  }, [isSimMode]);
 
   const isLoggingOut = useRef(false);
 
@@ -967,7 +983,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
               </button>
 
               {/* DEV SIMULATION TOGGLE */}
-              {import.meta.env.DEV && (
+              {simulationEnabled && (
                  <button 
                    onClick={() => setIsSimMode(!isSimMode)}
                    className={`px-3 h-8 rounded-lg text-[9px] font-black border transition-all ${isSimMode ? 'bg-orange-500 border-orange-400 text-white animate-pulse' : 'bg-white/10 border-white/20 text-white/40'}`}
@@ -1099,7 +1115,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
              />
              
              {/* SIMULATION INDICATOR */}
-             {isSimMode && (
+              {simulationEnabled && isSimMode && (
                <div className="absolute top-[180px] left-4 right-4 z-[100] bg-black/80 backdrop-blur-md rounded-xl p-4 border border-white/20 flex items-center justify-between shadow-2xl">
                   <div className="flex items-center gap-4">
                      <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center animate-pulse">
@@ -1119,7 +1135,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                    <button onClick={() => setZoom(z => Math.min(22, z + 1))} className="p-3 hover:bg-gray-50 border-b border-gray-100 text-gray-900 active:scale-90 transition-all" aria-label="Zoom in"><Plus className="w-5 h-5 stroke-[2.75]" /></button>
                    <button onClick={() => setZoom(z => Math.max(8, z - 1))} className="p-3 hover:bg-gray-50 text-gray-900 active:scale-90 transition-all" aria-label="Zoom out"><Minus className="w-5 h-5 stroke-[2.75]" /></button>
                 </div>
-                <button 
+                 {simulationEnabled && <button
                   onClick={() => {
                     const nextSimState = !isSimMode;
                     setIsSimMode(nextSimState);
@@ -1167,7 +1183,7 @@ export default function DeliveryHomeV2({ tab = 'feed' }) {
                   <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center ${isSimMode ? 'border-white' : 'border-green-500'}`}>
                     <Play className={`w-4 h-4 fill-current ml-0.5 ${isSimMode ? 'animate-pulse' : ''}`} />
                   </div>
-                </button>
+                 </button>}
                 <button 
                    onClick={() => mapRef.current?.setOptions({ gestureHandling: 'greedy' })} 
                    className="w-14 h-14 bg-white rounded-full shadow-2xl flex items-center justify-center text-blue-600 border border-gray-100 active:scale-90 transition-all"
