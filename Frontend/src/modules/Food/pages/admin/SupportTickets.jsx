@@ -2,6 +2,12 @@ import { useEffect, useMemo, useState } from "react"
 import { supportAPI } from "@food/api"
 import { toast } from "sonner"
 
+const STATUS_ORDER = {
+  "open": 0,
+  "in-progress": 1,
+  "resolved": 2,
+}
+
 export default function SupportTickets() {
   const [tickets, setTickets] = useState([])
   const [loading, setLoading] = useState(true)
@@ -57,12 +63,23 @@ export default function SupportTickets() {
 
   const update = async (id, patch) => {
     const ticket = tickets.find((t) => String(t._id) === String(id))
+    if (!ticket) return
+
+    if (patch.status) {
+      const currentRank = STATUS_ORDER[ticket.status] ?? 0
+      const newRank = STATUS_ORDER[patch.status] ?? 0
+      if (newRank < currentRank) {
+        toast.error("Ticket status cannot be reverted to a previous status")
+        return
+      }
+    }
+
     try {
       await supportAPI.updateSupportTicketAdmin(id, { ...patch, source: ticket?.source || "user" })
       toast.success("Updated")
       setTickets((prev) => prev.map((t) => (String(t._id) === String(id) ? { ...t, ...patch } : t)))
-    } catch {
-      toast.error("Failed to update")
+    } catch (err) {
+      toast.error(err?.response?.data?.message || err?.response?.data?.error || "Failed to update")
     }
   }
 
@@ -170,15 +187,26 @@ export default function SupportTickets() {
                       {t.orderRef ? <div className="text-xs text-slate-500 mt-0.5">Order: {t.orderRef}</div> : null}
                     </td>
                     <td className="px-4 py-3">
-                      <select
-                        value={t.status}
-                        onChange={(e) => update(t._id, { status: e.target.value })}
-                        className="border rounded px-2 py-1 text-xs bg-white"
-                      >
-                        <option value="open">Open</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="resolved">Resolved</option>
-                      </select>
+                      {t.status === "resolved" ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                          Resolved
+                        </span>
+                      ) : (
+                        <select
+                          value={t.status}
+                          onChange={(e) => update(t._id, { status: e.target.value })}
+                          className={`border rounded-lg px-2.5 py-1 text-xs font-medium bg-white focus:outline-none focus:ring-1 focus:ring-primary ${
+                            t.status === "in-progress"
+                              ? "text-blue-700 border-blue-200 bg-blue-50/50"
+                              : "text-amber-700 border-amber-200 bg-amber-50/50"
+                          }`}
+                        >
+                          {STATUS_ORDER[t.status] <= 0 && <option value="open">Open</option>}
+                          {STATUS_ORDER[t.status] <= 1 && <option value="in-progress">In Progress</option>}
+                          <option value="resolved">Resolved</option>
+                        </select>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm">{new Date(t.createdAt).toLocaleDateString()}</td>
                     <td className="px-4 py-3">

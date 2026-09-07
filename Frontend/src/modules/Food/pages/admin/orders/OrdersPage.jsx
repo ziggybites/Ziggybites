@@ -813,6 +813,7 @@ export default function OrdersPage({ statusKey = "all" }) {
         onApply={handleApplyFilters}
         onReset={handleResetFilters}
         restaurants={restaurants}
+        showDeliveryType={false}
       />
       <SettingsDialog
         isOpen={isSettingsOpen}

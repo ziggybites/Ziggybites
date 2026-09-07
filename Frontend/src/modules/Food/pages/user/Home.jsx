@@ -808,6 +808,15 @@ export default function Home() {
     }
   };
 
+  // Lock body scroll when any veg-mode popup is open
+  useEffect(() => {
+    const isOpen = showVegModePopup || showSwitchOffPopup;
+    document.body.style.overflow = isOpen ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showVegModePopup, showSwitchOffPopup]);
+
   // Update popup position on scroll/resize
   useEffect(() => {
     if (!showVegModePopup) return;

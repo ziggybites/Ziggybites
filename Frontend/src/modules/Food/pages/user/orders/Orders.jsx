@@ -11,6 +11,100 @@ const debugLog = (...args) => {}
 const debugWarn = (...args) => {}
 const debugError = (...args) => {}
 
+export const getPaymentMethodDisplay = (order) => {
+  const method = String(
+    order?.payment?.method ||
+    order?.paymentMethod ||
+    (order?.subscriptionUsage ? "subscription" : "")
+  ).toLowerCase().trim()
+
+  if (method === "subscription" || method === "subscription_prepaid" || order?.subscriptionUsage) {
+    return "Subscription"
+  }
+  if (method === "cash" || method === "cod" || method === "cash on delivery") {
+    return "Cash on Delivery"
+  }
+  if (method === "wallet") {
+    return "Wallet"
+  }
+  if (method === "razorpay_qr" || method === "qr") {
+    return "Online (QR)"
+  }
+  if (
+    method === "razorpay" ||
+    method === "online" ||
+    method === "upi" ||
+    method === "card" ||
+    method === "netbanking"
+  ) {
+    return "Online"
+  }
+  if (method) {
+    return method.charAt(0).toUpperCase() + method.slice(1)
+  }
+  const status = String(order?.payment?.status || order?.paymentStatus || "").toLowerCase()
+  if (status === "paid" || status === "captured") {
+    return "Online"
+  }
+  return "Online"
+}
+
+export const getPaymentStatusDisplay = (order, isDelivered, isCod) => {
+  const rawStatus = String(
+    order?.payment?.status ||
+    order?.paymentStatus ||
+    (order?.subscriptionUsage ? "paid" : "")
+  ).toLowerCase().trim()
+
+  const isPaid =
+    ["paid", "completed", "captured", "authorized", "settled"].includes(rawStatus) ||
+    (isDelivered && isCod) ||
+    Boolean(order?.subscriptionUsage)
+
+  if (isPaid) {
+    return {
+      text: "Paid",
+      className: "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400"
+    }
+  }
+
+  if (rawStatus === "failed") {
+    return {
+      text: "Failed",
+      className: "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400"
+    }
+  }
+
+  if (rawStatus === "refunded") {
+    return {
+      text: "Refunded",
+      className: "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400"
+    }
+  }
+
+  if (rawStatus === "cod_pending" || rawStatus === "pending_qr") {
+    return {
+      text: isCod ? "COD Pending" : "Pending",
+      className: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400"
+    }
+  }
+
+  if (rawStatus === "pending" || rawStatus === "created") {
+    return {
+      text: "Pending",
+      className: "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400"
+    }
+  }
+
+  if (rawStatus) {
+    return {
+      text: rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1),
+      className: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300"
+    }
+  }
+
+  return null
+}
 
 export default function Orders() {
   const navigate = useNavigate()
@@ -572,18 +666,26 @@ Order again from this restaurant in the ${companyName} app.`
         ) : (
           filteredOrders.map((order) => {
             const amountBreakdown = getOrderAmountBreakdown(order)
-            // Check payment method - COD/wallet orders have 'pending' status which is normal
-            const isCodOrWallet = order.payment?.method === 'cash' ||
+            const isCod = order.payment?.method === 'cash' ||
               order.payment?.method === 'cod' ||
-              order.payment?.method === 'wallet' ||
               order.paymentMethod === 'cash' ||
-              order.paymentMethod === 'cod' ||
-              order.paymentMethod === 'wallet'
+              order.paymentMethod === 'cod'
+
+            const isSubscription = Boolean(
+              order.subscriptionUsage ||
+              order.payment?.method === 'subscription' ||
+              order.paymentMethod === 'subscription'
+            )
+
+            const isCodOrWalletOrSub = isCod ||
+              order.payment?.method === 'wallet' ||
+              order.paymentMethod === 'wallet' ||
+              isSubscription
 
             // Payment failed only for online payments (razorpay) that actually failed
-            // Don't show payment failed for COD/wallet or cancelled orders
+            // Don't show payment failed for COD/wallet/subscription or cancelled orders
             const isCancelled = order.status === 'cancelled' || order.status === 'restaurant_cancelled' || order.status === 'dead' || order.isDead
-            const paymentFailed = !isCodOrWallet &&
+            const paymentFailed = !isCodOrWalletOrSub &&
               !isCancelled &&
               (order.payment?.status === 'failed')
 
@@ -771,32 +873,27 @@ Order again from this restaurant in the ${companyName} app.`
                   </div>
                 </div>
 
-                {/* Date and Payment Info */}
-                <div className="px-4 py-2 flex items-center justify-between">
-                  <div className="flex-1">
-                    <p className="text-xs text-gray-400 dark:text-gray-500">Order placed on {formatDate(order.createdAt)}</p>
-                    {order.deliveredAt && (
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Delivered on {formatDate(order.deliveredAt)}</p>
-                    )}
-                    {order.payment && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Payment: <span className="font-medium capitalize text-gray-800 dark:text-gray-200">
-                          {order.payment.method === 'cash' || order.payment.method === 'cod' ? 'Cash on Delivery' :
-                            order.payment.method === 'wallet' ? 'Wallet' :
-                              order.payment.method === 'razorpay' ? 'Online' :
-                                order.payment.method || 'N/A'}
-                        </span>
-                        {order.payment.status && (
-                          <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium ${(order.payment.status === 'completed' || (isDelivered && isCodOrWallet)) ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' :
-                              order.payment.status === 'failed' ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400' :
-                                (order.payment.status === 'pending' || order.payment.status === 'cod_pending') ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-400' :
-                                  'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'
-                            }`}>
-                            {(isDelivered && isCodOrWallet) ? 'Paid' : order.payment.status}
-                          </span>
+                    {/* Date and Payment Info */}
+                    <div className="px-4 py-2 flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-xs text-gray-400 dark:text-gray-500">Order placed on {formatDate(order.createdAt)}</p>
+                        {order.deliveredAt && (
+                          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Delivered on {formatDate(order.deliveredAt)}</p>
                         )}
-                      </p>
-                    )}
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Payment: <span className="font-medium text-gray-800 dark:text-gray-200">
+                            {getPaymentMethodDisplay(order)}
+                          </span>
+                          {(() => {
+                            const statusInfo = getPaymentStatusDisplay(order, isDelivered, isCod)
+                            if (!statusInfo) return null
+                            return (
+                              <span className={`ml-2 px-1.5 py-0.5 rounded text-[10px] font-medium ${statusInfo.className}`}>
+                                {statusInfo.text}
+                              </span>
+                            )
+                          })()}
+                        </p>
                     {isDelivered && !paymentFailed && (
                       <p className="text-xs font-medium text-green-600 mt-1">Delivered</p>
                     )}

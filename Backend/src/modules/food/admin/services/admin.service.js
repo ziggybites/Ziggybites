@@ -1814,18 +1814,35 @@ export async function getSupportTickets(query = {}) {
     return { tickets, total, page, limit };
 }
 
+const SUPPORT_TICKET_STATUS_ORDER = {
+    'open': 0,
+    'in-progress': 1,
+    'resolved': 2
+};
+
 export async function updateSupportTicket(id, body = {}) {
     if (!id || !mongoose.Types.ObjectId.isValid(id)) return null;
     const source = String(body.source || 'user').toLowerCase();
+    const model = source === 'restaurant' ? FoodRestaurantSupportTicket : FoodSupportTicket;
+
+    const existing = await model.findById(id).select('status').lean();
+    if (!existing) return null;
+
     const set = {};
     if (body.status && ['open', 'in-progress', 'resolved'].includes(String(body.status))) {
+        const currentRank = SUPPORT_TICKET_STATUS_ORDER[existing.status] ?? 0;
+        const newRank = SUPPORT_TICKET_STATUS_ORDER[String(body.status)] ?? 0;
+        if (newRank < currentRank) {
+            const err = new Error('Ticket status cannot be reverted to a previous status');
+            err.statusCode = 400;
+            throw err;
+        }
         set.status = String(body.status);
     }
     if (typeof body.adminResponse === 'string') {
         set.adminResponse = body.adminResponse;
     }
-    if (!Object.keys(set).length) return null;
-    const model = source === 'restaurant' ? FoodRestaurantSupportTicket : FoodSupportTicket;
+    if (!Object.keys(set).length) return existing;
     const updated = await model.findByIdAndUpdate(id, { $set: set }, { new: true }).lean();
     return updated || null;
 }

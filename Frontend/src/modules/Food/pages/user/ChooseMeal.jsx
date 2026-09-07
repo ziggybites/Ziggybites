@@ -98,6 +98,7 @@ export default function ChooseMeal() {
     };
   }, [navigate]);
   const [loadingSlots, setLoadingSlots] = useState(true);
+  const [fetchedDish, setFetchedDish] = useState(null);
 
   const dish = useMemo(() => {
     const stateDish = location.state?.dish || {};
@@ -111,10 +112,54 @@ export default function ChooseMeal() {
         stateDish.restaurantId || searchParams.get("restaurantId") || "",
       categoryName: stateDish.categoryName || searchParams.get("category") || "",
       price: stateDish.price || searchParams.get("price") || "",
-      image: stateDish.image || "",
-      foodType: stateDish.foodType || "",
+      image: stateDish.image || searchParams.get("image") || "",
+      foodType: stateDish.foodType || searchParams.get("foodType") || "",
     };
   }, [location.state, searchParams]);
+
+  const hasSelectedMeal = useMemo(() => {
+    const searchDish = searchParams.get("dish");
+    const searchDishId = searchParams.get("dishId");
+    const stateDish = location.state?.dish;
+    return Boolean(
+      (searchDish && searchDish !== "Selected meal") ||
+      searchDishId ||
+      (stateDish?.name && stateDish?.name !== "Selected meal") ||
+      stateDish?.id ||
+      stateDish?.itemId ||
+      dish.restaurantName
+    );
+  }, [searchParams, location.state, dish.restaurantName]);
+
+  const dishDisplayName = fetchedDish?.name || dish.name || "";
+  const dishRestaurant = dish.restaurantName || "";
+  const dishCategory = dish.categoryName || fetchedDish?.categoryName || fetchedDish?.category || "";
+  const dishPrice = dish.price || fetchedDish?.price || fetchedDish?.regularPrice || "";
+
+  const isVeg = useMemo(() => {
+    const type = (dish.foodType || fetchedDish?.foodType || "").toLowerCase();
+    if (type === "veg" || fetchedDish?.isVeg === true) return true;
+    if (type === "non-veg" || type === "nonveg" || fetchedDish?.isVeg === false) return false;
+    const cat = (dishCategory || "").toLowerCase();
+    if (cat.includes("non-veg") || cat.includes("nonveg")) return false;
+    if (cat.includes("veg")) return true;
+    const name = (dishDisplayName || "").toLowerCase();
+    if (
+      name.includes("non-veg") ||
+      name.includes("non veg") ||
+      name.includes("nonveg") ||
+      name.includes("chicken") ||
+      name.includes("mutton") ||
+      name.includes("fish") ||
+      name.includes("egg") ||
+      name.includes("prawn")
+    ) {
+      return false;
+    }
+    if (name.includes("veg") || name.includes("paneer")) return true;
+    return null;
+  }, [dish.foodType, fetchedDish, dishCategory, dishDisplayName]);
+
   useEffect(() => {
     setResolvedDishImage(getImageUrl(dish.image));
   }, [dish.image]);
@@ -140,14 +185,17 @@ export default function ChooseMeal() {
             String(item?._id || item?.id || item?.itemId || "") ===
             String(dish.itemId),
         );
-        setResolvedDishImage(
-          getImageUrl(
-            selectedDish?.image ||
-              selectedDish?.imageUrl ||
-              selectedDish?.photoUrl ||
-              selectedDish?.images?.[0],
-          ),
-        );
+        if (selectedDish) {
+          setFetchedDish(selectedDish);
+          setResolvedDishImage(
+            getImageUrl(
+              selectedDish?.image ||
+                selectedDish?.imageUrl ||
+                selectedDish?.photoUrl ||
+                selectedDish?.images?.[0],
+            ),
+          );
+        }
       })
       .catch(() => {});
 
@@ -216,7 +264,14 @@ export default function ChooseMeal() {
       .map(({ icon, ...rest }) => rest);
     navigate("/food/user/subscription-plans", {
       state: {
-        dish,
+        dish: {
+          ...dish,
+          name: dishDisplayName,
+          price: dishPrice,
+          image: resolvedDishImage || dish.image,
+          categoryName: dishCategory,
+          foodType: dish.foodType || (isVeg === true ? "Veg" : isVeg === false ? "Non-Veg" : ""),
+        },
         selectedMeals: mealsToPass,
       },
     });
@@ -247,7 +302,73 @@ export default function ChooseMeal() {
           </button>
         </header>
 
-        <p className="mt-4 pl-10 pr-6 text-[12px] font-semibold leading-5 text-[#6d6a7d]">
+        {/* Selected Meal Card */}
+        {hasSelectedMeal && (
+          <div className="mt-3.5 overflow-hidden rounded-2xl border border-[#f5dfda] bg-gradient-to-br from-[#fff7f5] via-[#fff3ef] to-[#ffede7] p-3.5 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#e3282c]/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-[#e3282c]">
+                <Utensils className="h-3 w-3" strokeWidth={2.4} /> Selected Meal
+              </span>
+              {dishPrice && (
+                <span className="text-base font-black text-[#171724]">
+                  ₹{dishPrice}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-white shadow-xs border border-red-100/80">
+                {resolvedDishImage ? (
+                  <img
+                    src={resolvedDishImage}
+                    alt={dishDisplayName}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center bg-red-50 text-xl font-black text-[#e3282c]">
+                    {String(dishDisplayName || "M").slice(0, 1).toUpperCase()}
+                  </div>
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  {isVeg !== null && (
+                    <div
+                      className={`w-3.5 h-3.5 border ${
+                        isVeg ? "border-green-600" : "border-red-600"
+                      } flex items-center justify-center p-[2px] shrink-0 rounded-[3px] bg-white`}
+                      title={isVeg ? "Vegetarian" : "Non-Vegetarian"}
+                    >
+                      <div
+                        className={`w-full h-full rounded-full ${
+                          isVeg ? "bg-green-600" : "bg-red-600"
+                        }`}
+                      />
+                    </div>
+                  )}
+                  <h2 className="truncate text-[15px] font-black leading-tight text-[#171724] capitalize">
+                    {dishDisplayName}
+                  </h2>
+                </div>
+
+                {dishRestaurant && (
+                  <p className="mt-1 truncate text-[11px] font-medium text-[#777184]">
+                    From <span className="font-bold text-[#171724]">{dishRestaurant}</span>
+                  </p>
+                )}
+
+                {dishCategory && (
+                  <span className="mt-1 inline-block rounded-md bg-white/90 px-2 py-0.5 text-[10px] font-bold text-[#e3282c] border border-red-100/80 shadow-2xs">
+                    {dishCategory}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <p className={`mt-3 ${hasSelectedMeal ? "" : "pl-10"} pr-4 text-[12px] font-semibold leading-5 text-[#6d6a7d]`}>
           Pick your preferred meal time to get started. Once you choose at
           least one meal, you can continue to the plan page.
         </p>

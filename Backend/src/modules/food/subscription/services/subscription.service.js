@@ -2061,6 +2061,46 @@ function getSubscriptionOrderType(planDays) {
   return 'Daily';
 }
 
+function formatFullAddressText(address) {
+  if (!address) return '';
+  if (typeof address === 'string') return address.trim();
+
+  const formattedAddress = String(address.formattedAddress || '').trim();
+  const rawAddress = String(address.address || '').trim();
+
+  const fragments = [
+    address.houseNumber || address.house || address.flat || address.apartment,
+    address.floor ? `Floor ${address.floor}` : null,
+    address.street || address.addressLine1,
+    address.additionalDetails || address.addressLine2,
+    address.landmark ? `Near ${address.landmark}` : null,
+    address.area,
+    address.city,
+    address.state,
+    address.zipCode || address.postalCode || address.pincode,
+  ]
+    .map((part) => String(part || '').trim())
+    .filter(Boolean);
+
+  const orderedParts = [];
+  const pushPart = (part) => {
+    const norm = String(part || '').trim();
+    if (!norm) return;
+    const key = norm.toLowerCase();
+    const exists = orderedParts.some((existing) => {
+      const existingKey = existing.toLowerCase();
+      return existingKey === key || existingKey.includes(key) || key.includes(existingKey);
+    });
+    if (!exists) orderedParts.push(norm);
+  };
+
+  if (formattedAddress) pushPart(formattedAddress);
+  if (rawAddress) pushPart(rawAddress);
+  fragments.forEach(pushPart);
+
+  return orderedParts.join(', ');
+}
+
 function normalizeSubscriptionForAdmin(subscription, scheduleSummary = {}) {
   const normalized = normalizeSubscriptionForClient(subscription);
   const status = getSubscriptionDateStatus(subscription);
@@ -2074,6 +2114,30 @@ function normalizeSubscriptionForAdmin(subscription, scheduleSummary = {}) {
     subscription?.userId && typeof subscription.userId === 'object'
       ? subscription.userId
       : null;
+
+  const fallbackAddress =
+    customer?.addresses?.find((a) => a.isDefault) ||
+    customer?.addresses?.[0] ||
+    null;
+
+  const rawAddress = subscription?.deliveryAddress || fallbackAddress || null;
+  const deliveryAddress = rawAddress
+    ? {
+        label: rawAddress.label || fallbackAddress?.label || 'Home',
+        name: rawAddress.name || rawAddress.fullName || subscription?.customerName || customer?.name || '',
+        fullName: rawAddress.fullName || rawAddress.name || subscription?.customerName || customer?.name || '',
+        street: rawAddress.street || rawAddress.address || rawAddress.formattedAddress || fallbackAddress?.street || '',
+        additionalDetails: rawAddress.additionalDetails || fallbackAddress?.additionalDetails || '',
+        landmark: rawAddress.landmark || fallbackAddress?.landmark || '',
+        city: rawAddress.city || fallbackAddress?.city || '',
+        state: rawAddress.state || fallbackAddress?.state || '',
+        zipCode: rawAddress.zipCode || rawAddress.postalCode || fallbackAddress?.zipCode || '',
+        phone: rawAddress.phone || subscription?.customerPhone || customer?.phone || '',
+        location: rawAddress.location || fallbackAddress?.location || undefined,
+      }
+    : null;
+
+  const formattedAddress = formatFullAddressText(deliveryAddress);
 
   return {
     ...normalized,
@@ -2105,7 +2169,8 @@ function normalizeSubscriptionForAdmin(subscription, scheduleSummary = {}) {
     totalAmount: Number(subscription?.totalAmount || 0),
     currency: subscription?.currency || 'INR',
     meals: Array.isArray(subscription?.meals) ? subscription.meals : [],
-    deliveryAddress: subscription?.deliveryAddress || null,
+    deliveryAddress,
+    formattedAddress,
     createdAt: subscription?.createdAt || null,
     startDate: subscription?.startDate || null,
     endDate: subscription?.endDate || null,
@@ -2167,7 +2232,7 @@ export async function listSubscriptionsAdmin(query = {}) {
 
   const [docs, total, statsRows] = await Promise.all([
     FoodSubscription.find(filter)
-      .populate('userId', 'name phone email')
+      .populate('userId', 'name phone email addresses')
       .populate('restaurantId', 'restaurantName area city ownerPhone')
       .populate('planId', 'title durationDays amount currency')
       .sort({ createdAt: -1 })
@@ -2216,7 +2281,7 @@ export async function getSubscriptionAdmin(subscriptionId) {
   }
 
   const subscription = await FoodSubscription.findById(subscriptionId)
-    .populate('userId', 'name phone email')
+    .populate('userId', 'name phone email addresses')
     .populate('restaurantId', 'restaurantName area city ownerPhone')
     .populate('planId', 'title durationDays amount currency')
     .lean();

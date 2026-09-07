@@ -548,6 +548,7 @@ export async function listOrdersUser(userId, query) {
         "restaurantName profileImage area city location rating totalRatings",
       )
       .populate("dispatch.deliveryPartnerId", "name phone rating totalRatings")
+      .populate("transactionId", "pricing amounts paymentMethod status payment")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
@@ -575,6 +576,7 @@ export async function getOrderById(
     )
     .populate("dispatch.deliveryPartnerId", "name fullName phone phoneNumber rating totalRatings profileImage avatar")
     .populate("userId", "name fullName phone email")
+    .populate("transactionId", "pricing amounts paymentMethod status payment")
     .select("+deliveryOtp +pickupOtp")
     .lean();
   if (!order) throw new NotFoundError("Order not found");
@@ -1200,6 +1202,7 @@ export async function listOrdersRestaurant(restaurantId, query) {
   const [docs, total] = await Promise.all([
     FoodOrder.find(filter)
       .populate("userId", "name phone email profileImage")
+      .populate("transactionId", "pricing amounts paymentMethod status payment")
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)

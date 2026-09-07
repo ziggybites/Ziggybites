@@ -213,12 +213,54 @@ export function normalizeOrderForClient(orderDoc) {
     order?.transactionId && typeof order.transactionId === "object"
       ? order.transactionId
       : null;
+
+  const isSubscriptionOrder = Boolean(
+    order?.subscriptionUsage &&
+    (order.subscriptionUsage.billingMode === "subscription_prepaid" ||
+      order.subscriptionUsage.status === "applied" ||
+      order.subscriptionUsage.subscriptionId)
+  );
+
+  const rawPaymentMethod =
+    order?.payment?.method ||
+    order?.paymentMethod ||
+    transaction?.payment?.method ||
+    transaction?.paymentMethod ||
+    (isSubscriptionOrder ? "subscription" : null) ||
+    "cash";
+
+  const rawPaymentStatus =
+    order?.payment?.status ||
+    transaction?.payment?.status ||
+    (transaction?.status === "captured" ? "paid" : transaction?.status) ||
+    (isSubscriptionOrder ? "paid" : null) ||
+    (rawPaymentMethod === "cash" || rawPaymentMethod === "cod" ? "cod_pending" : "pending");
+
+  const payment = {
+    method: rawPaymentMethod,
+    status: rawPaymentStatus,
+    amountDue: Number(
+      order?.payment?.amountDue ??
+      transaction?.payment?.amountDue ??
+      (rawPaymentStatus === "paid" ? 0 : pricing.total) ??
+      0
+    ),
+    razorpay: order?.payment?.razorpay || transaction?.payment?.razorpay || {},
+    qr: order?.payment?.qr || transaction?.payment?.qr || {},
+    ...(order?.payment || {}),
+    method: rawPaymentMethod,
+    status: rawPaymentStatus,
+  };
+
   return {
     ...order,
     pricing,
     total: pricing.total,
     transaction,
     settlementAmounts: transaction?.amounts || null,
+    payment,
+    paymentMethod: rawPaymentMethod,
+    paymentStatus: rawPaymentStatus,
     orderMongoId: mongoId,
     orderId: displayId,
     status: order?.orderStatus || order?.status || "",

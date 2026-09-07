@@ -110,8 +110,40 @@ const transformOrders = (ordersData = []) => {
       gst: amountBreakdown.gst,
       discount: amountBreakdown.discount,
       pricing: order.pricing || {},
-      payment: order.payment || {},
-      paymentMethod: order.payment?.method || order.paymentMethod,
+      payment: (() => {
+        const isSub = Boolean(
+          order?.subscriptionUsage &&
+          (order.subscriptionUsage.billingMode === "subscription_prepaid" ||
+            order.subscriptionUsage.status === "applied" ||
+            order.subscriptionUsage.subscriptionId)
+        )
+        const method =
+          order.payment?.method ||
+          order.paymentMethod ||
+          (isSub ? "subscription" : null) ||
+          (order.transaction?.paymentMethod || order.transaction?.payment?.method || null)
+        const status =
+          order.payment?.status ||
+          order.paymentStatus ||
+          (isSub ? "paid" : null) ||
+          (order.transaction?.payment?.status || (order.transaction?.status === "captured" ? "paid" : null))
+        return {
+          ...(order.payment || {}),
+          ...(method ? { method } : {}),
+          ...(status ? { status } : {}),
+        }
+      })(),
+      paymentMethod:
+        order.payment?.method ||
+        order.paymentMethod ||
+        (order?.subscriptionUsage ? "subscription" : null) ||
+        (order.transaction?.paymentMethod || order.transaction?.payment?.method || null),
+      paymentStatus:
+        order.payment?.status ||
+        order.paymentStatus ||
+        (order?.subscriptionUsage ? "paid" : null) ||
+        (order.transaction?.payment?.status || (order.transaction?.status === "captured" ? "paid" : null)),
+      subscriptionUsage: order.subscriptionUsage || null,
       restaurant:
         order.restaurantId?.restaurantName ||
         order.restaurantId?.name ||

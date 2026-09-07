@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@food/components/ui/input"
 import { Label } from "@food/components/ui/label"
 import { Button } from "@food/components/ui/button"
+import DatePickerDDMMYYYY from "@food/components/ui/DatePickerDDMMYYYY"
 import { adminAPI, uploadAPI } from "@food/api"
 import { getGoogleMapsApiKey } from "@food/utils/googleMapsApiKey"
 import { EMAIL_REGEX } from "@/shared/utils/emailValidation"
@@ -1013,7 +1014,13 @@ export default function EditRestaurant() {
           <Input value={step3.fssaiNumber || ""} onChange={(e) => setStep3({ ...step3, fssaiNumber: sanitizeFssai(e.target.value) })} className="bg-white text-sm" placeholder="FSSAI number*" inputMode="numeric" maxLength={14} />
           <div>
             <Label className="text-xs text-gray-700 mb-1 block">FSSAI expiry date*</Label>
-            <Input type="date" value={step3.fssaiExpiry || ""} onChange={(e) => setStep3({ ...step3, fssaiExpiry: e.target.value })} min={getTodayLocalYMD()} className="bg-white text-sm" />
+            <DatePickerDDMMYYYY
+              value={step3.fssaiExpiry || ""}
+              onChange={(val) => setStep3({ ...step3, fssaiExpiry: val })}
+              min={getTodayLocalYMD()}
+              className="bg-white text-sm"
+              placeholder="DD/MM/YYYY"
+            />
           </div>
         </div>
         <Input type="file" accept="image/*" onChange={(e) => setStep3({ ...step3, fssaiImage: e.target.files?.[0] || null })} className="bg-white text-sm" />

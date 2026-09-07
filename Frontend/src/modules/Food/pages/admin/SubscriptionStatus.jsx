@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { CalendarDays, CheckCircle2, Clock, Loader2, Package, Search } from "lucide-react"
+import { CalendarDays, CheckCircle2, Clock, Loader2, MapPin, Package, Search } from "lucide-react"
 import { toast } from "sonner"
 import { adminAPI } from "@food/api"
 
@@ -8,6 +8,46 @@ const formatDate = (value) => {
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return "-"
   return date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+const formatFullAddress = (address) => {
+  if (!address) return "-"
+  if (typeof address === "string") return address.trim() || "-"
+
+  const formattedAddress = String(address.formattedAddress || "").trim()
+  const rawAddress = String(address.address || "").trim()
+
+  const fragments = [
+    address.houseNumber || address.house || address.flat || address.apartment,
+    address.floor ? `Floor ${address.floor}` : null,
+    address.street || address.addressLine1,
+    address.additionalDetails || address.addressLine2,
+    address.landmark ? `Near ${address.landmark}` : null,
+    address.area,
+    address.city,
+    address.state,
+    address.zipCode || address.postalCode || address.pincode,
+  ]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+
+  const orderedParts = []
+  const pushPart = (part) => {
+    const norm = String(part || "").trim()
+    if (!norm) return
+    const key = norm.toLowerCase()
+    const exists = orderedParts.some((existing) => {
+      const existingKey = existing.toLowerCase()
+      return existingKey === key || existingKey.includes(key) || key.includes(existingKey)
+    })
+    if (!exists) orderedParts.push(norm)
+  }
+
+  if (formattedAddress) pushPart(formattedAddress)
+  if (rawAddress) pushPart(rawAddress)
+  fragments.forEach(pushPart)
+
+  return orderedParts.join(", ") || "-"
 }
 
 const statusClass = (status) => {
@@ -182,7 +222,40 @@ export default function SubscriptionStatus() {
                     <Info label="End Date" value={formatDate(selected.endDate)} />
                     <Info label="Meals" value={(selected.meals || []).join(", ") || "-"} />
                     <Info label="Dish" value={selected.dishName} />
-                    <Info label="Address" value={selected.deliveryAddress?.street || "-"} />
+                    <div className="md:col-span-2 xl:col-span-3 border-t border-slate-100 pt-3 mt-1">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                          <MapPin className="h-3.5 w-3.5 text-emerald-600" />
+                          Delivery Address
+                        </p>
+                        {selected.deliveryAddress?.label && (
+                          <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                            {selected.deliveryAddress.label}
+                          </span>
+                        )}
+                      </div>
+                      <div className="rounded-lg border border-slate-200/80 bg-slate-50/70 p-3.5">
+                        <p className="break-words text-sm font-medium leading-relaxed text-slate-900">
+                          {formatFullAddress(selected.deliveryAddress || selected.formattedAddress)}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                          {(selected.deliveryAddress?.fullName || selected.deliveryAddress?.name) && (
+                            <span>
+                              <span className="font-semibold text-slate-600">Recipient:</span>{" "}
+                              {selected.deliveryAddress.fullName || selected.deliveryAddress.name}
+                              {selected.deliveryAddress.phone ? ` (${selected.deliveryAddress.phone})` : ""}
+                            </span>
+                          )}
+                          {selected.deliveryAddress?.location?.coordinates?.length === 2 && (
+                            <span>
+                              <span className="font-semibold text-slate-600">Coordinates:</span>{" "}
+                              {Number(selected.deliveryAddress.location.coordinates[1]).toFixed(6)},{" "}
+                              {Number(selected.deliveryAddress.location.coordinates[0]).toFixed(6)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </section>
 
