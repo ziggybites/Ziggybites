@@ -669,17 +669,52 @@ export const useDeliveryNotifications = () => {
               ? availablePayload
               : [];
 
-        const incomingId = resolveOfferId(normalizedOrder);
+        const incomingIds = new Set(
+          [
+            normalizedOrder?.orderId,
+            normalizedOrder?.orderMongoId,
+            normalizedOrder?.order_id,
+            normalizedOrder?.order_mongo_id,
+          ]
+            .filter((value) => value !== undefined && value !== null && String(value).trim())
+            .map((value) => String(value)),
+        );
         const matchedOrder = availableOrders.find((order) => {
-          const orderId = resolveOfferId(order);
-          return incomingId && orderId && String(orderId) === String(incomingId);
+          const availableIds = [
+            order?.orderId,
+            order?.orderMongoId,
+            order?.order_id,
+            order?.order_mongo_id,
+            order?._id,
+            order?.id,
+          ]
+            .filter((value) => value !== undefined && value !== null && String(value).trim())
+            .map((value) => String(value));
+
+          return availableIds.some((value) => incomingIds.has(value));
         });
 
         if (matchedOrder) {
-          setNewOrder((prev) => mergeOfferData(prev, matchedOrder));
+          // Keep the push Mongo id as the canonical merge id. The API response
+          // also contains the human-facing order_id, so comparing only the
+          // first field would incorrectly treat the same order as different.
+          const hydratedOrder = {
+            ...matchedOrder,
+            orderId:
+              normalizedOrder?.orderId ||
+              matchedOrder?.orderId ||
+              matchedOrder?.order_id ||
+              matchedOrder?._id,
+            orderMongoId:
+              matchedOrder?.orderMongoId ||
+              matchedOrder?._id ||
+              normalizedOrder?.orderMongoId ||
+              normalizedOrder?.orderId,
+          };
+          setNewOrder((prev) => mergeOfferData(prev, hydratedOrder));
           console.log('[DeliveryOrderPopup] hydrated push order with API data', {
-            orderId: matchedOrder?.orderId || matchedOrder?._id || matchedOrder?.orderMongoId,
-            matchedOrder,
+            orderId: hydratedOrder.orderId || hydratedOrder.orderMongoId,
+            hydratedOrder,
           });
           return;
         }
