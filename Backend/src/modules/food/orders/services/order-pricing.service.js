@@ -45,11 +45,9 @@ export async function calculateOrderPricing(userId, dto) {
     deliveryFeeRanges: [],
     freeDeliveryUpTo: 0,
     platformFee: 5,
-    packagingFee: 0,
     gstRate: 5,
   };
 
-  const packagingFee = feeSettings.packagingFee != null ? Number(feeSettings.packagingFee) : 0;
   const platformFee = feeSettings.platformFee != null ? Number(feeSettings.platformFee) : 0;
 
   const freeUpTo = Number(feeSettings.freeDeliveryUpTo || 0);
@@ -238,7 +236,7 @@ export async function calculateOrderPricing(userId, dto) {
 
   const couponDiscount = discount;
   const totalDiscount = couponDiscount;
-  const totalBeforeDiscount = subtotal + deliveryFee + tax + platformFee + packagingFee;
+  const totalBeforeDiscount = subtotal + deliveryFee + tax + platformFee;
   const total = Math.max(0, totalBeforeDiscount - totalDiscount);
 
   return {
@@ -247,11 +245,7 @@ export async function calculateOrderPricing(userId, dto) {
       tax,
       taxBreakdown: {
         itemTax,
-        deliveryTax,
-        platformTax,
-        packagingTax
       },
-      packagingFee,
       deliveryFee,
       deliveryFeeBreakdown: deliveryFeeBreakdown || undefined,
       freeDeliveryUpTo: Number.isFinite(freeUpTo) ? freeUpTo : undefined,

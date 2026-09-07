@@ -220,7 +220,6 @@ export default function SubscriptionCheckout() {
   const deliveryDistanceKm = Number(pricing.deliveryDistanceKm || 0);
   const deliveryFeePerDay = roundMoney(pricing.deliveryFeePerDay || 0);
   const totalDeliveryCharges = roundMoney(pricing.deliveryCharges || 0);
-  const packagingFee = roundMoney(pricing.packagingFee || 0);
   const platformFee = roundMoney(pricing.platformFee || 0);
   const totalBeforeDiscount = roundMoney(pricing.totalBeforeDiscount || 0);
   const couponDiscount = roundMoney(pricing.couponDiscount || 0);
@@ -1110,14 +1109,6 @@ export default function SubscriptionCheckout() {
                 </p>
               </div>
               <span className="shrink-0 font-bold">{formatCurrency(totalDeliveryCharges)}</span>
-            </div>
-
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="font-semibold text-gray-700">Packaging charges</p>
-                <p className="mt-0.5 text-xs font-medium text-gray-400">Subscription packaging fee</p>
-              </div>
-              <span className="shrink-0 font-bold">{formatCurrency(packagingFee)}</span>
             </div>
 
             <div className="flex items-start justify-between gap-4">

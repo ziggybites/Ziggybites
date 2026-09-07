@@ -5,7 +5,6 @@ export default function SetupTaxes() {
   const [productPriceMode, setProductPriceMode] = useState("exclude");
   const [taxType, setTaxType] = useState("order-wise");
   const [taxRate, setTaxRate] = useState("custom-10");
-  const [packagingTaxOn, setPackagingTaxOn] = useState(true);
 
   return (
     <div className="p-4 lg:p-6 bg-slate-50 min-h-screen">
@@ -127,16 +126,6 @@ export default function SetupTaxes() {
             </h3>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1.5">
-                  Tax on packaging charge
-                </label>
-                <ToggleSwitch
-                  enabled={packagingTaxOn}
-                  onToggle={() => setPackagingTaxOn((p) => !p)}
-                />
-              </div>
-
               <div>
                 <label className="block font-semibold text-slate-700 mb-1.5">
                   &nbsp;

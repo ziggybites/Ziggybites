@@ -384,7 +384,6 @@ const transformOrderForTracking = (apiOrder, previousOrder = null, explicitResta
     deliveryFee: amountBreakdown.deliveryFee || previousOrder?.deliveryFee || 0,
     gst: amountBreakdown.gst || previousOrder?.gst || 0,
     tax: amountBreakdown.tax || previousOrder?.tax || 0,
-    packagingFee: amountBreakdown.packagingFee || previousOrder?.packagingFee || 0,
     platformFee: amountBreakdown.platformFee || previousOrder?.platformFee || 0,
     discount: amountBreakdown.discount || previousOrder?.discount || 0,
     subtotal: amountBreakdown.subtotal || previousOrder?.subtotal || 0,
@@ -2258,12 +2257,6 @@ export default function OrderTracking() {
                 <span className="text-gray-900 font-medium">₹{Number(order?.subtotal || 0).toFixed(2)}</span>
               </div>
 
-              {Number(order?.packagingFee) > 0 && (
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-gray-600">Packaging Charges</span>
-                  <span className="text-gray-900 font-medium">₹{Number(order.packagingFee).toFixed(2)}</span>
-                </div>
-              )}
 
               {Number(order?.platformFee) > 0 && (
                 <div className="flex justify-between items-center text-sm">

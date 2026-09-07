@@ -8,7 +8,6 @@ export const getOrderAmountBreakdown = (orderLike = {}) => {
 
   const subtotal = toAmountNumber(pricing.subtotal ?? orderLike.subtotal)
   const originalItemTotal = toAmountNumber(pricing.originalItemTotal)
-  const packagingFee = toAmountNumber(pricing.packagingFee ?? orderLike.packagingFee)
   const deliveryFee = toAmountNumber(pricing.deliveryFee ?? orderLike.deliveryFee)
   const platformFee = toAmountNumber(pricing.platformFee ?? orderLike.platformFee)
   const subscriptionFee = toAmountNumber(pricing.subscriptionFee ?? orderLike.subscriptionFee)
@@ -22,7 +21,6 @@ export const getOrderAmountBreakdown = (orderLike = {}) => {
   const fallbackTotal = Math.max(
     0,
     subtotal +
-      packagingFee +
       deliveryFee +
       platformFee +
       subscriptionFee +
@@ -40,7 +38,6 @@ export const getOrderAmountBreakdown = (orderLike = {}) => {
   return {
     subtotal,
     originalItemTotal,
-    packagingFee,
     deliveryFee,
     platformFee,
     subscriptionFee,

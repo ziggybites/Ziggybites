@@ -184,7 +184,6 @@ export function buildOrderPricingSnapshot(orderDoc) {
   return {
     subtotal,
     tax: 0,
-    packagingFee: 0,
     deliveryFee: 0,
     platformFee: 0,
     restaurantCommission: 0,

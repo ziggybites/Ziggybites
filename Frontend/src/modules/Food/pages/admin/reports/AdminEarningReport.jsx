@@ -138,7 +138,6 @@ export default function AdminEarningReport() {
               const discount = tx.itemDiscount || 0
               const taxes = breakdown.gstCollectedFromUser || tx.vatTax || 0
               const platformFee = breakdown.platformFee || tx.platformFee || 0
-              const packagingFee = breakdown.packagingFee || 0
               const deliveryFeeUser = tx.deliveryCharge || (breakdown.deliveryProfit || 0) + (breakdown.deliveryCostToAdmin || 0) + (breakdown.deliveryGstToAdmin || 0)
               
               const totalAdmin = 
@@ -152,7 +151,6 @@ export default function AdminEarningReport() {
                 (breakdown.paymentGatewayFee || 0) + 
                 (breakdown.tcs || 0) +
                 (breakdown.gstCollectedFromUser || 0) +
-                (breakdown.packagingFee || 0)
 
               const restaurantCommission = Number(breakdown.restaurantCommission) || 0
               const gstOnItem = Number(breakdown.gstOnItem) || 0
@@ -161,7 +159,7 @@ export default function AdminEarningReport() {
               const tcs = Number(breakdown.tcs) || 0
               
               const totalDeductions = restaurantCommission + gstOnItem + gstOnCommission + paymentGatewayFee + tcs
-              const restaurantGets = Math.max(0, itemSubtotal + packagingFee - totalDeductions)
+              const restaurantGets = Math.max(0, itemSubtotal - totalDeductions)
               const isExpanded = !!expandedCards[tx.id]
 
               return (
@@ -274,7 +272,6 @@ export default function AdminEarningReport() {
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-[13px] text-gray-600 font-medium">Recommended item charge</span>
-                          <span className="text-[13px] text-gray-900">{formatMoney(packagingFee)}</span>
                         </div>
                         <div className="pt-2 mt-2 border-t border-slate-200 flex items-center justify-between">
                           <span className="text-sm font-bold text-gray-900">Total going to admin</span>
@@ -293,12 +290,6 @@ export default function AdminEarningReport() {
                           <span className="text-[13px] text-gray-600 font-medium">Item subtotal</span>
                           <span className="text-[13px] text-gray-900">{formatMoney(itemSubtotal)}</span>
                         </div>
-                        {packagingFee > 0 && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-[13px] text-gray-600 font-medium">Packaging fee</span>
-                            <span className="text-[13px] text-gray-900">{formatMoney(packagingFee)}</span>
-                          </div>
-                        )}
                         
                         <div 
                           className="flex items-center justify-between cursor-pointer group"

@@ -175,7 +175,6 @@ export async function createOrder(userId, dto) {
   const normalizedPricing = {
     subtotal: Number(dto.pricing?.subtotal ?? computedSubtotal),
     tax: Number(dto.pricing?.tax ?? 0),
-    packagingFee: Number(dto.pricing?.packagingFee ?? 0),
     deliveryFee: Number(dto.pricing?.deliveryFee ?? 0),
     platformFee: Number(dto.pricing?.platformFee ?? 0),
     discount: Number(dto.pricing?.discount ?? 0),
@@ -188,9 +187,6 @@ export async function createOrder(userId, dto) {
       ? normalizedPricing.subtotal
       : 0) +
       (Number.isFinite(normalizedPricing.tax) ? normalizedPricing.tax : 0) +
-      (Number.isFinite(normalizedPricing.packagingFee)
-        ? normalizedPricing.packagingFee
-        : 0) +
       (Number.isFinite(normalizedPricing.deliveryFee)
         ? normalizedPricing.deliveryFee
         : 0) +
@@ -1774,7 +1770,43 @@ export async function listOrdersAdmin(query) {
       .lean(),
     FoodOrder.countDocuments(filter),
   ]);
-  const paginated = buildPaginatedResult({ docs: docs.map(d => normalizeOrderForClient(d)), total, page, limit });
+
+  // The order pricing virtual intentionally contains safe fallback values. The
+  // transaction pricing snapshot is the source of truth for fees on paid orders,
+  // including the full transaction pricing snapshot. Older orders may not have transactionId populated,
+  // so resolve those transactions by orderId as well.
+  const orderIds = docs.map((doc) => doc?._id).filter(Boolean);
+  const transactions = orderIds.length
+    ? await FoodTransaction.find({ orderId: { $in: orderIds } })
+        .select('orderId pricing amounts paymentMethod status')
+        .lean()
+    : [];
+  const transactionByOrderId = new Map(
+    transactions.map((transaction) => [String(transaction.orderId), transaction]),
+  );
+
+  const normalizedOrders = docs.map((doc) => {
+    const normalized = normalizeOrderForClient(doc);
+    const populatedTransaction =
+      normalized.transaction ||
+      (doc.transactionId && typeof doc.transactionId === 'object' ? doc.transactionId : null);
+    const transaction = populatedTransaction || transactionByOrderId.get(String(doc._id));
+
+    if (!transaction) return normalized;
+
+    return {
+      ...normalized,
+      transaction,
+      transactionId: transaction._id || normalized.transactionId,
+      settlementAmounts: transaction.amounts || normalized.settlementAmounts,
+      pricing: {
+        ...normalized.pricing,
+        ...(transaction.pricing || {}),
+      },
+    };
+  });
+
+  const paginated = buildPaginatedResult({ docs: normalizedOrders, total, page, limit });
   return { ...paginated, orders: paginated.data };
 }
 
