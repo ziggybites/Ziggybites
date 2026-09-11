@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft, Loader2 } from "lucide-react"
-import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Input } from "@food/components/ui/input"
 import { Button } from "@food/components/ui/button"
 import { deliveryAPI } from "@food/api"
@@ -73,16 +72,6 @@ export default function DeliveryOTP() {
     return () => clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  useEffect(() => {
-    // Don't auto-focus - let user manually enter OTP
-    // Focus first input only if all fields are empty (small delay to ensure inputs are rendered)
-    if (inputRefs.current[0] && otp.every(digit => digit === "")) {
-      setTimeout(() => {
-        inputRefs.current[0]?.focus()
-      }, 100)
-    }
-  }, [otp])
 
   const handleChange = (index, value) => {
     // Only allow digits
@@ -440,7 +429,7 @@ export default function DeliveryOTP() {
   }
 
   return (
-    <AnimatedPage className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-[100dvh] bg-white flex flex-col">
       {/* Header */}
       <div className="relative flex items-center justify-center py-4 px-4 border-b border-gray-200">
         <button
@@ -619,7 +608,7 @@ export default function DeliveryOTP() {
         </div>
       </div>
 
-    </AnimatedPage>
+    </div>
   )
 }
 
