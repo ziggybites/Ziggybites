@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { ArrowLeft, Loader2, Smartphone, AlertCircle, ShieldQuestion } from "lucide-react"
 import { Link } from "react-router-dom"
-import AnimatedPage from "@food/components/user/AnimatedPage"
 import { Input } from "@food/components/ui/input"
 import { Button } from "@food/components/ui/button"
 import { authAPI } from "@food/api"
@@ -78,83 +77,27 @@ export default function OTP() {
     return () => clearInterval(timer)
   }, [navigate])
 
-  useEffect(() => {
-    // Focus first input on mount
-    if (inputRefs.current[0] && !showNameInput) {
-      inputRefs.current[0].focus()
-    }
-  }, [showNameInput])
-
-  const handleChange = (index, value) => {
-    // Only allow digits; OTP is exactly 6 digits
-    if (value && !/^\d$/.test(value)) {
-      return
-    }
-
-    const newOtp = [...otp]
-    newOtp[index] = value
+  const handleChange = (value) => {
+    const digits = value.replace(/\D/g, "").slice(0, 6)
+    const newOtp = Array.from({ length: 6 }, (_, index) => digits[index] || "")
     setOtp(newOtp)
     setError("")
 
-    // Auto-focus next input (6 boxes only)
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus()
-    }
-
     // Auto-submit when all 6 digits are entered
     if (!showNameInput && newOtp.slice(0, 6).every((digit) => digit !== "")) {
-      handleVerify(newOtp.slice(0, 6).join(""))
-    }
-  }
-
-  const handleKeyDown = (index, e) => {
-    // Handle backspace
-    if (e.key === "Backspace") {
-      if (otp[index]) {
-        // If current input has value, clear it
-        const newOtp = [...otp]
-        newOtp[index] = ""
-        setOtp(newOtp)
-      } else if (index > 0) {
-        // If current input is empty, move to previous and clear it
-        inputRefs.current[index - 1]?.focus()
-        const newOtp = [...otp]
-        newOtp[index - 1] = ""
-        setOtp(newOtp)
-      }
-    }
-    // Handle paste (6 digits only)
-    if (e.key === "v" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault()
-      navigator.clipboard.readText().then((text) => {
-        const digits = text.replace(/\D/g, "").slice(0, 6).split("")
-        const newOtp = [...otp]
-        digits.forEach((digit, i) => {
-          if (i < 6) newOtp[i] = digit
-        })
-        setOtp(newOtp)
-        if (!showNameInput && digits.length === 6) {
-          handleVerify(newOtp.slice(0, 6).join(""))
-        } else {
-          inputRefs.current[Math.min(digits.length, 5)]?.focus()
-        }
-      })
+      handleVerify(digits)
     }
   }
 
   const handlePaste = (e) => {
     e.preventDefault()
     const pastedData = e.clipboardData.getData("text")
-    const digits = pastedData.replace(/\D/g, "").slice(0, 6).split("")
-    const newOtp = [...otp]
-    digits.forEach((digit, i) => {
-      if (i < 6) newOtp[i] = digit
-    })
+    const code = pastedData.replace(/\D/g, "").slice(0, 6)
+    const digits = code.split("")
+    const newOtp = Array.from({ length: 6 }, (_, index) => digits[index] || "")
     setOtp(newOtp)
     if (!showNameInput && digits.length === 6) {
-      handleVerify(newOtp.slice(0, 6).join(""))
-    } else {
-      inputRefs.current[Math.min(digits.length, 5)]?.focus()
+      handleVerify(code)
     }
   }
 
@@ -406,7 +349,7 @@ export default function OTP() {
   }
 
   return (
-    <AnimatedPage className="min-h-screen bg-gray-50 dark:bg-[#0a0a0a] flex items-center justify-center p-4">
+    <div className="min-h-screen min-h-[100dvh] bg-gray-50 dark:bg-[#0a0a0a] flex items-center justify-center p-4">
       {/* Background decoration (desktop only) */}
       <div className="fixed inset-0 z-0 hidden md:block opacity-40">
         <img src={loginBanner} alt="" className="w-full h-full object-cover blur-sm" />
@@ -468,24 +411,31 @@ export default function OTP() {
           {/* OTP Input Fields */}
           {!showNameInput && (
             <div className="space-y-6">
-              <div className="flex justify-between gap-3 sm:gap-4 max-w-[280px] mx-auto">
+              <div className="relative flex justify-between gap-3 sm:gap-4 max-w-[280px] mx-auto">
                 {otp.map((digit, index) => (
-                  <input
+                  <div
                     key={index}
-                    ref={(el) => (inputRefs.current[index] = el)}
-                    type="text"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    onPaste={index === 0 ? handlePaste : undefined}
-                    disabled={isLoading}
-                    aria-label={`OTP digit ${index + 1} of 6`}
-                    className="w-10 h-12 sm:w-12 sm:h-14 text-center text-xl font-bold border-2 border-gray-200 dark:border-gray-700 rounded-xl focus:border-primary focus:ring-1 focus:ring-primary bg-white dark:bg-[#2a2a2a] text-gray-900 dark:text-white transition-all outline-none"
-                  />
+                    aria-hidden="true"
+                    className={`w-10 h-12 sm:w-12 sm:h-14 flex items-center justify-center text-xl font-bold border-2 rounded-xl bg-white dark:bg-[#2a2a2a] text-gray-900 dark:text-white ${digit ? "border-gray-300 dark:border-gray-600" : "border-gray-200 dark:border-gray-700"}`}
+                  >
+                    {digit}
+                  </div>
                 ))}
+                <input
+                  ref={(el) => (inputRefs.current[0] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={6}
+                  value={otp.join("")}
+                  onChange={(e) => handleChange(e.target.value)}
+                  onPaste={handlePaste}
+                  disabled={isLoading}
+                  autoComplete="one-time-code"
+                  autoFocus={false}
+                  aria-label="6-digit OTP"
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-text"
+                />
               </div>
 
               {error && (
@@ -563,6 +513,6 @@ export default function OTP() {
             </p>
         </div>
       </div>
-    </AnimatedPage>
+    </div>
   )
 }

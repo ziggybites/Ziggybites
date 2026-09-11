@@ -17,7 +17,6 @@ export default function RestaurantOTP() {
   const [resendTimer, setResendTimer] = useState(0)
   const [authData, setAuthData] = useState(null)
   const [contactInfo, setContactInfo] = useState("")
-  const [focusedIndex, setFocusedIndex] = useState(null)
   const inputRefs = useRef([])
   const hasSubmittedRef = useRef(false)
 
@@ -57,38 +56,23 @@ export default function RestaurantOTP() {
     return () => clearInterval(timer)
   }, [navigate])
 
-  useEffect(() => {
-    if (inputRefs.current[0]) {
-      inputRefs.current[0].focus()
-    }
-  }, [])
-
-  const handleChange = (index, value) => {
-    const digit = String(value || "").replace(/\D/g, "").slice(-1)
-
-    const newOtp = [...otp]
-    newOtp[index] = digit
+  const handleChange = (value) => {
+    const code = String(value || "").replace(/\D/g, "").slice(0, 4)
+    const newOtp = Array.from({ length: 4 }, (_, index) => code[index] || "")
     setOtp(newOtp)
-
-    if (digit && index < 3) {
-      inputRefs.current[index + 1]?.focus()
-    }
 
     if (newOtp.every((digit) => digit !== "")) {
       if (!hasSubmittedRef.current) {
         hasSubmittedRef.current = true
-        handleVerify(newOtp.join(""))
+        handleVerify(code)
       }
     }
   }
 
   const handlePaste = (e) => {
     e.preventDefault()
-    const pastedDigits = e.clipboardData
-      .getData("text")
-      .replace(/\D/g, "")
-      .slice(0, 4)
-      .split("")
+    const code = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 4)
+    const pastedDigits = code.split("")
 
     if (!pastedDigits.length) return
 
@@ -100,20 +84,7 @@ export default function RestaurantOTP() {
 
     if (pastedDigits.length === 4) {
       hasSubmittedRef.current = true
-      handleVerify(nextOtp.join(""))
-    } else {
-      inputRefs.current[pastedDigits.length]?.focus()
-    }
-  }
-
-  const handleKeyDown = (index, e) => {
-    if (e.key === "Backspace") {
-      if (!otp[index] && index > 0) {
-        inputRefs.current[index - 1]?.focus()
-        const newOtp = [...otp]
-        newOtp[index - 1] = ""
-        setOtp(newOtp)
-      }
+      handleVerify(code)
     }
   }
 
@@ -293,45 +264,26 @@ export default function RestaurantOTP() {
             className="bg-white dark:bg-[#1a1a1a] rounded-3xl p-6 sm:p-8 border border-gray-100 dark:border-gray-800"
             style={{ boxShadow: "0 24px 60px -28px color-mix(in srgb, var(--app-theme-primary) 34%, transparent)" }}
           >
-            <div className="grid grid-cols-4 gap-3 sm:gap-4 mb-8">
+            <div className="relative grid grid-cols-4 gap-3 sm:gap-4 mb-8">
               {otp.map((digit, index) => (
-                <div key={index} className="relative group">
-                  <input
-                    ref={(el) => (inputRefs.current[index] = el)}
-                    type="tel"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    autoComplete={index === 0 ? "one-time-code" : "off"}
-                    autoFocus={index === 0}
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    onPaste={handlePaste}
-                    onFocus={(e) => {
-                      setFocusedIndex(index)
-                      e.target.select()
-                    }}
-                    onBlur={() => setFocusedIndex(null)}
-                    className={`w-full aspect-square bg-white dark:bg-gray-900/50 text-center text-3xl font-black text-slate-950 dark:text-white border-2 rounded-2xl outline-none transition-all ${
-                      focusedIndex === index
-                        ? "scale-105"
-                        : digit
-                          ? "border-slate-300 dark:border-gray-600"
-                          : "border-slate-200 dark:border-gray-700 group-hover:border-slate-300"
-                    }`}
-                    style={
-                      focusedIndex === index
-                        ? {
-                            borderColor: "var(--app-theme-primary)",
-                            boxShadow: "0 10px 30px color-mix(in srgb, var(--app-theme-primary) 10%, transparent)",
-                          }
-                        : undefined
-                    }
-                  />
-                  <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-8 h-1 rounded-full transition-all duration-300 ${focusedIndex === index ? "bg-[var(--app-theme-primary)] opacity-100" : "bg-gray-200 opacity-0"}`} />
+                <div key={index} aria-hidden="true" className={`w-full aspect-square flex items-center justify-center bg-white dark:bg-gray-900/50 text-3xl font-black text-slate-950 dark:text-white border-2 rounded-2xl ${digit ? "border-slate-300 dark:border-gray-600" : "border-slate-200 dark:border-gray-700"}`}>
+                  {digit}
                 </div>
               ))}
+              <input
+                ref={(el) => (inputRefs.current[0] = el)}
+                type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="one-time-code"
+                maxLength={4}
+                value={otp.join("")}
+                onChange={(e) => handleChange(e.target.value)}
+                onPaste={handlePaste}
+                disabled={isLoading}
+                aria-label="4-digit OTP"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-text"
+              />
             </div>
 
             <button
