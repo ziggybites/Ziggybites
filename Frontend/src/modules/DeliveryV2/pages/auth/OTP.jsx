@@ -73,81 +73,29 @@ export default function DeliveryOTP() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const handleChange = (index, value) => {
-    // Only allow digits
-    if (value && !/^\d$/.test(value)) {
-      return
-    }
-
-    const newOtp = [...otp]
-    newOtp[index] = value
+  const handleChange = (value) => {
+    const digits = value.replace(/\D/g, "").slice(0, 4)
+    const newOtp = Array.from({ length: 4 }, (_, index) => digits[index] || "")
     setOtp(newOtp)
     setError("")
 
-    // Auto-focus next input
-    if (value && index < 3) {
-      inputRefs.current[index + 1]?.focus()
-    }
-
     // Auto-submit when all 4 digits are entered and we are in OTP step
     if (!showNameInput && newOtp.every((digit) => digit !== "") && newOtp.length === 4) {
-      handleVerify(newOtp.join(""))
-    }
-  }
-
-  const handleKeyDown = (index, e) => {
-    // Handle backspace
-    if (e.key === "Backspace") {
-      if (otp[index]) {
-        // If current input has value, clear it
-        const newOtp = [...otp]
-        newOtp[index] = ""
-        setOtp(newOtp)
-      } else if (index > 0) {
-        // If current input is empty, move to previous and clear it
-        inputRefs.current[index - 1]?.focus()
-        const newOtp = [...otp]
-        newOtp[index - 1] = ""
-        setOtp(newOtp)
-      }
-    }
-    // Handle paste
-    if (e.key === "v" && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault()
-      navigator.clipboard.readText().then((text) => {
-        const digits = text.replace(/\D/g, "").slice(0, 4).split("")
-        const newOtp = [...otp]
-        digits.forEach((digit, i) => {
-          if (i < 4) {
-            newOtp[i] = digit
-          }
-        })
-        setOtp(newOtp)
-        if (digits.length === 4) {
-          handleVerify(newOtp.join(""))
-        } else {
-          inputRefs.current[digits.length]?.focus()
-        }
-      })
+      handleVerify(digits)
     }
   }
 
   const handlePaste = (e) => {
     e.preventDefault()
     const pastedData = e.clipboardData.getData("text")
-    const digits = pastedData.replace(/\D/g, "").slice(0, 4).split("")
-    const newOtp = [...otp]
-    digits.forEach((digit, i) => {
-      if (i < 4) {
-        newOtp[i] = digit
-      }
-    })
+    const code = pastedData.replace(/\D/g, "").slice(0, 4)
+    const digits = code.split("")
+    const newOtp = Array.from({ length: 4 }, (_, index) => digits[index] || "")
     setOtp(newOtp)
     if (!showNameInput && digits.length === 4) {
-      handleVerify(newOtp.join(""))
+      handleVerify(code)
       return
     }
-    inputRefs.current[digits.length]?.focus()
   }
 
   const handleVerify = async (otpValue = null) => {
@@ -520,24 +468,30 @@ export default function DeliveryOTP() {
           {/* OTP Input Fields */}
           {!showNameInput && !pendingMessage && (
             <>
-              <div className="flex justify-center gap-2">
+              <div className="relative flex justify-center gap-2">
                 {otp.map((digit, index) => (
-                  <Input
+                  <div
                     key={index}
-                    ref={(el) => (inputRefs.current[index] = el)}
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleChange(index, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(index, e)}
-                    onPaste={handlePaste}
-                    disabled={isLoading}
-                    autoComplete="off"
-                    autoFocus={false}
-                    className="w-12 h-12 text-center text-lg font-semibold p-0 border border-black rounded-md focus-visible:ring-0 focus-visible:border-black bg-white"
-                  />
+                    aria-hidden="true"
+                    className="w-12 h-12 flex items-center justify-center text-lg font-semibold border border-black rounded-md bg-white"
+                  >
+                    {digit}
+                  </div>
                 ))}
+                <Input
+                  ref={(el) => (inputRefs.current[0] = el)}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={otp.join("")}
+                  onChange={(e) => handleChange(e.target.value)}
+                  onPaste={handlePaste}
+                  disabled={isLoading}
+                  autoComplete="one-time-code"
+                  autoFocus={false}
+                  aria-label="4-digit OTP"
+                  className="absolute inset-0 w-full h-12 opacity-0 cursor-text"
+                />
               </div>
 
               {/* Resend Section */}
