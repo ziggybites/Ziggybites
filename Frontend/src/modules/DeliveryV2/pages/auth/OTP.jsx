@@ -429,7 +429,7 @@ export default function DeliveryOTP() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-white flex flex-col">
+    <div className="min-h-screen min-h-[100dvh] bg-white flex flex-col">
       {/* Header */}
       <div className="relative flex items-center justify-center py-4 px-4 border-b border-gray-200">
         <button
