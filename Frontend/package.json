@@ -4,7 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/verify-build-integrity.mjs",
     "dev": "vite",
+    "prebuild": "node scripts/verify-build-integrity.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
